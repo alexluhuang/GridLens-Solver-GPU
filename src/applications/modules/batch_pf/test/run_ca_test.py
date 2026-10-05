@@ -30,13 +30,18 @@ Prints "No errors detected" on success (GridPACK's test convention).
 """
 
 import argparse
+import contextlib
 import csv
 import functools
+import itertools
+import json
+import math
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
 
 TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 <Configuration>
@@ -82,17 +87,78 @@ def run(cax, workdir, raw, gpu_lines, solver, env=None, launcher=(),
     e = dict(os.environ)
     if env:
         e.update(env)
+    start = time.monotonic()
     p = subprocess.run(list(launcher) + [cax, "input.xml"], cwd=workdir, env=e,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        universal_newlines=True, timeout=3000)
     with open(os.path.join(workdir, "log.txt"), "w") as f:
         f.write(p.stdout)
+    with open(os.path.join(workdir, "timing.json"), "w") as f:
+        json.dump({"seconds": time.monotonic() - start, "ranks": launcher,
+                   "returncode": p.returncode}, f)
     return p.returncode, p.stdout
 
 
 def rows(path):
     with open(path) as f:
         return list(csv.reader(f))
+
+
+@contextlib.contextmanager
+def event_rows(path):
+    # Stock files arrive in rank order. External sorting bounds memory even
+    # for a full study; Python holds only the rows of one event at a time.
+    process = subprocess.Popen(["sort", "--stable", "--field-separator=,", "--key=1,1n", path],
+                               stdout=subprocess.PIPE, universal_newlines=True,
+                               env=dict(os.environ, LC_ALL="C"))
+    try:
+        reader = csv.reader(process.stdout)
+        header = next(reader)
+        yield header, itertools.groupby(reader, lambda r: int(r[0]))
+        if process.wait() != 0:
+            raise RuntimeError("could not sort " + path)
+    finally:
+        process.stdout.close()
+        if process.poll() is None:
+            process.terminate()
+        process.wait()
+
+
+def compare_table(a, b, name, nkey, tol, errors):
+    with event_rows(os.path.join(a, name)) as (ha, ga), \
+            event_rows(os.path.join(b, name)) as (hb, gb):
+        if ha != hb:
+            errors.append(name + ": header differs")
+            return
+        worst = 0.0
+        for left, right in itertools.zip_longest(ga, gb):
+            if left is None or right is None or left[0] != right[0]:
+                errors.append(name + ": event rows differ")
+                return
+            ra, rb = list(left[1]), list(right[1])
+            ka = {tuple(r[:nkey]): r for r in ra}
+            kb = {tuple(r[:nkey]): r for r in rb}
+            if len(ka) != len(ra) or len(kb) != len(rb):
+                errors.append("%s: duplicate element rows in event %s" % (name, left[0]))
+            if set(ka) != set(kb):
+                errors.append("%s: different elements in event %s" % (name, left[0]))
+                continue
+            for key in ka:
+                if len(ka[key]) != len(kb[key]) or len(ka[key]) != len(ha):
+                    errors.append(name + ": column count differs")
+                for x, y in zip(ka[key], kb[key]):
+                    if x == y:
+                        continue
+                    try:
+                        difference = abs(float(x) - float(y))
+                        if not math.isfinite(difference):
+                            difference = math.inf
+                        if not difference <= tol:
+                            worst = max(worst, difference)
+                    except ValueError:
+                        errors.append("%s: text differs at %s" % (name, key))
+        if worst > tol:
+            errors.append("%s: numbers differ by up to %g" % (name, worst))
 
 
 def compare(a, b, tol, errors, allow_unsolved=True):
@@ -113,31 +179,19 @@ def compare(a, b, tol, errors, allow_unsolved=True):
         elif x[4] != y[4] and x[10] != "DIVERGED":
             errors.append("case %s iterations %s vs %s" % (k, x[4], y[4]))
     # tables: same rows, numbers within tol
-    for name, nkey in ((FILES[1], 6), (FILES[2], None), (FILES[4], 1)):
-        ra, rb = rows(os.path.join(a, name)), rows(os.path.join(b, name))
-        if ra[0] != rb[0]:
-            errors.append("%s: header differs" % name)
-            continue
-        body_a, body_b = ra[1:], rb[1:]
-        if nkey is None:
-            body_a, body_b = sorted(map(tuple, body_a)), sorted(map(tuple, body_b))
-            nkey = len(ra[0]) - 3
-        ka = {tuple(r[:nkey]): r for r in body_a}
-        kb = {tuple(r[:nkey]): r for r in body_b}
-        if set(ka) != set(kb):
-            errors.append("%s: %d vs %d rows, different keys" % (name, len(ka), len(kb)))
-            continue
-        worst = 0.0
-        for k in ka:
-            for x, y in zip(ka[k], kb[k]):
-                if x == y:
-                    continue
-                try:
-                    worst = max(worst, abs(float(x) - float(y)))
-                except ValueError:
-                    errors.append("%s: text differs at %s" % (name, k[:3]))
-        if worst > tol:
-            errors.append("%s: numbers differ by up to %g" % (name, worst))
+    for name, nkey in ((FILES[1], 6), (FILES[2], 4), (FILES[4], 1)):
+        compare_table(a, b, name, nkey, tol, errors)
+    with open(os.path.join(a, FILES[3])) as f, open(os.path.join(b, FILES[3])) as g:
+        def same(x, y):
+            if isinstance(x, dict) and isinstance(y, dict):
+                return x.keys() == y.keys() and all(same(x[k], y[k]) for k in x)
+            if isinstance(x, list) and isinstance(y, list):
+                return len(x) == len(y) and all(same(u, v) for u, v in zip(x, y))
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                return abs(x - y) <= tol
+            return x == y
+        if not same(json.load(f), json.load(g)):
+            errors.append("summary JSON differs")
 
 
 def identical(a, b, errors):
@@ -149,9 +203,16 @@ def identical(a, b, errors):
 
 def ordered(workdir, errors):
     for name in (FILES[0], FILES[1], FILES[2], FILES[4]):
-        indices = [int(r[0]) for r in rows(os.path.join(workdir, name))[1:]]
-        if indices != sorted(indices):
-            errors.append("%s: rows are not in event order" % name)
+        previous = -1
+        with open(os.path.join(workdir, name)) as f:
+            reader = csv.reader(f)
+            next(reader)
+            for row in reader:
+                event = int(row[0])
+                if event < previous:
+                    errors.append("%s: rows are not in event order" % name)
+                    break
+                previous = event
 
 
 def complete(workdir, expected, errors):
