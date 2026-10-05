@@ -39,6 +39,7 @@
 #include <queue>
 #include <map>
 #include <algorithm>
+#include <limits>
 #include "boost/smart_ptr/shared_ptr.hpp"
 #include "gridpack/parser/dictionary.hpp"
 #include "gridpack/parallel/global_vector.hpp"
@@ -1674,6 +1675,24 @@ int PFFactoryModule::supersetType(PFBus *bus)
 }
 
 /**
+ * PFBus::chkQlim() never converts a bus that has no generators. Such a bus
+ * can still be PV: when a generator regulates the voltage of another bus,
+ * setupIREGPointers() makes that other bus PV at the generator's set point
+ * (and the generator's own bus PQ). Exporting unbounded limits for it gives
+ * the batch path's check the same outcome. Without this, the check would
+ * see zero capability and convert every remotely regulated bus.
+ */
+void PFFactoryModule::qlimBounds(PFBus *bus, double *qmax, double *qmin)
+{
+  if (bus->getNumGenerators() == 0) {
+    *qmax = std::numeric_limits<double>::infinity();
+    *qmin = -std::numeric_limits<double>::infinity();
+    return;
+  }
+  bus->getOnlineGenQLimits(qmax, qmin);
+}
+
+/**
  * Sum of the admittance of all branch objects joining local buses k and m,
  * seen from k. Uses the values cached by the last PFBranch::setYBus().
  */
@@ -1733,7 +1752,7 @@ void PFFactoryModule::exportSupersetModel(SupersetModel *model)
     sb.v_solved = bus->getVoltage();
     sb.theta_solved = bus->getPhase();
     bus->getOnlineLoadTotals(&sb.pl, &sb.ql, &sb.ip, &sb.iq, &sb.yp, &sb.yq);
-    bus->getOnlineGenQLimits(&sb.qmax, &sb.qmin);
+    qlimBounds(bus, &sb.qmax, &sb.qmin);
     sb.remote_regulation = bus->hasActiveRemoteRegulation();
     sb.switched_shunt = bus->hasSwitchedShunt();
     if (sb.remote_regulation) model->has_remote_regulation = true;
@@ -1819,7 +1838,7 @@ void PFFactoryModule::captureCaseState(const SupersetModel &model,
     u.g_diag = real(y);
     u.b_diag = imag(y);
     bus->getScheduledInjection(&u.p0, &u.q0);
-    bus->getOnlineGenQLimits(&u.qmax, &u.qmin);
+    qlimBounds(bus, &u.qmax, &u.qmin);
     u.remote_regulation = bus->hasActiveRemoteRegulation();
     state->buses.push_back(u);
   }

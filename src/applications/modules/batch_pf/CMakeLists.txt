@@ -289,7 +289,9 @@ if (GRIDPACK_ENABLE_TESTS)
       ${PETSC_LIBRARIES}
       ${MPI_CXX_LIBRARIES}
     )
-    foreach(grid IEEE14_ca IEEE118)
+    # The WECC grid has remote voltage regulation (PV buses without
+    # generators, which GridPACK never limits)
+    foreach(grid IEEE14_ca IEEE118 240busWECC_2018_PSS_fixedshunt)
       set(dir ${CMAKE_CURRENT_BINARY_DIR}/parity_${grid})
       file(MAKE_DIRECTORY ${dir})
       configure_file(${batchpf_data}/${grid}.raw ${dir}/${grid}.raw COPYONLY)

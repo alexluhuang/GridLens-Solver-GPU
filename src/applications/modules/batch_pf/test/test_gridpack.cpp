@@ -18,6 +18,8 @@
  *     components return in their large layout (extension E6), entry by
  *     entry. Where GridPACK has no block (a branch next to the reference
  *     bus), the superset value must be zero.
+ *     The reactive-limit check then converts the same buses as GridPACK's
+ *     chkQlim() at that state.
  *  2. Classification: every N-1 case classified by the fast path gives the
  *     same path and the same values as GridPACK's full contingency routine.
  */
@@ -194,6 +196,37 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   check(worst_f < 1e-9, "mismatch equals GridPACK's rhsValues()");
   check(worst_d == 0.0, "diagonal blocks equal GridPACK's large layout");
   check(worst_o == 0.0, "branch blocks equal GridPACK's large layout");
+
+  // Reactive-limit check (B8.7) at the same state: the GPU check converts
+  // exactly the buses GridPACK's chkQlim() converts. Buses that are PV
+  // without generators (remote voltage regulation) must never convert.
+  std::vector<int> qcheck(1, 1);
+  w.m_qcheck = qcheck.data();
+  w.qlim_deadband = app.getSolverParameters().qlim_deadband;
+  const QlimCheck qc{m, w};
+  for (int k = 0; k < n; k++) qc(k);
+  std::vector<char> was_pv(n);
+  int no_gen_pv = 0;
+  for (int k = 0; k < n; k++) {
+    PFBus *bus = dynamic_cast<PFBus *>(net->getBus(k).get());
+    was_pv[k] = bus->isPV();
+    if (model.buses[k].type == BATCHPF_BUS_PV && bus->getNumGenerators() == 0) no_gen_pv++;
+  }
+  app.checkQlimViolations();
+  int converted = 0, differ = 0;
+  for (int k = 0; k < n; k++) {
+    PFBus *bus = dynamic_cast<PFBus *>(net->getBus(k).get());
+    if (bus->getReferenceBus() || bus->isIsolated()) continue;
+    const bool by_gridpack = was_pv[k] && !bus->isPV();
+    if (by_gridpack) converted++;
+    if (by_gridpack != (conv[k] != 0)) differ++;
+  }
+  app.clearQlimViolations();
+  PFBus::clearQlimWarnings();
+  std::printf("Q-limit check: GridPACK converts %d buses, the GPU check differs at %d; "
+              "%d PV buses have no generators\n", converted, differ, no_gen_pv);
+  check(qv[0] == converted, "GPU check counts the same conversions");
+  check(differ == 0, "GPU check converts the buses GridPACK converts");
 }
 
 /// Fast-path classification against GridPACK's full routine, all N-1

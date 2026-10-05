@@ -3075,7 +3075,9 @@ void gridpack::powerflow::PFBus::setVoltageState(double v, double theta)
 void gridpack::powerflow::PFBus::applyQlimConversion(bool at_max,
     double q_required)
 {
-  if (!p_isPV) return;
+  // chkQlim() leaves PV buses without generators alone, and clearQlim()
+  // would not restore one (it only restores buses with online generators)
+  if (!p_isPV || p_gstatus.empty()) return;
   double qmax_tot, qmin_tot;
   getOnlineGenQLimits(&qmax_tot, &qmin_tot);
   char warnBuf[256];

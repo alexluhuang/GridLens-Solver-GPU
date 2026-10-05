@@ -424,6 +424,13 @@ class PFFactoryModule
     static int supersetType(PFBus *bus);
 
     /**
+     * Reactive limits GridPACK's Q-limit check applies to a bus (MVAr):
+     * the totals of its in-service generators, or no limits at all for a
+     * bus without generators
+     */
+    static void qlimBounds(PFBus *bus, double *qmax, double *qmin);
+
+    /**
      * Sum of the admittance of all branch objects joining local buses k and
      * m, seen from k (cached by setYBus)
      */

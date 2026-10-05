@@ -225,7 +225,8 @@ typedef struct batchpf_model {
   const double *iq;
   const double *yp;             /* n_bus, in-service constant admittance load */
   const double *yq;
-  const double *qmax;           /* n_bus, in-service generator Q limits */
+  const double *qmax;           /* n_bus, in-service generator Q limits; */
+                               /* infinite where GridPACK never limits Q */
   const double *qmin;
   const int32_t *row_start;     /* n_bus + 1 */
   const int32_t *edge_col;      /* n_edge, column bus of each edge */
