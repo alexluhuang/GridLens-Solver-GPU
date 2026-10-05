@@ -71,6 +71,40 @@ target_compile_options(gridpack_batchpf_warnings INTERFACE
 )
 
 # -------------------------------------------------------------
+# Host library linked into ca.x: settings resolver (B14), accelerator
+# loader (B13), host platform layer (B9-H) and the GridPACK adapter layer
+# (classifier, export, batch scheduling, state injection). No CUDA.
+# -------------------------------------------------------------
+add_library(gridpack_batchpf_host STATIC
+  host/accelerator.cpp
+  host/batch_path.cpp
+  host/classifier.cpp
+  host/host_platform.cpp
+  host/settings.cpp
+)
+add_library(gridpack::batchpf_host ALIAS gridpack_batchpf_host)
+target_compile_features(gridpack_batchpf_host PUBLIC cxx_std_17)
+# GridPACK's own headers are treated as system headers here so that the
+# warning settings above apply to the new code only (risk R-24)
+target_include_directories(gridpack_batchpf_host SYSTEM PRIVATE
+  ${GridPACK_SOURCE_DIR} ${GA_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+# GridPACK exposes its dependencies through variables, not targets, so the
+# host library links what ca.x links (exception EX-CM-02)
+target_link_libraries(gridpack_batchpf_host
+  PUBLIC
+    gridpack::batchpf_interface
+  PRIVATE
+    gridpack_batchpf_warnings
+    gridpack_powerflow_module
+    gridpack_configuration
+    gridpack_parallel
+    gridpack_timer
+    ${GA_LIBRARIES}
+    ${MPI_CXX_LIBRARIES}
+    ${CMAKE_DL_LIBS}
+)
+
+# -------------------------------------------------------------
 # GPU plugins: only with a CUDA compiler
 # -------------------------------------------------------------
 set(GRIDPACK_BATCHPF_HAVE_CUDA OFF)
