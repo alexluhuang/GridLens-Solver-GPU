@@ -185,7 +185,7 @@ void BatchPath::Impl::shadowCompare(int event, const GpuCaseResult &res)
   if (found && app->getIslandCount() <= 1) {
     try {
       ok = app->solve();
-      if (ok && ca_qlim && !app->checkQlimViolations()) app->solve();
+      if (ok && ca_qlim && !app->checkQlimViolations()) ok = app->solve();
     } catch (...) {
       ok = false;
     }
@@ -202,8 +202,11 @@ void BatchPath::Impl::shadowCompare(int event, const GpuCaseResult &res)
     row.max_dv = std::max(row.max_dv, std::fabs(bus->getVoltage() - res.v[k]));
     row.max_dtheta = std::max(row.max_dtheta,
                               std::fabs(wrapDiff(bus->getPhase() - res.theta[k])));
-    if (bus->isPV() && !bus->getReferenceBus()) row.pv_cpu++;
-    if (type[k] == BATCHPF_BUS_PV && res.qlim_conversion[k] == 0) row.pv_gpu++;
+    const bool cpu_pv = bus->isPV() && !bus->getReferenceBus();
+    const bool gpu_pv = type[k] == BATCHPF_BUS_PV && res.qlim_conversion[k] == 0;
+    row.pv_cpu += cpu_pv ? 1 : 0;
+    row.pv_gpu += gpu_pv ? 1 : 0;
+    if (cpu_pv != gpu_pv) row.pv_set_match = 0;
   }
   app->unSetContingency(c);
   if (ca_qlim) app->clearQlimViolations();
@@ -212,17 +215,41 @@ void BatchPath::Impl::shadowCompare(int event, const GpuCaseResult &res)
   if (classes[event].fast) {
     const CaseClass full = classifier->classifyFull(CaseIndex{event}, c);
     auto close = [](double a, double b) {
-      return std::fabs(a - b) <= 1.0e-12 * std::max(1.0, std::fabs(a));
+      return a == b || std::fabs(a - b) <= 1.0e-12 * std::max(1.0, std::fabs(a));
     };
-    std::map<int, batchpf_bus_update> fb;
+    auto sameBus = [&](const batchpf_bus_update &a, const batchpf_bus_update &b) {
+      return a.type == b.type && close(a.g_diag, b.g_diag) && close(a.b_diag, b.b_diag) &&
+             close(a.p0, b.p0) && close(a.q0, b.q0) &&
+             close(a.qmax, b.qmax) && close(a.qmin, b.qmin);
+    };
+    std::map<int, batchpf_bus_update> fb, fast;
     for (const auto &u : full.bus_updates) fb[u.bus] = u;
-    bool match = full.path == CasePath::Gpu;
-    for (const auto &u : classes[event].bus_updates) {
-      const auto it = fb.find(u.bus);
-      if (it == fb.end()) continue;   // full routine lists more buses
-      match = match && it->second.type == u.type && close(it->second.g_diag, u.g_diag) &&
-              close(it->second.b_diag, u.b_diag) && close(it->second.p0, u.p0) &&
-              close(it->second.q0, u.q0);
+    for (const auto &u : classes[event].bus_updates) fast[u.bus] = u;
+    // Either routine may list an unchanged bus. Resolve omitted updates
+    // to the base state and compare the union, including generator limits.
+    const auto busValue = [&](const auto &updates, int bus) {
+      const auto it = updates.find(bus);
+      if (it != updates.end()) return it->second;
+      const auto &b = model.buses[bus];
+      return batchpf_bus_update{bus, b.type, b.g_diag, b.b_diag, b.p0, b.q0, b.qmax, b.qmin};
+    };
+    bool match = full.path == CasePath::Gpu &&
+                 full.slack_bus.value == classes[event].slack_bus.value;
+    for (const auto &u : fb) match = match && sameBus(u.second, busValue(fast, u.first));
+    for (const auto &u : fast) match = match && sameBus(u.second, busValue(fb, u.first));
+    std::map<int, batchpf_edge_update> fe, fast_edges;
+    for (const auto &u : full.edge_updates) fe[u.edge] = u;
+    for (const auto &u : classes[event].edge_updates) fast_edges[u.edge] = u;
+    const auto edgeValue = [&](const auto &updates, int edge) {
+      const auto it = updates.find(edge);
+      if (it != updates.end()) return it->second;
+      return batchpf_edge_update{edge, 0, model.edge_g[edge], model.edge_b[edge]};
+    };
+    for (const auto &updates : {&fe, &fast_edges}) {
+      for (const auto &u : *updates) {
+        const auto a = edgeValue(fe, u.first), b = edgeValue(fast_edges, u.first);
+        match = match && close(a.g, b.g) && close(a.b, b.b);
+      }
     }
     row.class_match = match ? 1 : 0;
   }
@@ -612,20 +639,20 @@ void BatchPath::finish()
   if (!shadow.empty()) {
     std::ofstream out((d.output_file + "_gpu_shadow.csv").c_str());
     out << "event_idx,contingency,cpu_converged,gpu_converged,max_dv_pu,max_dtheta_rad,"
-           "pv_buses_cpu,pv_buses_gpu,classification_match\n";
+           "pv_buses_cpu,pv_buses_gpu,classification_match,pv_set_match\n";
     double mdv = 0.0, mdt = 0.0;
     int agree = 0, pv_agree = 0, cls = 0;
     for (const ShadowRow &r : shadow) {
       out << r.event + 1 << "," << rtrim(ev[r.event].p_name) << "," << r.cpu_ok << ","
           << r.gpu_ok << "," << std::scientific << std::setprecision(3) << r.max_dv << ","
           << r.max_dtheta << std::defaultfloat << "," << r.pv_cpu << "," << r.pv_gpu
-          << "," << r.class_match << "\n";
+          << "," << r.class_match << "," << r.pv_set_match << "\n";
       if (r.cpu_ok) {
         mdv = std::max(mdv, r.max_dv);
         mdt = std::max(mdt, r.max_dtheta);
       }
       agree += (r.cpu_ok == r.gpu_ok) ? 1 : 0;
-      pv_agree += (r.pv_cpu == r.pv_gpu) ? 1 : 0;
+      pv_agree += r.pv_set_match;
       cls += r.class_match;
     }
     std::ostringstream os;

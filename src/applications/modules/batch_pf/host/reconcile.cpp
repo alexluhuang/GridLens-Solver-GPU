@@ -32,6 +32,25 @@ struct Run {
 
 }  // namespace
 
+OutcomeCoverage checkOutcomeCoverage(int expected, const std::vector<int> &indices)
+{
+  OutcomeCoverage result;
+  std::vector<int> seen(expected + 1, 0);
+  for (int event : indices) {
+    if (event == 0) continue;
+    if (event < 1 || event > expected) {
+      result.unexpected.push_back(event);
+    } else {
+      seen[event]++;
+    }
+  }
+  for (int event = 1; event <= expected; event++) {
+    if (seen[event] == 0) result.missing.push_back(event);
+    if (seen[event] > 1) result.duplicates.push_back(event);
+  }
+  return result;
+}
+
 std::size_t appendPartsByEvent(const std::vector<std::string> &parts, std::ostream &out)
 {
   std::vector<Run> runs;

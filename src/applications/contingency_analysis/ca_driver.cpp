@@ -3163,15 +3163,14 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       // outcome (guide 6.5); a missing one is a defect and is reported as
       // MISSING rather than silently left out.
       if (gpuPath.active()) {
-        std::vector<int> seen(events.size() + 1, 0);
+        std::vector<int> indices;
         for (size_t i = 0; i < all.size(); i++) {
-          if (all[i].first > 0 && all[i].first <= (int)events.size()) {
-            seen[all[i].first]++;
-          }
+          indices.push_back(all[i].first);
         }
-        int missing = 0;
-        for (size_t ei = 0; ei < events.size(); ei++) {
-          if (seen[ei + 1] > 0) continue;
+        const auto coverage = gridpack::batchpf::checkOutcomeCoverage(
+            static_cast<int>(events.size()), indices);
+        for (int event : coverage.missing) {
+          const size_t ei = static_cast<size_t>(event - 1);
           std::ostringstream row;
           std::string nm = events[ei].p_name;
           while (!nm.empty() && nm[nm.size()-1] == ' ') nm.resize(nm.size()-1);
@@ -3179,12 +3178,12 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
               << ((events[ei].p_type == Branch) ? "branch" : "generator")
               << ",false,0,0.000000e+00,0,0.0000,0,0.0000,MISSING\n";
           all.push_back(std::make_pair(static_cast<int>(ei) + 1, row.str()));
-          missing++;
         }
-        if (missing > 0) {
+        if (!coverage.complete()) {
           std::sort(all.begin(), all.end());
-          printf("WARNING: %d contingencies have no outcome (status MISSING); "
-                 "the study is incomplete\n", missing);
+          printf("WARNING: study incomplete: %zu missing outcomes (status MISSING), "
+                 "%zu repeated cases, %zu unexpected indices\n",
+                 coverage.missing.size(), coverage.duplicates.size(), coverage.unexpected.size());
         }
       }
       std::string convFile = outputFile + "_convergence.csv";
@@ -3254,4 +3253,3 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     timer->dump();
   }
 }
-

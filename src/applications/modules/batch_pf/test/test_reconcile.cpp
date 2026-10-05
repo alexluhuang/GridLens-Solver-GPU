@@ -54,6 +54,17 @@ void check(const Scratch &scratch, const std::vector<std::string> &contents,
 int main()
 {
   try {
+    using gridpack::batchpf::checkOutcomeCoverage;
+    if (!checkOutcomeCoverage(0, {0}).complete() ||
+        !checkOutcomeCoverage(3, {2, 0, 1, 3}).complete()) {
+      throw std::runtime_error("complete study rejected");
+    }
+    const auto faults = checkOutcomeCoverage(4, {0, 1, 1, 3, -1, 5});
+    if (faults.complete() || faults.missing != std::vector<int>{2, 4} ||
+        faults.duplicates != std::vector<int>{1} ||
+        faults.unexpected != std::vector<int>{-1, 5}) {
+      throw std::runtime_error("missing or repeated outcomes went undetected");
+    }
     const Scratch scratch;
     check(scratch, {}, "", 0);
     check(scratch, {"", ""}, "", 0);

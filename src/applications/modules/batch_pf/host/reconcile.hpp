@@ -43,6 +43,19 @@ namespace batchpf {
  */
 std::size_t appendPartsByEvent(const std::vector<std::string> &parts, std::ostream &out);
 
+struct OutcomeCoverage {
+  std::vector<int> missing;
+  std::vector<int> duplicates;
+  std::vector<int> unexpected;
+  bool complete() const noexcept
+  {
+    return missing.empty() && duplicates.empty() && unexpected.empty();
+  }
+};
+
+// Event zero is the base case. Contingencies have indices 1..expected.
+OutcomeCoverage checkOutcomeCoverage(int expected, const std::vector<int> &indices);
+
 }  // namespace batchpf
 }  // namespace gridpack
 

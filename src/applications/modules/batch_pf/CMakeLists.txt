@@ -349,7 +349,7 @@ if (GRIDPACK_ENABLE_TESTS)
     foreach(b ${backends})
       batchpf_add_test(batchpf.parity.ca_ieee118_${b} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/parity_${b}
-        --mode parity --backend ${b} --solver ${lu})
+        --mode parity --require-shadow-sets --backend ${b} --solver ${lu})
     endforeach()
     if (NOT GRIDPACK_BATCHPF_HAVE_CUDA)
       batchpf_add_test(batchpf.platform.cpu_only_ieee118 ${Python3_EXECUTABLE} ${runner}
@@ -361,23 +361,23 @@ if (GRIDPACK_ENABLE_TESTS)
       foreach(ranks 2 4)
         batchpf_add_test(batchpf.parity.mpi_${ranks} ${Python3_EXECUTABLE} ${runner}
           --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/mpi_${ranks}
-          --mode parity --backend alg2 --solver ${lu} --ranks ${ranks}
+          --mode parity --require-shadow-sets --backend alg2 --solver ${lu} --ranks ${ranks}
           --mpiexec ${MPIEXEC} --gpu-setting "<batchSize>32</batchSize>")
       endforeach()
       batchpf_add_test(batchpf.parity.mpi_two_accelerators ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/mpi_two_accelerators
-        --mode parity --backend alg2 --solver ${lu} --ranks 4 --mpiexec ${MPIEXEC}
+        --mode parity --require-shadow-sets --backend alg2 --solver ${lu} --ranks 4 --mpiexec ${MPIEXEC}
         --accelerator-ranks 0,1 --gpu-setting "<batchSize>32</batchSize>")
     endif()
     if (GRIDPACK_BATCHPF_HAVE_CUDA)
       batchpf_add_test(batchpf.platform.validated_cap ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/validated_cap
-        --mode parity --backend alg2 --solver ${lu}
+        --mode parity --require-shadow-sets --backend alg2 --solver ${lu}
         --gpu-setting "<batchSize>32</batchSize>"
         --gpu-setting "<maxValidatedBatch>8</maxValidatedBatch>" --expect-batch-at-most 8)
       batchpf_add_test(batchpf.platform.memory_cap ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/memory_cap
-        --mode parity --backend alg2 --solver ${lu}
+        --mode parity --require-shadow-sets --backend alg2 --solver ${lu}
         --gpu-setting "<batchSize>64</batchSize>"
         --gpu-setting "<maxMemoryGB>0.001</maxMemoryGB>" --expect-batch-at-most 32)
     endif()
@@ -397,7 +397,7 @@ if (GRIDPACK_ENABLE_TESTS)
         endif()
         batchpf_add_test(batchpf.parity.external_${case_name}_${b}
           ${Python3_EXECUTABLE} ${runner} --cax $<TARGET_FILE:ca.x> --raw ${raw}
-          --workdir ${work}/${case_name}_${b} --mode parity --backend ${b}
+          --workdir ${work}/${case_name}_${b} --mode parity --require-shadow-sets --backend ${b}
           --solver ${lu} --ranks 8 --mpiexec ${MPIEXEC})
       endforeach()
     endforeach()

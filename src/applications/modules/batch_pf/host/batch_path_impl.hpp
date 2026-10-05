@@ -62,6 +62,7 @@ struct ShadowRow {
   double max_dtheta = 0.0;
   int pv_cpu = 0;
   int pv_gpu = 0;
+  int pv_set_match = 1;
   int class_match = 1;         // fast-path classification equals full routine
 };
 

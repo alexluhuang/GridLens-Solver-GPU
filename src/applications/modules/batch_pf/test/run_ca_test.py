@@ -226,7 +226,7 @@ def complete(workdir, expected, errors):
             errors.append("case %s has no outcome" % row[0])
 
 
-def shadow(workdir, errors):
+def shadow(workdir, errors, require_sets=False):
     for row in csv.DictReader(open(os.path.join(workdir, "ca_results_gpu_shadow.csv"))):
         if row["cpu_converged"] != row["gpu_converged"]:
             errors.append("case %s: shadow convergence differs" % row["event_idx"])
@@ -235,6 +235,8 @@ def shadow(workdir, errors):
                 errors.append("case %s: %s exceeds 1e-6" % (row["event_idx"], key))
         if row["pv_buses_cpu"] != row["pv_buses_gpu"] or row["classification_match"] != "1":
             errors.append("case %s: shadow bus types or classification differ" % row["event_idx"])
+        if row.get("pv_set_match") == "0" or (require_sets and "pv_set_match" not in row):
+            errors.append("case %s: exact PV/PQ set comparison failed or absent" % row["event_idx"])
 
 
 def main():
@@ -252,6 +254,7 @@ def main():
     ap.add_argument("--gpu-setting", action="append", default=[])
     ap.add_argument("--stock-cax")
     ap.add_argument("--expect-batch-at-most", type=int)
+    ap.add_argument("--require-shadow-sets", action="store_true")
     args = ap.parse_args()
     errors = []
     if args.ranks < 1:
@@ -277,7 +280,7 @@ def main():
             ordered(test, errors)
             expected = len(rows(os.path.join(stock, FILES[4]))) - 2
             complete(test, expected, errors)
-            shadow(test, errors)
+            shadow(test, errors, args.require_shadow_sets)
             if args.expect_batch_at_most is not None:
                 capacities = re.findall(r"backend \w+ \([^\n]+\), batch size (\d+)", out)
                 if not capacities or any(int(b) > args.expect_batch_at_most for b in capacities):
