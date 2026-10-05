@@ -308,6 +308,15 @@ typedef struct batchpf_outcome {
   double max_q_mismatch;        /* MVAr */
 } batchpf_outcome;
 
+/* Largest mismatches after one Newton iteration, as GridPACK records them
+ * in its convergence history */
+typedef struct batchpf_mismatch_record {
+  int32_t max_p_bus;            /* local bus, or -1 */
+  int32_t max_q_bus;
+  double max_p_mismatch;        /* MW */
+  double max_q_mismatch;        /* MVAr */
+} batchpf_mismatch_record;
+
 /* Caller-provided output buffers for a batch (I-7 and I-9). Per-bus arrays
  * are case-major: entry (case c, bus k) is at c * n_bus + k. */
 typedef struct batchpf_results {
@@ -320,6 +329,12 @@ typedef struct batchpf_results {
   double *theta;                /* n_cases * n_bus */
   int32_t *qlim_conversion;     /* n_cases * n_bus: 0, +1 (at Qmax), -1 */
   double *q_required;           /* n_cases * n_bus: MVAr at conversion */
+  /* Optional: history of the last Newton loop (may be NULL). Case c has
+   * history_count[c] records starting at history[c * history_capacity]. */
+  int32_t history_capacity;
+  int32_t reserved;
+  batchpf_mismatch_record *history;
+  int32_t *history_count;       /* n_cases */
 } batchpf_results;
 
 /* Totals collected by the plugin (guide section 8.12) */
