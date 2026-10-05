@@ -331,9 +331,9 @@ if (GRIDPACK_ENABLE_TESTS)
         --cax $<TARGET_FILE:ca.x> --raw ${raw14} --workdir ${work}/${mode}
         --mode ${mode} --solver ${lu})
     endforeach()
-    set(backends cpu_reference)
+    set(backends)
     if (GRIDPACK_BATCHPF_HAVE_CUDA)
-      list(APPEND backends alg2)
+      list(APPEND backends cpu_reference alg2)
       if (cudss_FOUND)
         list(APPEND backends cudss)
       endif()
@@ -342,6 +342,44 @@ if (GRIDPACK_ENABLE_TESTS)
       batchpf_add_test(batchpf.parity.ca_ieee118_${b} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/parity_${b}
         --mode parity --backend ${b} --solver ${lu})
+    endforeach()
+    if (NOT GRIDPACK_BATCHPF_HAVE_CUDA)
+      batchpf_add_test(batchpf.platform.cpu_only_ieee118 ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/cpu_only_118
+        --mode no_block --solver ${lu})
+    endif()
+
+    if (GRIDPACK_BATCHPF_HAVE_CUDA AND MPIEXEC)
+      foreach(ranks 2 4)
+        batchpf_add_test(batchpf.parity.mpi_${ranks} ${Python3_EXECUTABLE} ${runner}
+          --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/mpi_${ranks}
+          --mode parity --backend alg2 --solver ${lu} --ranks ${ranks}
+          --mpiexec ${MPIEXEC} --gpu-setting "<batchSize>32</batchSize>")
+      endforeach()
+      batchpf_add_test(batchpf.parity.mpi_two_accelerators ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/mpi_two_accelerators
+        --mode parity --backend alg2 --solver ${lu} --ranks 4 --mpiexec ${MPIEXEC}
+        --accelerator-ranks 0,1 --gpu-setting "<batchSize>32</batchSize>")
+    endif()
+
+    # External RAW files are not redistributed. Point this list at locally
+    # available validation cases (at most 10k buses, per the handoff).
+    set(GRIDPACK_BATCHPF_TEST_RAW_FILES "" CACHE STRING
+      "Optional RAW files for full N-1 parity tests; semicolon-separated")
+    foreach(raw IN LISTS GRIDPACK_BATCHPF_TEST_RAW_FILES)
+      if (NOT EXISTS "${raw}")
+        message(FATAL_ERROR "Batch parity RAW file does not exist: ${raw}")
+      endif()
+      get_filename_component(case_name "${raw}" NAME_WE)
+      foreach(b IN LISTS backends)
+        if (b STREQUAL "cpu_reference")
+          continue()
+        endif()
+        batchpf_add_test(batchpf.parity.external_${case_name}_${b}
+          ${Python3_EXECUTABLE} ${runner} --cax $<TARGET_FILE:ca.x> --raw ${raw}
+          --workdir ${work}/${case_name}_${b} --mode parity --backend ${b}
+          --solver ${lu} --ranks 8 --mpiexec ${MPIEXEC})
+      endforeach()
     endforeach()
   endif()
 endif()
