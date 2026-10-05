@@ -34,6 +34,7 @@
 #include "gridpack/utilities/results_exporter.hpp"
 #include "ca_driver.hpp"
 #include "gridpack/applications/modules/batch_pf/host/batch_path.hpp"
+#include "gridpack/applications/modules/batch_pf/host/reconcile.hpp"
 
 #include <boost/scoped_ptr.hpp>
 #include <sstream>
@@ -2414,7 +2415,18 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
                            std::ios::out | std::ios::trunc | std::ios::binary);
         fout << header;
         size_t rows = 0;
-        for (int p = 0; p < world.size(); p++) {
+        if (gpuPath.active()) {
+          // batch path: rows in event order (guide R5)
+          std::vector<std::string> parts;
+          for (int p = 0; p < world.size(); p++) {
+            std::ostringstream oss;
+            oss << outputFile << suffix << p << ".part";
+            parts.push_back(oss.str());
+          }
+          rows = gridpack::batchpf::appendPartsByEvent(parts, fout);
+          for (const std::string &part : parts) std::remove(part.c_str());
+        }
+        for (int p = 0; p < world.size() && !gpuPath.active(); p++) {
           std::ostringstream oss;
           oss << outputFile << suffix << p << ".part";
           std::string part = oss.str();
@@ -2505,7 +2517,18 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     fout << "event_idx,contingency,type,element,mva_or_vpu,rate_or_limit,"
             "loading_percent,base_mva,delta,severity\n";
     size_t rows = 0;
-    for (int p = 0; p < world.size(); p++) {
+    if (gpuPath.active()) {
+      // batch path: rows in event order (guide R5)
+      std::vector<std::string> parts;
+      for (int p = 0; p < world.size(); p++) {
+        std::ostringstream oss;
+        oss << outputFile << "_violations." << p << ".part";
+        parts.push_back(oss.str());
+      }
+      rows = gridpack::batchpf::appendPartsByEvent(parts, fout);
+      for (const std::string &part : parts) std::remove(part.c_str());
+    }
+    for (int p = 0; p < world.size() && !gpuPath.active(); p++) {
       std::ostringstream oss;
       oss << outputFile << "_violations." << p << ".part";
       std::string part = oss.str();

@@ -81,6 +81,7 @@ add_library(gridpack_batchpf_host STATIC
   host/batch_run.cpp
   host/classifier.cpp
   host/host_platform.cpp
+  host/reconcile.cpp
   host/settings.cpp
 )
 add_library(gridpack::batchpf_host ALIAS gridpack_batchpf_host)
@@ -251,6 +252,11 @@ if (GRIDPACK_ENABLE_TESTS)
   target_link_libraries(batchpf_test_control PRIVATE
     gridpack::batchpf_interface gridpack_batchpf_warnings)
   batchpf_add_test(batchpf.unit.control $<TARGET_FILE:batchpf_test_control>)
+
+  add_executable(batchpf_test_reconcile test/test_reconcile.cpp host/reconcile.cpp)
+  target_compile_features(batchpf_test_reconcile PRIVATE cxx_std_17)
+  target_link_libraries(batchpf_test_reconcile PRIVATE gridpack_batchpf_warnings)
+  batchpf_add_test(batchpf.unit.reconcile $<TARGET_FILE:batchpf_test_reconcile>)
 
   set(batchpf_data ${GRIDPACK_DATA_DIR}/raw)
   find_package(Python3 COMPONENTS Interpreter QUIET)

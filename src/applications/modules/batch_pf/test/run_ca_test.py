@@ -140,6 +140,13 @@ def identical(a, b, errors):
                 errors.append("%s differs from the stock run" % name)
 
 
+def ordered(workdir, errors):
+    for name in (FILES[0], FILES[1], FILES[2], FILES[4]):
+        indices = [int(r[0]) for r in rows(os.path.join(workdir, name))[1:]]
+        if indices != sorted(indices):
+            errors.append("%s: rows are not in event order" % name)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cax", required=True)
@@ -167,6 +174,7 @@ def main():
             errors.append("GPU run failed with exit code %d" % code)
         else:
             compare(stock, test, args.tol, errors)
+            ordered(test, errors)
             if "shadow validation" not in out:
                 errors.append("no shadow validation summary in the log")
     elif args.mode in ("no_block", "disabled"):
