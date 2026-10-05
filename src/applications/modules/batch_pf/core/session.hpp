@@ -41,6 +41,8 @@ class Session {
   ~Session();
   Session(const Session &) = delete;
   Session &operator=(const Session &) = delete;
+  Session(Session &&) = delete;
+  Session &operator=(Session &&) = delete;
 
   batchpf_device_info deviceInfo() const;
   void setModel(const batchpf_model &model);

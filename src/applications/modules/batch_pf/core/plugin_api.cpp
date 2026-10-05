@@ -22,6 +22,7 @@
 #include <memory>
 #include <new>
 #include <string>
+#include <utility>
 
 #include "common.hpp"
 #include "gridpack/batchpf/batchpf_plugin.h"
@@ -54,7 +55,7 @@ template <class F>
 batchpf_status guarded(batchpf_session *s, char *err, size_t err_size, F &&f)
 {
   try {
-    f();
+    std::forward<F>(f)();
     return BATCHPF_OK;
   } catch (const Error &e) {
     if (s) s->error = e.what();

@@ -74,6 +74,8 @@ class BatchPath {
   ~BatchPath();
   BatchPath(const BatchPath &) = delete;
   BatchPath &operator=(const BatchPath &) = delete;
+  BatchPath(BatchPath &&) = delete;
+  BatchPath &operator=(BatchPath &&) = delete;
 
   /// True if the batch path will run (some rank has a working accelerator)
   bool active() const;

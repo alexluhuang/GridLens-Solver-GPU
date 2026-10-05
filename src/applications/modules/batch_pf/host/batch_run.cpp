@@ -69,8 +69,8 @@ struct Chunk {
   std::vector<double> v, theta, qreq;
   std::vector<int32_t> conv, hist_count;
   std::vector<batchpf_mismatch_record> hist;
-  batchpf_batch batch;
-  batchpf_results results;
+  batchpf_batch batch{};
+  batchpf_results results{};
   int64_t ticket = 0;
 };
 
@@ -147,7 +147,7 @@ void BatchPath::Impl::processGpuCase(int event, const batchpf_outcome &o,
     cs.finalMismatch.maxQBus = orig(o.max_q_bus);
     cs.finalMismatch.maxQMismatch = o.max_q_mismatch;
     for (int k = 0; k < hist_count; k++) {
-      gridpack::utility::MismatchInfo m;
+      gridpack::utility::MismatchInfo m{};
       m.maxPBus = orig(hist[k].max_p_bus);
       m.maxPMismatch = hist[k].max_p_mismatch;
       m.maxQBus = orig(hist[k].max_q_bus);
@@ -252,7 +252,8 @@ void BatchPath::run(const ProcessCase &process)
     if (!d.acc || next >= d.my_gpu_events.size()) return;
     auto ch = std::make_shared<Chunk>();
     const std::size_t end = std::min(d.my_gpu_events.size(), next + chunk_cases);
-    ch->events.assign(d.my_gpu_events.begin() + next, d.my_gpu_events.begin() + end);
+    ch->events.assign(d.my_gpu_events.begin() + static_cast<std::ptrdiff_t>(next),
+                      d.my_gpu_events.begin() + static_cast<std::ptrdiff_t>(end));
     next = end;
     const int m = static_cast<int>(ch->events.size());
     for (int e : ch->events) {
@@ -379,7 +380,7 @@ void BatchPath::run(const ProcessCase &process)
     }
   }
   std::deque<int> waiting;
-  struct Send { std::vector<char> buf; MPI_Request req; };
+  struct Send { std::vector<char> buf; MPI_Request req = MPI_REQUEST_NULL; };
   std::list<Send> sends;
   bool request_out = false;
   int current = 0;
@@ -480,7 +481,8 @@ void BatchPath::run(const ProcessCase &process)
           int32_t head[3];
           const char *p = get(buf.data(), head, 3);
           if (head[0] == 0) {
-            servers.erase(servers.begin() + (current % servers.size()));
+            servers.erase(servers.begin() +
+                          static_cast<std::ptrdiff_t>(current % servers.size()));
           } else {
             const int nb = head[1], hc = head[2];
             std::vector<batchpf_mismatch_record> hist(hc);
@@ -687,8 +689,8 @@ void BatchPath::finish()
          << 100.0 * g.newton_steps / g.slot_steps << "%";
     }
     d.info(ds.str());
-    auto bw = [](double bytes, double secs) {
-      return secs > 0.0 ? bytes / secs / 1.0e9 : 0.0;
+    auto bw = [](int64_t bytes, double secs) {
+      return secs > 0.0 ? static_cast<double>(bytes) / secs / 1.0e9 : 0.0;
     };
     std::ostringstream ps;
     ps << std::fixed << std::setprecision(3) << "  phases (s): materialize "

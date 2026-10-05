@@ -93,6 +93,8 @@ class Engine {
   ~Engine();
   Engine(const Engine &) = delete;
   Engine &operator=(const Engine &) = delete;
+  Engine(Engine &&) = delete;
+  Engine &operator=(Engine &&) = delete;
 
   /**
    * Build the superset pattern, the reference Jacobian (base case) and the

@@ -16,8 +16,9 @@
 #include <limits.h>
 #include <unistd.h>
 
-#include <cstdio>
+#include <array>
 #include <cstring>
+#include <iostream>
 #include <memory>
 
 namespace gridpack {
@@ -26,6 +27,7 @@ namespace batchpf {
 namespace {
 
 const char *const kCoreLibrary = "libgridpack_batchpf_core.so";
+constexpr std::size_t kErrorBufferSize = 1024;
 
 const char *levelName(int level)
 {
@@ -94,10 +96,9 @@ void HostLogger::log(int level, const std::string &msg)
 {
   if (!enabled(level)) return;
   std::lock_guard<std::mutex> lock(p_mutex);
-  std::printf("[gpu-batch p%d] %s%s%s\n", p_rank,
-              (level <= BATCHPF_LOG_WARN) ? levelName(level) : "",
-              (level <= BATCHPF_LOG_WARN) ? ": " : "", msg.c_str());
-  std::fflush(stdout);
+  std::cout << "[gpu-batch p" << p_rank << "] ";
+  if (level <= BATCHPF_LOG_WARN) std::cout << levelName(level) << ": ";
+  std::cout << msg << std::endl;
 }
 
 void HostLogger::callback(void *user, int32_t level, const char *message)
@@ -107,11 +108,10 @@ void HostLogger::callback(void *user, int32_t level, const char *message)
 
 std::string executableDirectory()
 {
-  char buf[PATH_MAX + 1];
-  const ssize_t n = readlink("/proc/self/exe", buf, PATH_MAX);
+  std::array<char, PATH_MAX> buf{};
+  const ssize_t n = readlink("/proc/self/exe", buf.data(), buf.size());
   if (n <= 0) return ".";
-  buf[n] = '\0';
-  std::string path(buf);
+  std::string path(buf.data(), static_cast<std::size_t>(n));
   const std::size_t slash = path.find_last_of('/');
   return (slash == std::string::npos) ? "." : path.substr(0, slash);
 }
@@ -129,10 +129,7 @@ struct Accelerator::Library {
   std::unique_ptr<void, DlClose> handle;
 };
 
-Accelerator::Accelerator() : p_lib(std::make_unique<Library>())
-{
-  std::memset(&p_api, 0, sizeof(p_api));
-}
+Accelerator::Accelerator(ConstructionKey) : p_lib(std::make_unique<Library>()) {}
 
 Accelerator::~Accelerator()
 {
@@ -142,7 +139,7 @@ Accelerator::~Accelerator()
 std::unique_ptr<Accelerator> Accelerator::load(const std::vector<std::string> &dirs,
                                                int device, std::string *why)
 {
-  std::unique_ptr<Accelerator> acc(new Accelerator);
+  auto acc = std::make_unique<Accelerator>(ConstructionKey{});
   std::string tried;
   bool loaded = false;
   for (const std::string &dir : dirs) {
@@ -162,20 +159,20 @@ std::unique_ptr<Accelerator> Accelerator::load(const std::vector<std::string> &d
   acc->p_build = acc->p_api.build_info ? acc->p_api.build_info : "";
   std::memset(&acc->p_probe, 0, sizeof(acc->p_probe));
   acc->p_probe.struct_size = sizeof(acc->p_probe);
-  char err[512] = {0};
-  acc->p_probe_ok = acc->p_api.probe(device, &acc->p_probe, err, sizeof(err)) == BATCHPF_OK;
-  acc->p_probe_msg = err;
+  std::array<char, kErrorBufferSize> err{};
+  acc->p_probe_ok = acc->p_api.probe(device, &acc->p_probe, err.data(), err.size()) == BATCHPF_OK;
+  acc->p_probe_msg = err.data();
   return acc;
 }
 
 bool Accelerator::createSession(batchpf_settings settings, std::string *why)
 {
   settings.plugin_dir = p_dir.c_str();
-  char err[1024] = {0};
-  const batchpf_status st = p_api.session_create(&settings, &p_session, err, sizeof(err));
+  std::array<char, kErrorBufferSize> err{};
+  const batchpf_status st = p_api.session_create(&settings, &p_session, err.data(), err.size());
   if (st != BATCHPF_OK || !p_session) {
     p_session = nullptr;
-    *why = std::string("accelerator unavailable: ") + err;
+    *why = std::string("accelerator unavailable: ") + err.data();
     return false;
   }
   return true;
@@ -185,18 +182,18 @@ int Accelerator::countDevices(const std::vector<std::string> &dirs, std::string 
 {
   for (const std::string &dir : dirs) {
     std::unique_ptr<void, DlClose> handle;
-    batchpf_api api;
+    batchpf_api api{};
     std::string file, reason;
     if (!loadTable(dir, &handle, &api, &file, &reason)) {
       *why = reason;
       continue;
     }
-    batchpf_device_info info;
+    batchpf_device_info info{};
     std::memset(&info, 0, sizeof(info));
     info.struct_size = sizeof(info);
-    char err[512] = {0};
-    if (api.probe(0, &info, err, sizeof(err)) != BATCHPF_OK) {
-      *why = err;
+    std::array<char, kErrorBufferSize> err{};
+    if (api.probe(0, &info, err.data(), err.size()) != BATCHPF_OK) {
+      *why = err.data();
       return 0;
     }
     return info.device_count;

@@ -78,6 +78,8 @@ class SolverBackend {
   SolverBackend() = default;
   SolverBackend(const SolverBackend &) = delete;
   SolverBackend &operator=(const SolverBackend &) = delete;
+  SolverBackend(SolverBackend &&) = delete;
+  SolverBackend &operator=(SolverBackend &&) = delete;
   virtual ~SolverBackend() = default;
 
   virtual BackendCaps caps() const = 0;

@@ -58,6 +58,8 @@ class CpuReferenceBackend : public SolverBackend {
 
   CpuReferenceBackend(const CpuReferenceBackend &) = delete;
   CpuReferenceBackend &operator=(const CpuReferenceBackend &) = delete;
+  CpuReferenceBackend(CpuReferenceBackend &&) = delete;
+  CpuReferenceBackend &operator=(CpuReferenceBackend &&) = delete;
 
   ~CpuReferenceBackend() override
   {
@@ -137,7 +139,7 @@ class CpuReferenceBackend : public SolverBackend {
   int p_B;
   int p_tasks = 1;
   CscPattern p_csc;
-  klu_common p_common;
+  klu_common p_common{};
   klu_symbolic *p_symbolic = nullptr;
   std::vector<klu_numeric *> p_numeric;   // owned; freed in the destructor
   std::vector<klu_common> p_commons;      // one per member: no sharing

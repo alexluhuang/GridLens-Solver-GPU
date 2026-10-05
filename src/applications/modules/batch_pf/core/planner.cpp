@@ -117,12 +117,14 @@ namespace {
 /// Owner of KLU's symbolic and numeric objects (they need the common block
 /// to be freed)
 struct KluObjects {
-  klu_common common;
+  klu_common common{};
   klu_symbolic *symbolic = nullptr;
   klu_numeric *numeric = nullptr;
   KluObjects() { klu_defaults(&common); }
   KluObjects(const KluObjects &) = delete;
   KluObjects &operator=(const KluObjects &) = delete;
+  KluObjects(KluObjects &&) = delete;
+  KluObjects &operator=(KluObjects &&) = delete;
   ~KluObjects()
   {
     if (numeric) klu_free_numeric(&numeric, &common);

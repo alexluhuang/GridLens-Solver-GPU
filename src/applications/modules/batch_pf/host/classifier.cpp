@@ -124,7 +124,7 @@ void Classifier::findBridges()
     if (!net.getActiveBranch(i)) continue;
     const std::vector<bool> st = branchAt(net, i)->getLineStatus();
     if (std::find(st.begin(), st.end(), true) == st.end()) continue;
-    int a, b;
+    int a = 0, b = 0;
     net.getBranchEndpoints(i, &a, &b);
     if (a == b || busAt(net, a)->isIsolated() || busAt(net, b)->isIsolated()) continue;
     adj[a].emplace_back(b, i);
@@ -219,7 +219,7 @@ bool Classifier::classifyFastBranch(CaseIndex event, gridpack::powerflow::Contin
   int lone = -1;
   if (saved && !other_active && p_bridge[lid]) {
     // The branch is the only link between two parts of the network
-    int a, b;
+    int a = 0, b = 0;
     net.getBranchEndpoints(lid, &a, &b);
     const bool a_lone = p_degree[a] == 1;
     const bool b_lone = p_degree[b] == 1;

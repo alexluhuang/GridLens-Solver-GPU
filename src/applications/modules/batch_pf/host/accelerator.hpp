@@ -71,10 +71,14 @@ std::vector<std::string> pluginSearchPath(const std::string &configured,
                                           const std::string &exe_dir);
 
 class Accelerator {
+  struct ConstructionKey {};
  public:
+  explicit Accelerator(ConstructionKey);
   ~Accelerator();
   Accelerator(const Accelerator &) = delete;
   Accelerator &operator=(const Accelerator &) = delete;
+  Accelerator(Accelerator &&) = delete;
+  Accelerator &operator=(Accelerator &&) = delete;
 
   /**
    * Load the core plugin from the first directory that has it, check the
@@ -114,17 +118,16 @@ class Accelerator {
 
  private:
   struct Library;
-  Accelerator();
   void check(batchpf_status st, const char *what);
 
   std::unique_ptr<Library> p_lib;
-  batchpf_api p_api;
+  batchpf_api p_api{};
   batchpf_session *p_session = nullptr;   // owned; destroyed in ~Accelerator
   std::string p_dir;                      // owned copy of plugin_dir
   std::string p_file;
   std::string p_version;
   std::string p_build;
-  batchpf_device_info p_probe;
+  batchpf_device_info p_probe{};
   bool p_probe_ok = false;
   std::string p_probe_msg;
 };

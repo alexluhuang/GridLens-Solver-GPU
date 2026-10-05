@@ -87,7 +87,7 @@ std::size_t appendPartsByEvent(const std::vector<std::string> &parts, std::ostre
     char last = '\n';
     while (left > 0 && *in) {
       const std::streamsize want =
-          static_cast<std::streamsize>(std::min<std::streamoff>(left, buf.size()));
+          static_cast<std::streamsize>(std::min(left, static_cast<std::streamoff>(buf.size())));
       in->read(buf.data(), want);
       const std::streamsize got = in->gcount();
       if (got <= 0) break;
