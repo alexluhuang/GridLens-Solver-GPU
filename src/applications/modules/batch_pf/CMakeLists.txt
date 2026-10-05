@@ -23,6 +23,25 @@
 
 include(CheckLanguage)
 
+# GridPACK's top-level CMakeLists.txt passes GCC warning flags (-pedantic,
+# -Wall, ...) with add_definitions(), which applies them to every language
+# in every directory. nvcc does not accept them and -pedantic makes the host
+# compiler warn about every line marker nvcc emits. The existing lines stay
+# as they are (exception EX-CM-01); this directory removes the same flags
+# and sets its own through gridpack_batchpf_warnings (exception EX-CM-04).
+if (CMAKE_COMPILER_IS_GNUCXX)
+  remove_definitions(
+    -pedantic
+    -Wno-write-strings
+    -Wno-long-long
+    -Wno-sign-compare
+    -Wno-unused-variable
+    -Wno-unused-but-set-variable
+    -Wno-maybe-uninitialized
+    -Wall
+  )
+endif()
+
 set(GRIDPACK_ENABLE_GPU_BATCH "AUTO" CACHE STRING
   "Build the GPU batch plugins: AUTO (if a CUDA compiler is found), ON, OFF")
 set_property(CACHE GRIDPACK_ENABLE_GPU_BATCH PROPERTY STRINGS AUTO ON OFF)
@@ -82,6 +101,55 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
     "architectures ${CMAKE_CUDA_ARCHITECTURES})")
 else()
   message(STATUS "GPU batch plugins: not built; ca.x uses the CPU path")
+endif()
+
+# -------------------------------------------------------------
+# Core GPU plugin: planner (B6), engine (B8), device platform layer (B9-D),
+# built-in backends (Algorithm 2, CPU reference KLU)
+# -------------------------------------------------------------
+if (GRIDPACK_BATCHPF_HAVE_CUDA)
+  find_package(CUDAToolkit REQUIRED)
+  find_package(Threads REQUIRED)
+  # SuiteSparse as installed by GridPACK's PETSc build exports CMake
+  # targets; its config files find their own dependencies (AMD, COLAMD,
+  # BTF, SuiteSparse_config) through the prefix path, so add PETSc's
+  # prefix in this directory only.
+  list(PREPEND CMAKE_PREFIX_PATH ${PETSC_DIR})
+  find_package(KLU CONFIG REQUIRED)
+
+  add_library(gridpack_batchpf_core MODULE
+    core/backend_alg2.cu
+    core/backend_cpu.cpp
+    core/backend_plugin.cpp
+    core/engine.cu
+    core/engine_setup.cu
+    core/engine_control.cpp
+    core/model.cpp
+    core/planner.cpp
+    core/platform.cu
+    core/plugin_api.cpp
+    core/session.cpp
+  )
+  target_compile_features(gridpack_batchpf_core PRIVATE cxx_std_17 cuda_std_17)
+  target_link_libraries(gridpack_batchpf_core PRIVATE
+    gridpack::batchpf_interface
+    gridpack_batchpf_warnings
+    CUDA::cudart_static
+    SuiteSparse::KLU
+    Threads::Threads
+    ${CMAKE_DL_LIBS}
+  )
+  # Static CUDA runtime (CUDA Best Practices Guide 17.4); only the plugin
+  # entry point is visible (16.4.1.4)
+  set_target_properties(gridpack_batchpf_core PROPERTIES
+    CUDA_RUNTIME_LIBRARY Static
+    CXX_VISIBILITY_PRESET hidden
+    CUDA_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${GRIDPACK_BATCHPF_PLUGIN_SUBDIR}
+  )
+  install(TARGETS gridpack_batchpf_core
+    LIBRARY DESTINATION ${GRIDPACK_BATCHPF_PLUGIN_SUBDIR})
 endif()
 
 # -------------------------------------------------------------
