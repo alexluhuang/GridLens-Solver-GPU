@@ -137,11 +137,11 @@ class Engine {
 
  private:
   void runImpl(const batchpf_batch &batch, batchpf_results &results);
-  void fillSlots(const batchpf_batch &batch, const std::vector<int> &slots,
-                 const std::vector<int> &cases);
+  void fillSlots(const batchpf_batch &batch, const std::vector<MemberIndex> &slots,
+                 const std::vector<CaseIndex> &cases);
   void step();
   void finishSlots(const batchpf_batch &batch, batchpf_results &results,
-                   const std::vector<int> &slots);
+                   const std::vector<MemberIndex> &slots);
   void referenceJacobian(std::vector<double> *values,
                          std::vector<double> *rhs);
   double elapsed(int phase) const;

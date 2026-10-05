@@ -69,18 +69,19 @@ void Engine::run(const batchpf_batch &batch, batchpf_results &results)
 
 void Engine::runImpl(const batchpf_batch &batch, batchpf_results &results)
 {
-  std::deque<int> queue;
-  for (int c = 0; c < batch.n_cases; c++) queue.push_back(c);
+  std::deque<CaseIndex> queue;
+  for (int c = 0; c < batch.n_cases; c++) queue.emplace_back(c);
   for (SlotState &s : p_slots) s = SlotState();
   while (true) {
     // Fill free slots: always with backfill, else only between waves
     bool any_busy = false;
     for (const SlotState &s : p_slots) any_busy = any_busy || s.stage != SlotState::Stage::Free;
     if (!queue.empty() && (p_config.backfill || !any_busy)) {
-      std::vector<int> slots, cases;
+      std::vector<MemberIndex> slots;
+      std::vector<CaseIndex> cases;
       for (int b = 0; b < p_B && !queue.empty(); b++) {
         if (p_slots[b].stage == SlotState::Stage::Free) {
-          slots.push_back(b);
+          slots.emplace_back(b);
           cases.push_back(queue.front());
           queue.pop_front();
         }
@@ -90,19 +91,19 @@ void Engine::runImpl(const batchpf_batch &batch, batchpf_results &results)
     }
     if (!any_busy) break;
     step();
-    std::vector<int> done;
+    std::vector<MemberIndex> done;
     for (int b = 0; b < p_B; b++) {
       SlotState &s = p_slots[b];
       if (s.stage == SlotState::Stage::Free) continue;
       advanceSlot(s, p_results[b], p_rules);
-      if (s.stage == SlotState::Stage::Done) done.push_back(b);
+      if (s.stage == SlotState::Stage::Done) done.emplace_back(b);
     }
     if (!done.empty()) finishSlots(batch, results, done);
   }
 }
 
-void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots,
-                       const std::vector<int> &cases)
+void Engine::fillSlots(const batchpf_batch &batch, const std::vector<MemberIndex> &slots,
+                       const std::vector<CaseIndex> &cases)
 {
   EngineBuffers &d = *p_buf;
   const bool dev = p_config.on_device;
@@ -110,7 +111,7 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots
   std::fill(d.h_fill.begin(), d.h_fill.end(), 0);
   std::size_t nb = 0, ne = 0;
   for (std::size_t i = 0; i < slots.size(); i++) {
-    const batchpf_case &c = batch.cases[cases[i]];
+    const batchpf_case &c = batch.cases[cases[i].value];
     if (c.n_bus_updates < 0 || c.n_edge_updates < 0 ||
         (c.n_bus_updates > 0 && c.bus_updates == nullptr) ||
         (c.n_edge_updates > 0 && c.edge_updates == nullptr) ||
@@ -126,8 +127,8 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots
   d.u_edge.reserve(ne, dev, p_config.exchange_pinned, st);
   std::size_t ib = 0, ie = 0;
   for (std::size_t i = 0; i < slots.size(); i++) {
-    const int b = slots[i];
-    const batchpf_case &c = batch.cases[cases[i]];
+    const int b = slots[i].value;
+    const batchpf_case &c = batch.cases[cases[i].value];
     d.h_fill[b] = 1;
     d.h_slack[b] = c.slack_bus;
     for (int k = 0; k < c.n_bus_updates; k++) {
@@ -146,7 +147,7 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots
       d.u_edge_member.host()[ie] = b;
       d.u_edge.host()[ie++] = r;
     }
-    startSlot(p_slots[b], CaseIndex{cases[i]});
+    startSlot(p_slots[b], cases[i]);
   }
   const Executor ex(dev, st, p_config.threads_per_block);
   if (dev) cudaCheck(cudaEventRecord(d.ev_start[PH_MATERIALIZE].get(), st), "event");
@@ -168,7 +169,8 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots
   u.edge_member = d.u_edge_member.device();
   u.edge = d.u_edge.device();
   const int nfill = static_cast<int>(slots.size());
-  std::copy(slots.begin(), slots.end(), d.fill_slots.host());
+  std::transform(slots.begin(), slots.end(), d.fill_slots.host(),
+                 [](MemberIndex slot) { return slot.value; });
   d.fill_slots.toDevice(slots.size(), st);
   const int *fs = d.fill_slots.device();
   ex.run(static_cast<int64_t>(p_model.n_bus) * nfill, FillBusBase{m, w, fs, nfill},
@@ -344,7 +346,7 @@ void Engine::step()
 }
 
 void Engine::finishSlots(const batchpf_batch &batch, batchpf_results &results,
-                         const std::vector<int> &slots)
+                         const std::vector<MemberIndex> &slots)
 {
   EngineBuffers &d = *p_buf;
   const bool dev = p_config.on_device;
@@ -352,7 +354,8 @@ void Engine::finishSlots(const batchpf_batch &batch, batchpf_results &results,
   const int n = p_model.n_bus;
   const int cnt = static_cast<int>(slots.size());
   const auto t0 = std::chrono::steady_clock::now();
-  std::copy(slots.begin(), slots.end(), d.gather_slots.host());
+  std::transform(slots.begin(), slots.end(), d.gather_slots.host(),
+                 [](MemberIndex slot) { return slot.value; });
   d.gather_slots.toDevice(cnt, st);
   const BatchView w = batchView(d, p_B, p_params);
   const Executor ex(dev, st, p_config.threads_per_block);
@@ -368,7 +371,7 @@ void Engine::finishSlots(const batchpf_batch &batch, batchpf_results &results,
   d.out_q.toHost(len, st);
   if (dev) cudaCheck(cudaStreamSynchronize(st), "gather");
   for (int li = 0; li < cnt; li++) {
-    SlotState &s = p_slots[slots[li]];
+    SlotState &s = p_slots[slots[li].value];
     const int c = s.case_idx.value;
     const std::size_t off = static_cast<std::size_t>(c) * n;
     const std::size_t src = static_cast<std::size_t>(li) * n;

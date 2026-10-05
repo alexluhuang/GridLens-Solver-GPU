@@ -57,7 +57,8 @@ class Error : public std::runtime_error {
 inline void cudaCheck(cudaError_t err, const char *what)
 {
   if (err != cudaSuccess) {
-    throw Error(BATCHPF_ERR_CUDA, std::string(what) + ": " +
+    throw Error(err == cudaErrorMemoryAllocation ? BATCHPF_ERR_OUT_OF_MEMORY : BATCHPF_ERR_CUDA,
+                std::string(what) + ": " +
                                       cudaGetErrorName(err) + " (" +
                                       cudaGetErrorString(err) + ")");
   }

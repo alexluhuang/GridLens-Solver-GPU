@@ -50,10 +50,10 @@ int validatedCap(const batchpf_settings &s, const BackendCaps &caps)
 Session::Session(const batchpf_settings &settings)
     : p_settings(settings),
       p_plugin_dir(settings.plugin_dir ? settings.plugin_dir : ""),
-      p_log(settings.log_fn, settings.log_user, settings.log_level)
+      p_log(settings.log_fn, settings.log_user, settings.log_level),
+      p_on_device(settings.backend != BATCHPF_BACKEND_CPU_REFERENCE)
 {
   p_settings.plugin_dir = nullptr;   // use the owned copy only
-  p_on_device = settings.backend != BATCHPF_BACKEND_CPU_REFERENCE;
   p_info.struct_size = sizeof(p_info);
   std::string why;
   const batchpf_status st = probeDevice(settings.device, &p_info, &why);

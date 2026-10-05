@@ -19,8 +19,12 @@ struct Index {
 
 struct BusTag;
 struct CaseTag;
+struct BranchTag;
+struct MemberTag;
 using BusIndex = Index<BusTag>;
 using CaseIndex = Index<CaseTag>;
+using BranchIndex = Index<BranchTag>;
+using MemberIndex = Index<MemberTag>;
 
 }  // namespace batchpf
 }  // namespace gridpack

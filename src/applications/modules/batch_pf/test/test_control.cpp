@@ -29,16 +29,6 @@ using namespace gridpack::batchpf;
 
 namespace {
 
-int failures = 0;
-
-void check(bool ok, const std::string &what)
-{
-  if (!ok) {
-    std::printf("FAILED: %s\n", what.c_str());
-    failures++;
-  }
-}
-
 /// Scripted inputs for one case
 struct Script {
   std::vector<double> tol;      // mismatch norm of each evaluation, in order
@@ -96,6 +86,13 @@ ControlRules rules(bool pf_qlim, bool ca_qlim, int maxit = 50, int max_ctrl = 10
 
 int main()
 {
+  int failures = 0;
+  const auto check = [&](bool ok, const std::string &what) {
+    if (!ok) {
+      std::printf("FAILED: %s\n", what.c_str());
+      failures++;
+    }
+  };
   // 1. Plain convergence: GridPACK evaluates, then applies and evaluates
   //    until the norm is small, then applies the last step once more.
   {

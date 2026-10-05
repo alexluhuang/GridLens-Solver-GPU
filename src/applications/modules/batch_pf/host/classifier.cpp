@@ -31,14 +31,14 @@ using gridpack::powerflow::PFBranch;
 using gridpack::powerflow::PFBus;
 using gridpack::powerflow::SupersetCaseState;
 
-PFBranch *branchAt(gridpack::powerflow::PFNetwork &net, int i)
+PFBranch *branchAt(gridpack::powerflow::PFNetwork &net, BranchIndex i)
 {
-  return dynamic_cast<PFBranch *>(net.getBranch(i).get());
+  return dynamic_cast<PFBranch *>(net.getBranch(i.value).get());
 }
 
-PFBus *busAt(gridpack::powerflow::PFNetwork &net, int i)
+PFBus *busAt(gridpack::powerflow::PFNetwork &net, BusIndex i)
 {
-  return dynamic_cast<PFBus *>(net.getBus(i).get());
+  return dynamic_cast<PFBus *>(net.getBus(i.value).get());
 }
 
 /// Index of a circuit tag on a branch, -1 if absent
@@ -122,11 +122,12 @@ void Classifier::findBridges()
   std::vector<std::vector<std::pair<int, int>>> adj(nb);   // (bus, branch)
   for (int i = 0; i < nbr; i++) {
     if (!net.getActiveBranch(i)) continue;
-    const std::vector<bool> st = branchAt(net, i)->getLineStatus();
+    const std::vector<bool> st = branchAt(net, BranchIndex{i})->getLineStatus();
     if (std::find(st.begin(), st.end(), true) == st.end()) continue;
     int a = 0, b = 0;
     net.getBranchEndpoints(i, &a, &b);
-    if (a == b || busAt(net, a)->isIsolated() || busAt(net, b)->isIsolated()) continue;
+    if (a == b || busAt(net, BusIndex{a})->isIsolated() ||
+        busAt(net, BusIndex{b})->isIsolated()) continue;
     adj[a].emplace_back(b, i);
     adj[b].emplace_back(a, i);
     p_degree[a]++;
@@ -201,7 +202,7 @@ bool Classifier::classifyFastBranch(CaseIndex event, gridpack::powerflow::Contin
   const std::vector<int> lids = net.getLocalBranchIndices(c.p_from[0], c.p_to[0]);
   int lid = -1, idx = -1, found = 0;
   for (int i : lids) {
-    const int k = tagIndex(branchAt(net, i), c.p_ckt[0]);
+    const int k = tagIndex(branchAt(net, BranchIndex{i}), c.p_ckt[0]);
     if (k >= 0) {
       lid = i;
       idx = k;
@@ -209,7 +210,7 @@ bool Classifier::classifyFastBranch(CaseIndex event, gridpack::powerflow::Contin
     }
   }
   if (found != 1) return false;   // missing or ambiguous: full routine
-  PFBranch *br = branchAt(net, lid);
+  PFBranch *br = branchAt(net, BranchIndex{lid});
   const bool saved = br->getBranchStatus(c.p_ckt[0]);
   const std::vector<bool> st = br->getLineStatus();
   bool other_active = false;
@@ -238,7 +239,7 @@ bool Classifier::classifyFastBranch(CaseIndex event, gridpack::powerflow::Contin
     if (lone == p_base_slack) return false;       // slack cut off: full routine
   }
   br->setBranchStatus(c.p_ckt[0], false);
-  PFBus *lone_bus = (lone >= 0) ? busAt(net, lone) : nullptr;
+  PFBus *lone_bus = (lone >= 0) ? busAt(net, BusIndex{lone}) : nullptr;
   if (lone_bus) lone_bus->setIsolated(true);      // as checkLoneBus() does
   SupersetCaseState state, scratch;
   p_app.captureCaseState(p_model, std::vector<int>(), std::vector<int>(1, lid), &state);
@@ -260,7 +261,7 @@ bool Classifier::classifyFastGenerator(CaseIndex event, gridpack::powerflow::Con
   auto &net = *p_network;
   const std::vector<int> lids = net.getLocalBusIndices(c.p_busid[0]);
   if (lids.size() != 1) return false;
-  PFBus *bus = busAt(net, lids[0]);
+  PFBus *bus = busAt(net, BusIndex{lids[0]});
   const std::string &tag = c.p_genid[0];
   const std::vector<std::string> gens = bus->getGenerators();
   if (std::find(gens.begin(), gens.end(), tag) == gens.end()) return false;
@@ -304,7 +305,7 @@ CaseClass Classifier::classifyFull(CaseIndex event, gridpack::powerflow::Conting
   } else {
     for (std::size_t k = 0; k < c.p_from.size(); k++) {
       for (int l : net.getLocalBranchIndices(c.p_from[k], c.p_to[k])) {
-        if (tagIndex(branchAt(net, l), c.p_ckt[k]) >= 0) branches.push_back(l);
+        if (tagIndex(branchAt(net, BranchIndex{l}), c.p_ckt[k]) >= 0) branches.push_back(l);
       }
     }
   }

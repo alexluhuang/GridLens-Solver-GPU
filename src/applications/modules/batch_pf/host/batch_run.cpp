@@ -713,11 +713,11 @@ void BatchPath::finish()
        << std::fixed << std::setprecision(3) << g.seconds_total << " s";
     if (g.slot_steps > 0) {
       ds << ", slot occupancy " << std::setprecision(1)
-         << 100.0 * g.newton_steps / g.slot_steps << "%";
+         << 100.0 * static_cast<double>(g.newton_steps) / static_cast<double>(g.slot_steps) << "%";
     }
     d.info(ds.str());
-    auto bw = [](int64_t bytes, double secs) {
-      return secs > 0.0 ? static_cast<double>(bytes) / secs / 1.0e9 : 0.0;
+    auto bw = [](double bytes, double secs) {
+      return secs > 0.0 ? bytes / secs / 1.0e9 : 0.0;
     };
     std::ostringstream ps;
     ps << std::fixed << std::setprecision(3) << "  phases (s): materialize "
@@ -736,7 +736,8 @@ void BatchPath::finish()
     ls << "  plan: " << g.jacobian_rows << " rows, " << g.jacobian_nnz
        << " Jacobian entries (standard layout " << g.minimal_nnz << ", superset overhead "
        << std::fixed << std::setprecision(1)
-       << (g.minimal_nnz > 0 ? 100.0 * (g.jacobian_nnz - g.minimal_nnz) / g.minimal_nnz : 0.0)
+       << (g.minimal_nnz > 0 ? 100.0 * static_cast<double>(g.jacobian_nnz - g.minimal_nnz) /
+           static_cast<double>(g.minimal_nnz) : 0.0)
        << "%), " << g.factor_nnz << " factor entries, levels " << g.levels_factor << "/"
        << g.levels_lower << "/" << g.levels_upper << ", planning "
        << std::setprecision(3) << g.plan_seconds << " s";

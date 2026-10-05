@@ -48,15 +48,15 @@ using gridpack::powerflow::PFBus;
 
 namespace {
 
-int failures = 0;
-
-void check(bool ok, const std::string &what)
-{
-  if (!ok) {
-    std::printf("FAILED: %s\n", what.c_str());
-    failures++;
+struct Checks {
+  int failures = 0;
+  void operator()(bool ok, const std::string &what) {
+    if (!ok) {
+      std::printf("FAILED: %s\n", what.c_str());
+      failures++;
+    }
   }
-}
+};
 
 bool close(double a, double b, double tol)
 {
@@ -65,7 +65,7 @@ bool close(double a, double b, double tol)
 
 /// Kernel parity at the current (solved) state
 void kernelParity(gridpack::powerflow::PFAppModule &app,
-                  boost::shared_ptr<gridpack::powerflow::PFNetwork> net)
+                   boost::shared_ptr<gridpack::powerflow::PFNetwork> net, Checks &check)
 {
   gridpack::powerflow::SupersetModel model;
   app.exportSupersetModel(&model);
@@ -231,7 +231,7 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
 
 /// Fast-path classification against GridPACK's full routine, all N-1
 void classifierParity(gridpack::powerflow::PFAppModule &app,
-                      boost::shared_ptr<gridpack::powerflow::PFNetwork> net)
+                       boost::shared_ptr<gridpack::powerflow::PFNetwork> net, Checks &check)
 {
   gridpack::powerflow::SupersetModel model;
   app.exportSupersetModel(&model);
@@ -301,6 +301,7 @@ void classifierParity(gridpack::powerflow::PFAppModule &app,
 
 int main(int argc, char **argv)
 {
+  Checks check;
   MPI_Init(&argc, &argv);
   GA_Initialize();
   MA_init(C_DBL, 200000, 200000);
@@ -320,16 +321,16 @@ int main(int argc, char **argv)
           "input selects the large Jacobian layout");
     const bool ok = app.solve();
     check(ok, "base case converges");
-    kernelParity(app, net);
-    classifierParity(app, net);
+    kernelParity(app, net, check);
+    classifierParity(app, net, check);
   }
   gridpack::math::Finalize();
   GA_Terminate();
-  if (failures == 0) {
+  if (check.failures == 0) {
     std::printf("No errors detected\n");
   } else {
-    std::printf("%d failure detected\n", failures);
+    std::printf("%d failure detected\n", check.failures);
   }
   MPI_Finalize();
-  return failures == 0 ? 0 : 1;
+  return check.failures == 0 ? 0 : 1;
 }
