@@ -78,6 +78,7 @@ target_compile_options(gridpack_batchpf_warnings INTERFACE
 add_library(gridpack_batchpf_host STATIC
   host/accelerator.cpp
   host/batch_path.cpp
+  host/batch_run.cpp
   host/classifier.cpp
   host/host_platform.cpp
   host/settings.cpp

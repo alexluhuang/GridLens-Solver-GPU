@@ -53,7 +53,9 @@ add_executable(ca.x
    ca_main.cpp
 )
 
-target_link_libraries(ca.x ${target_libraries})
+# The keyword form (PRIVATE) is needed to add the batch path's host library;
+# CMake does not allow mixing it with the plain form on one target.
+target_link_libraries(ca.x PRIVATE ${target_libraries} gridpack::batchpf_host)
 
 # Put some sample input in the binary directory so ca.x can run
 

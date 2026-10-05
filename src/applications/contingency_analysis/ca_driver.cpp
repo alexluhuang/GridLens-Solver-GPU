@@ -33,6 +33,7 @@
 #include "gridpack/applications/modules/powerflow/pf_app_module.hpp"
 #include "gridpack/utilities/results_exporter.hpp"
 #include "ca_driver.hpp"
+#include "gridpack/applications/modules/batch_pf/host/batch_path.hpp"
 
 #include <boost/scoped_ptr.hpp>
 #include <sstream>
@@ -366,6 +367,10 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   } else {
     config->open("input.xml",world);
   }
+  // Optional GPU batch path (Contingency_analysis/GPUBatch). Settings are
+  // read now, while the main input file is the open configuration; without
+  // a GPUBatch block nothing below changes.
+  gridpack::batchpf::BatchPath gpuPath(config, world);
 
   // Get size of group (communicator) that individual contingency calculations
   // will run on and create a task communicator. Each process is part of only
@@ -2070,9 +2075,12 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // Evaluate contingencies using the task manager
   int task_id;
   char sbuf[512];
-  // nextTask returns the same task_id on all processors in task_comm. When the
-  // calculation runs out of task, nextTask will return false.
-  while (taskmgr.nextTask(task_comm, &task_id)) {
+  // One contingency, from setting it to restoring the network. gpu is null
+  // for GridPACK's own solve; otherwise it carries a solution computed by
+  // the GPU batch path, which is loaded instead of solving so that the same
+  // checks and writers report it.
+  auto processCase = [&](int task_id,
+                         const gridpack::batchpf::GpuCaseResult *gpu) {
     if (print_calcs) printf("Executing task %d on process %d\n",task_id,world.rank());
     // Trim trailing spaces from contingency name for filename
     std::string fname = events[task_id].p_name;
@@ -2129,7 +2137,11 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     // Skip power flow if contingency setup failed (no valid slack) or islanding detected
     bool slackCapacityOk = true;  // Will be checked after solve
     bool solveOk = false;
-    if (contingencyFound && !islandDetected) {
+    if (gpu) {
+      pf_app.setExternalSolution(gpu->v, gpu->theta, gpu->qlim_conversion,
+                                 gpu->q_required, gpu->convergence);
+      solveOk = true;
+    } else if (contingencyFound && !islandDetected) {
       try {
         solveOk = pf_app.solve();
         if (solveOk && check_Qlim && !pf_app.checkQlimViolations()) {
@@ -2367,6 +2379,19 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     gridpack::powerflow::PFBus::clearQlimWarnings();
     // Close output file for this contingency
     if (print_calcs) pf_app.close();
+  };
+  if (gpuPath.active()) {
+    gpuPath.prepare(pf_app, pf_network, events, check_Qlim, outputFile);
+  }
+  if (gpuPath.active()) {
+    gpuPath.run(processCase);
+    gpuPath.finish();
+  } else {
+    // nextTask returns the same task_id on all processors in task_comm.
+    // When the calculation runs out of task, nextTask will return false.
+    while (taskmgr.nextTask(task_comm, &task_id)) {
+      processCase(task_id, nullptr);
+    }
   }
   // csv_flat / csv_delta: each rank streamed rows to its .part file during
   // the loop. Close, sync, then world rank 0 writes header + concatenates.
@@ -3111,6 +3136,34 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         }
       }
       std::sort(all.begin(), all.end());
+      // With the GPU batch path, check that every case has exactly one
+      // outcome (guide 6.5); a missing one is a defect and is reported as
+      // MISSING rather than silently left out.
+      if (gpuPath.active()) {
+        std::vector<int> seen(events.size() + 1, 0);
+        for (size_t i = 0; i < all.size(); i++) {
+          if (all[i].first > 0 && all[i].first <= (int)events.size()) {
+            seen[all[i].first]++;
+          }
+        }
+        int missing = 0;
+        for (size_t ei = 0; ei < events.size(); ei++) {
+          if (seen[ei + 1] > 0) continue;
+          std::ostringstream row;
+          std::string nm = events[ei].p_name;
+          while (!nm.empty() && nm[nm.size()-1] == ' ') nm.resize(nm.size()-1);
+          row << ei + 1 << "," << nm << ","
+              << ((events[ei].p_type == Branch) ? "branch" : "generator")
+              << ",false,0,0.000000e+00,0,0.0000,0,0.0000,MISSING\n";
+          all.push_back(std::make_pair(static_cast<int>(ei) + 1, row.str()));
+          missing++;
+        }
+        if (missing > 0) {
+          std::sort(all.begin(), all.end());
+          printf("WARNING: %d contingencies have no outcome (status MISSING); "
+                 "the study is incomplete\n", missing);
+        }
+      }
       std::string convFile = outputFile + "_convergence.csv";
       std::ofstream cout(convFile.c_str(),
                          std::ios::out | std::ios::trunc);
