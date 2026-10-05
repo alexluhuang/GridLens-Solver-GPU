@@ -217,6 +217,7 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
       gridpack_batchpf_warnings
       cudss
       CUDA::cudart_static
+      Microsoft.GSL::GSL
     )
     set_target_properties(gridpack_batchpf_cudss PROPERTIES
       CUDA_RUNTIME_LIBRARY Static

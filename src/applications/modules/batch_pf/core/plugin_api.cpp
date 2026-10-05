@@ -44,8 +44,7 @@ const char *const kPluginVersion = "gridpack_batchpf_core 1.0.0";
 
 std::string buildInfo()
 {
-  int rt = 0;
-  cudaRuntimeGetVersion(&rt);
+  constexpr int rt = CUDART_VERSION;
   return "CUDA runtime " + std::to_string(rt / 1000) + "." +
          std::to_string((rt % 1000) / 10) + " (static)";
 }
@@ -100,13 +99,11 @@ batchpf_status sessionCreate(const batchpf_settings *settings,
     return BATCHPF_ERR_INVALID_ARGUMENT;
   }
   *session = nullptr;
-  std::unique_ptr<batchpf_session> s(new (std::nothrow) batchpf_session);
-  if (!s) return BATCHPF_ERR_OUT_OF_MEMORY;
-  const batchpf_status st = guarded(nullptr, error, error_size, [&] {
+  return guarded(nullptr, error, error_size, [&] {
+    auto s = std::make_unique<batchpf_session>();
     s->impl = std::make_unique<Session>(*settings);
+    *session = s.release();
   });
-  if (st == BATCHPF_OK) *session = s.release();
-  return st;
 }
 
 void sessionDestroy(batchpf_session *session)
@@ -190,29 +187,28 @@ batchpf_status batchpf_get_api(uint32_t requested_major, batchpf_api *api)
   if (!api || api->struct_size < offsetof(batchpf_api, plugin_version)) {
     return BATCHPF_ERR_INVALID_ARGUMENT;
   }
-  static const std::string info = buildInfo();
-  batchpf_api full;
-  std::memset(&full, 0, sizeof(full));
-  full.struct_size = sizeof(full);
-  full.api_major = BATCHPF_API_MAJOR;
-  full.api_minor = BATCHPF_API_MINOR;
-  full.plugin_version = kPluginVersion;
-  full.build_info = info.c_str();
-  full.probe = probe;
-  full.session_create = sessionCreate;
-  full.session_destroy = sessionDestroy;
-  full.last_error = lastError;
-  full.get_device_info = getDeviceInfo;
-  full.set_model = setModel;
-  full.plan = plan;
-  full.submit = submit;
-  full.wait = wait;
-  full.get_diagnostics = getDiagnostics;
-  // Copy only as much as the caller's table holds (an older caller simply
-  // does not see newer entries); report our own size and version
-  const uint32_t size = api->struct_size;
-  std::memcpy(api, &full, std::min<std::size_t>(size, sizeof(full)));
-  api->struct_size = std::min<uint32_t>(size, sizeof(full));
-  if (requested_major != BATCHPF_API_MAJOR) return BATCHPF_ERR_VERSION;
-  return BATCHPF_OK;
+  return guarded(nullptr, nullptr, 0, [&] {
+    static const std::string info = buildInfo();
+    batchpf_api full{};
+    full.struct_size = sizeof(full);
+    full.api_major = BATCHPF_API_MAJOR;
+    full.api_minor = BATCHPF_API_MINOR;
+    full.plugin_version = kPluginVersion;
+    full.build_info = info.c_str();
+    full.probe = probe;
+    full.session_create = sessionCreate;
+    full.session_destroy = sessionDestroy;
+    full.last_error = lastError;
+    full.get_device_info = getDeviceInfo;
+    full.set_model = setModel;
+    full.plan = plan;
+    full.submit = submit;
+    full.wait = wait;
+    full.get_diagnostics = getDiagnostics;
+    // Older callers see only the entries their table can hold.
+    const uint32_t size = api->struct_size;
+    std::memcpy(api, &full, std::min<std::size_t>(size, sizeof(full)));
+    api->struct_size = std::min<uint32_t>(size, sizeof(full));
+    if (requested_major != BATCHPF_API_MAJOR) throw Error(BATCHPF_ERR_VERSION, "API major mismatch");
+  });
 }

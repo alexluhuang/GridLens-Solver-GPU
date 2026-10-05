@@ -45,8 +45,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "gridpack/batchpf/batchpf_backend.h"
+#include "../core/common.hpp"
 
 namespace {
 
@@ -80,18 +82,16 @@ void cudssCall(cudssStatus_t s, const char *what)
 
 /// Owner of a device allocation
 struct DeviceArray {
+  gridpack::batchpf::Buffer<std::byte> storage;
   void *ptr = nullptr;
   DeviceArray() = default;
-  explicit DeviceArray(std::size_t bytes) { cudaCall(cudaMalloc(&ptr, bytes ? bytes : 1), "cudaMalloc"); }
+  DeviceArray(std::size_t bytes, cudaStream_t stream)
+      : storage(gridpack::batchpf::MemoryKind::Device, bytes, stream), ptr(storage.data()) {}
   DeviceArray(const DeviceArray &) = delete;
   DeviceArray &operator=(const DeviceArray &) = delete;
-  DeviceArray(DeviceArray &&o) noexcept : ptr(o.ptr) { o.ptr = nullptr; }
-  DeviceArray &operator=(DeviceArray &&o) noexcept
-  {
-    std::swap(ptr, o.ptr);
-    return *this;
-  }
-  ~DeviceArray() { if (ptr) cudaFree(ptr); }
+  DeviceArray(DeviceArray &&) noexcept = default;
+  DeviceArray &operator=(DeviceArray &&) noexcept = default;
+  ~DeviceArray() = default;
   template <class T> T *as() const { return static_cast<T *>(ptr); }
 };
 
@@ -166,14 +166,24 @@ struct batchpf_backend {
   std::vector<int> mask_host, mask_prev;
   std::string error;
 
+  batchpf_backend() = default;
+  batchpf_backend(const batchpf_backend &) = delete;
+  batchpf_backend &operator=(const batchpf_backend &) = delete;
+  batchpf_backend(batchpf_backend &&) = delete;
+  batchpf_backend &operator=(batchpf_backend &&) = delete;
   ~batchpf_backend()
   {
-    if (A) cudssMatrixDestroy(A);
-    if (X) cudssMatrixDestroy(X);
-    if (Bv) cudssMatrixDestroy(Bv);
-    if (data) cudssDataDestroy(handle, data);
-    if (config) cudssConfigDestroy(config);
-    if (handle) cudssDestroy(handle);
+    const auto release = [](cudssStatus_t status) {
+      if (status != CUDSS_STATUS_SUCCESS) {
+        std::fputs("[gpu-batch] cuDSS resource cleanup failed\n", stderr);
+      }
+    };
+    if (A) release(cudssMatrixDestroy(A));
+    if (X) release(cudssMatrixDestroy(X));
+    if (Bv) release(cudssMatrixDestroy(Bv));
+    if (data) release(cudssDataDestroy(handle, data));
+    if (config) release(cudssConfigDestroy(config));
+    if (handle) release(cudssDestroy(handle));
   }
 
   void setup(const batchpf_backend_plan &p)
@@ -184,14 +194,14 @@ struct batchpf_backend {
     stream = static_cast<cudaStream_t>(p.stream);
     pivot_limit = p.pivot_limit;
     cudaCall(cudaSetDevice(p.device), "cudaSetDevice");
-    row_ptr = DeviceArray((n + 1) * sizeof(int));
-    col_idx = DeviceArray(nnz * sizeof(int));
-    values = DeviceArray(static_cast<std::size_t>(nnz) * B * sizeof(double));
-    ref = DeviceArray(nnz * sizeof(double));
-    rhs = DeviceArray(static_cast<std::size_t>(n) * B * sizeof(double));
-    sol = DeviceArray(static_cast<std::size_t>(n) * B * sizeof(double));
-    diag = DeviceArray(static_cast<std::size_t>(n) * B * sizeof(double));
-    mask_dev = DeviceArray(B * sizeof(int));
+    row_ptr = DeviceArray((n + 1) * sizeof(int), stream);
+    col_idx = DeviceArray(nnz * sizeof(int), stream);
+    values = DeviceArray(static_cast<std::size_t>(nnz) * B * sizeof(double), stream);
+    ref = DeviceArray(nnz * sizeof(double), stream);
+    rhs = DeviceArray(static_cast<std::size_t>(n) * B * sizeof(double), stream);
+    sol = DeviceArray(static_cast<std::size_t>(n) * B * sizeof(double), stream);
+    diag = DeviceArray(static_cast<std::size_t>(n) * B * sizeof(double), stream);
+    mask_dev = DeviceArray(B * sizeof(int), stream);
     mask_host.assign(B, 1);
     cudaCall(cudaMemcpyAsync(row_ptr.ptr, p.row_ptr, (n + 1) * sizeof(int),
                              cudaMemcpyHostToDevice, stream), "copy pattern");
@@ -301,7 +311,7 @@ template <class F>
 batchpf_status guarded(batchpf_backend *b, char *err, size_t err_size, F &&f)
 {
   try {
-    f();
+    std::forward<F>(f)();
     return BATCHPF_OK;
   } catch (const Failure &e) {
     if (b) b->error = e.what();
@@ -310,12 +320,20 @@ batchpf_status guarded(batchpf_backend *b, char *err, size_t err_size, F &&f)
       err[err_size - 1] = '\0';
     }
     return e.code();
+  } catch (const gridpack::batchpf::Error &e) {
+    if (b) b->error = e.what();
+    gridpack::batchpf::copyMessage(e.what(), err, err_size);
+    return e.code();
   } catch (const std::exception &e) {
     if (b) b->error = e.what();
     if (err && err_size) {
       std::strncpy(err, e.what(), err_size - 1);
       err[err_size - 1] = '\0';
     }
+    return BATCHPF_ERR_INTERNAL;
+  } catch (...) {
+    if (b) b->error = "unknown cuDSS plugin failure";
+    gridpack::batchpf::copyMessage("unknown cuDSS plugin failure", err, err_size);
     return BATCHPF_ERR_INTERNAL;
   }
 }
@@ -325,25 +343,26 @@ batchpf_status capabilities(batchpf_backend_caps *caps)
   if (!caps || caps->struct_size < sizeof(batchpf_backend_caps)) {
     return BATCHPF_ERR_INVALID_ARGUMENT;
   }
-  const uint32_t size = caps->struct_size;
-  std::memset(caps, 0, sizeof(*caps));
-  caps->struct_size = size;
-  caps->struct_version = 1;
-  caps->max_batch = 0;
-  caps->validated_batch = kValidatedBatch;
-  caps->member_masking = 1;
-  caps->iterative_refinement = 1;
-  caps->failed_member_reporting = 1;
-  caps->memory_kinds = BATCHPF_MEMKIND_DEVICE;
-  std::strncpy(caps->name, "cudss", sizeof(caps->name) - 1);
-  int major = 0, minor = 0, patch = 0;
-  cudssGetProperty(MAJOR_VERSION, &major);
-  cudssGetProperty(MINOR_VERSION, &minor);
-  cudssGetProperty(PATCH_LEVEL, &patch);
-  const std::string v = "cuDSS " + std::to_string(major) + "." + std::to_string(minor) +
-                        "." + std::to_string(patch) + " uniform batch";
-  std::strncpy(caps->version, v.c_str(), sizeof(caps->version) - 1);
-  return BATCHPF_OK;
+  return guarded(nullptr, nullptr, 0, [&] {
+    const uint32_t size = caps->struct_size;
+    std::memset(caps, 0, sizeof(*caps));
+    caps->struct_size = size;
+    caps->struct_version = 1;
+    caps->max_batch = 0;
+    caps->validated_batch = kValidatedBatch;
+    caps->member_masking = 1;
+    caps->iterative_refinement = 1;
+    caps->failed_member_reporting = 1;
+    caps->memory_kinds = BATCHPF_MEMKIND_DEVICE;
+    std::strncpy(caps->name, "cudss", sizeof(caps->name) - 1);
+    int major = 0, minor = 0, patch = 0;
+    cudssCall(cudssGetProperty(MAJOR_VERSION, &major), "query cuDSS major version");
+    cudssCall(cudssGetProperty(MINOR_VERSION, &minor), "query cuDSS minor version");
+    cudssCall(cudssGetProperty(PATCH_LEVEL, &patch), "query cuDSS patch version");
+    const std::string v = "cuDSS " + std::to_string(major) + "." + std::to_string(minor) +
+                          "." + std::to_string(patch) + " uniform batch";
+    std::strncpy(caps->version, v.c_str(), sizeof(caps->version) - 1);
+  });
 }
 
 batchpf_status setup(const batchpf_backend_plan *plan, batchpf_backend **out,
@@ -354,10 +373,12 @@ batchpf_status setup(const batchpf_backend_plan *plan, batchpf_backend **out,
       plan->batch_capacity <= 0) {
     return BATCHPF_ERR_INVALID_ARGUMENT;
   }
-  auto b = std::make_unique<batchpf_backend>();
-  const batchpf_status st = guarded(b.get(), err, err_size, [&] { b->setup(*plan); });
-  if (st == BATCHPF_OK) *out = b.release();
-  return st;
+  *out = nullptr;
+  return guarded(nullptr, err, err_size, [&] {
+    auto b = std::make_unique<batchpf_backend>();
+    b->setup(*plan);
+    *out = b.release();
+  });
 }
 
 batchpf_status refactorize(batchpf_backend *b, const double *values, const int32_t *mask,

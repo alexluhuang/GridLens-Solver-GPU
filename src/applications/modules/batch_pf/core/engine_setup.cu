@@ -26,7 +26,7 @@ template <class T>
 void uploadModel(Buffer<T> &dst, MemoryKind kind, const std::vector<T> &src,
                  cudaStream_t stream)
 {
-  dst.allocate(kind, src.size());
+  dst.allocate(kind, src.size(), stream);
   dst.upload(src.data(), src.size(), stream);
 }
 
@@ -211,27 +211,27 @@ void Engine::allocate(int capacity)
   const std::size_t B = static_cast<std::size_t>(capacity);
   const std::size_t n = static_cast<std::size_t>(h.n_bus) * B;
   const std::size_t e = static_cast<std::size_t>(h.n_edge) * B;
-  d.type.allocate(mk, n);
-  d.conv.allocate(mk, n);
+  d.type.allocate(mk, n, st);
+  d.conv.allocate(mk, n, st);
   for (Buffer<double> *x : {&d.g, &d.b, &d.p0, &d.q0, &d.qmax, &d.qmin, &d.v,
                             &d.theta, &d.thw, &d.pinj, &d.qinj, &d.qreq}) {
-    x->allocate(mk, n);
+    x->allocate(mk, n, st);
   }
-  d.eg.allocate(mk, e);
-  d.eb.allocate(mk, e);
-  d.F.allocate(mk, 2 * n);
-  d.X.allocate(mk, 2 * n);
-  d.J.allocate(mk, static_cast<std::size_t>(p_pattern.nnz) * B);
+  d.eg.allocate(mk, e, st);
+  d.eb.allocate(mk, e, st);
+  d.F.allocate(mk, 2 * n, st);
+  d.X.allocate(mk, 2 * n, st);
+  d.J.allocate(mk, static_cast<std::size_t>(p_pattern.nnz) * B, st);
   d.F.zero(st);
   d.X.zero(st);
   d.J.zero(st);
   for (Buffer<int> *x : {&d.m_apply, &d.m_qcheck, &d.m_eval, &d.m_fill,
                          &d.m_slack, &d.m_argp, &d.m_argq, &d.m_qviol,
                          &d.m_status}) {
-    x->allocate(mk, B);
+    x->allocate(mk, B, st);
   }
   for (Buffer<unsigned long long> *x : {&d.m_maxp, &d.m_maxq, &d.m_res, &d.m_rhs}) {
-    x->allocate(mk, B);
+    x->allocate(mk, B, st);
   }
   for (std::vector<int> *x : {&d.h_apply, &d.h_qcheck, &d.h_eval, &d.h_fill,
                               &d.h_slack, &d.h_argp, &d.h_argq, &d.h_qviol,
@@ -241,13 +241,13 @@ void Engine::allocate(int capacity)
   for (std::vector<unsigned long long> *x : {&d.h_maxp, &d.h_maxq, &d.h_res, &d.h_rhs}) {
     x->assign(B, 0);
   }
-  d.gather_slots.reserve(B, dev, p_config.exchange_pinned);
-  d.fill_slots.reserve(B, dev, p_config.exchange_pinned);
+  d.gather_slots.reserve(B, dev, p_config.exchange_pinned, st);
+  d.fill_slots.reserve(B, dev, p_config.exchange_pinned, st);
   const std::size_t out = static_cast<std::size_t>(h.n_bus) * B;
-  d.out_v.reserve(out, dev, p_config.exchange_pinned);
-  d.out_theta.reserve(out, dev, p_config.exchange_pinned);
-  d.out_q.reserve(out, dev, p_config.exchange_pinned);
-  d.out_conv.reserve(out, dev, p_config.exchange_pinned);
+  d.out_v.reserve(out, dev, p_config.exchange_pinned, st);
+  d.out_theta.reserve(out, dev, p_config.exchange_pinned, st);
+  d.out_q.reserve(out, dev, p_config.exchange_pinned, st);
+  d.out_conv.reserve(out, dev, p_config.exchange_pinned, st);
   if (dev && d.ev_start.empty()) {
     for (int i = 0; i < PH_COUNT; i++) {
       d.ev_start.emplace_back(true);

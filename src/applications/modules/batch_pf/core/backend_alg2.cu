@@ -233,7 +233,7 @@ class Alg2Backend : public SolverBackend {
     const cudaStream_t st = setup.stream;
     const MemoryKind mk = MemoryKind::Device;
     auto up = [&](Buffer<int> &dst, const std::vector<int> &src) {
-      dst.allocate(mk, src.size());
+      dst.allocate(mk, src.size(), st);
       dst.upload(src.data(), src.size(), st);
     };
     up(p_a_to_lu, p_lu.a_to_lu);
@@ -256,14 +256,14 @@ class Alg2Backend : public SolverBackend {
     up(p_ulev_rows, p_lu.ulev_rows);
     up(p_P, p_lu.P);
     up(p_Q, p_lu.Q);
-    p_col_scale.allocate(mk, p_lu.col_scale.size());
+    p_col_scale.allocate(mk, p_lu.col_scale.size(), st);
     p_col_scale.upload(p_lu.col_scale.data(), p_lu.col_scale.size(), st);
     const std::size_t B = static_cast<std::size_t>(setup.capacity);
     // Factors in pinned host memory only when the solve runs on the CPU
     p_values.allocate(setup.host_solve ? MemoryKind::Pinned : mk,
-                      static_cast<std::size_t>(p_lu.nnz) * B);
+                      static_cast<std::size_t>(p_lu.nnz) * B, st);
     p_y.allocate(setup.host_solve ? MemoryKind::Pinned : mk,
-                 static_cast<std::size_t>(p_lu.n) * B);
+                 static_cast<std::size_t>(p_lu.n) * B, st);
     p_values.zero(st);
     // Block size: one thread per member, a multiple of 32 (CUDA Best
     // Practices Guide 11.3), at most 256 so a column's members fit in a

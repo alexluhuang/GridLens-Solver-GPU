@@ -266,6 +266,7 @@ BatchPath::BatchPath(gridpack::utility::Configuration *config,
            << " (host page tables " << p.pageable_uses_host_page_tables << ")"
            << ", host native atomics=" << p.host_native_atomics
            << ", GPUDirect RDMA=" << p.gpudirect_rdma
+           << ", DMA-BUF=" << p.dmabuf
            << ", memory " << p.total_memory_bytes / 1e9 << " GB total, "
            << p.free_memory_bytes / 1e9 << " GB free (CUDA runtime), driver "
            << p.driver_version << ", runtime " << p.runtime_version;

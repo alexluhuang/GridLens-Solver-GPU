@@ -120,10 +120,10 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots
     nb += static_cast<std::size_t>(c.n_bus_updates);
     ne += static_cast<std::size_t>(c.n_edge_updates);
   }
-  d.u_bus_member.reserve(nb, dev, p_config.exchange_pinned);
-  d.u_bus.reserve(nb, dev, p_config.exchange_pinned);
-  d.u_edge_member.reserve(ne, dev, p_config.exchange_pinned);
-  d.u_edge.reserve(ne, dev, p_config.exchange_pinned);
+  d.u_bus_member.reserve(nb, dev, p_config.exchange_pinned, st);
+  d.u_bus.reserve(nb, dev, p_config.exchange_pinned, st);
+  d.u_edge_member.reserve(ne, dev, p_config.exchange_pinned, st);
+  d.u_edge.reserve(ne, dev, p_config.exchange_pinned, st);
   std::size_t ib = 0, ie = 0;
   for (std::size_t i = 0; i < slots.size(); i++) {
     const int b = slots[i];

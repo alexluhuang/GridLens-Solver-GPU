@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -68,6 +69,28 @@ inline void launchCheck(const char *kernel)
   cudaCheck(cudaGetLastError(), kernel);
 }
 
+// Destructors cannot throw while unwinding another failure. Still record
+// release errors so delayed CUDA failures do not disappear (STD-2).
+inline void cudaCleanup(cudaError_t status, const char *what) noexcept
+{
+  if (status == cudaSuccess) return;
+  std::fputs("[gpu-batch] cleanup failure in ", stderr);
+  std::fputs(what, stderr);
+  std::fputs(": ", stderr);
+  std::fputs(cudaGetErrorString(status), stderr);
+  std::fputc('\n', stderr);
+}
+
+inline bool memoryPoolsSupported()
+{
+  int device = 0, supported = 0;
+  cudaCheck(cudaGetDevice(&device), "cudaGetDevice");
+  const auto status = cudaDeviceGetAttribute(&supported, cudaDevAttrMemoryPoolsSupported, device);
+  if (status == cudaErrorInvalidValue || status == cudaErrorNotSupported) return false;
+  cudaCheck(status, "cudaDevAttrMemoryPoolsSupported");
+  return supported == 1;
+}
+
 /// Logger forwarding to the callback given by ca.x
 class Logger {
  public:
@@ -93,16 +116,21 @@ class Logger {
 /// Where a buffer lives (placement classes of guide section 8.8.2)
 enum class MemoryKind {
   Host,        // ordinary host memory (CPU-only execution)
-  Device,      // cudaMalloc: used only by the GPU
+  Device,      // stream-ordered device pool (legacy allocation if unsupported)
   Pinned,      // page-locked host memory the GPU can read directly
 };
 
 namespace detail {
 struct DeviceFree {
-  void operator()(void *p) const noexcept { cudaFree(p); }
+  cudaStream_t stream = nullptr;
+  bool pooled = false;
+  void operator()(void *p) const noexcept
+  {
+    cudaCleanup(pooled ? cudaFreeAsync(p, stream) : cudaFree(p), "device allocation");
+  }
 };
 struct PinnedFree {
-  void operator()(void *p) const noexcept { cudaFreeHost(p); }
+  void operator()(void *p) const noexcept { cudaCleanup(cudaFreeHost(p), "cudaFreeHost"); }
 };
 }  // namespace detail
 
@@ -119,29 +147,40 @@ class Buffer {
 
  public:
   Buffer() = default;
-  Buffer(MemoryKind kind, std::size_t count) { allocate(kind, count); }
+  Buffer(MemoryKind kind, std::size_t count, cudaStream_t stream = nullptr)
+  {
+    allocate(kind, count, stream);
+  }
   Buffer(const Buffer &) = delete;
   Buffer &operator=(const Buffer &) = delete;
   Buffer(Buffer &&) noexcept = default;
   Buffer &operator=(Buffer &&) noexcept = default;
   ~Buffer() = default;
 
-  void allocate(MemoryKind kind, std::size_t count)
+  void allocate(MemoryKind kind, std::size_t count, cudaStream_t stream = nullptr)
   {
     p_kind = kind;
     p_count = count;
     p_host.clear();
     p_device.reset();
     p_pinned.reset();
+    p_ptr = nullptr;
     const std::size_t bytes = (count > 0 ? count : 1) * sizeof(T);
     if (kind == MemoryKind::Host) {
       p_host.assign(count > 0 ? count : 1, T());
       p_ptr = p_host.data();
     } else if (kind == MemoryKind::Device) {
       void *raw = nullptr;
-      cudaCheck(cudaMalloc(&raw, bytes), "cudaMalloc");
-      p_device.reset(raw);
+      const bool pooled = memoryPoolsSupported();
+      cudaCheck(pooled ? cudaMallocAsync(&raw, bytes, stream) : cudaMalloc(&raw, bytes),
+                "device allocation");
+      p_device = std::unique_ptr<void, detail::DeviceFree>(raw, {stream, pooled});
       p_ptr = static_cast<T *>(raw);
+      // Callers that omit a stream retain the old immediate-allocation
+      // contract; production buffers allocate on their execution stream.
+      if (pooled && stream == nullptr) {
+        cudaCheck(cudaStreamSynchronize(stream), "default-stream allocation");
+      }
     } else {
       void *raw = nullptr;
       cudaCheck(cudaMallocHost(&raw, bytes), "cudaMallocHost");
@@ -231,7 +270,7 @@ class Stream {
 
  private:
   struct Destroy {
-    void operator()(cudaStream_t s) const noexcept { cudaStreamDestroy(s); }
+    void operator()(cudaStream_t s) const noexcept { cudaCleanup(cudaStreamDestroy(s), "cudaStreamDestroy"); }
   };
   std::unique_ptr<CUstream_st, Destroy> p_stream;
 };
@@ -252,7 +291,7 @@ class Event {
 
  private:
   struct Destroy {
-    void operator()(cudaEvent_t e) const noexcept { cudaEventDestroy(e); }
+    void operator()(cudaEvent_t e) const noexcept { cudaCleanup(cudaEventDestroy(e), "cudaEventDestroy"); }
   };
   std::unique_ptr<CUevent_st, Destroy> p_event;
 };

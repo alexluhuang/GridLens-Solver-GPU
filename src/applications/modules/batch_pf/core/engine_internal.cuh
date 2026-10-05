@@ -48,7 +48,7 @@ inline double bitsToDouble(unsigned long long u)
 template <class T>
 class Exchange {
  public:
-  void reserve(std::size_t count, bool on_device, bool pinned)
+  void reserve(std::size_t count, bool on_device, bool pinned, cudaStream_t stream)
   {
     if (count <= p_capacity && on_device == p_on_device && pinned == p_pinned) {
       return;
@@ -62,7 +62,7 @@ class Exchange {
       p_host.allocate(MemoryKind::Pinned, p_capacity);
     } else {
       p_host.allocate(MemoryKind::Pinned, p_capacity);
-      p_dev.allocate(MemoryKind::Device, p_capacity);
+      p_dev.allocate(MemoryKind::Device, p_capacity, stream);
     }
   }
   T *host() { return p_host.data(); }

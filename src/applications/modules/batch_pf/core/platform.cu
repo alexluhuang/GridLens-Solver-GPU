@@ -12,6 +12,8 @@
 
 #include "platform.hpp"
 
+#include <cudaTypedefs.h>
+
 #include <algorithm>
 #include <cstring>
 
@@ -28,6 +30,28 @@ int attribute(cudaDeviceAttr attr, int device)
     return -1;
   }
   return v;
+}
+
+int dmaBufSupported(int device)
+{
+  void *address = nullptr;
+  cudaDriverEntryPointQueryResult query = cudaDriverEntryPointSymbolNotFound;
+  const auto status = cudaGetDriverEntryPointByVersion(
+      "cuDeviceGetAttribute", &address, CUDA_VERSION, cudaEnableDefault, &query);
+  if (status == cudaErrorInvalidValue || status == cudaErrorNotSupported) return -1;
+  cudaCheck(status, "query driver attribute entry point");
+  if (query != cudaDriverEntryPointSuccess || !address) return -1;
+  // EX-CG-04: the runtime returns an untyped driver entry point; the
+  // versioned CUDA typedef fixes its signature without linking libcuda.
+  const auto getAttribute = reinterpret_cast<PFN_cuDeviceGetAttribute_v2000>(address);
+  int supported = 0;
+  const auto result = getAttribute(&supported, CU_DEVICE_ATTRIBUTE_DMA_BUF_SUPPORTED, device);
+  if (result == CUDA_ERROR_INVALID_VALUE || result == CUDA_ERROR_NOT_SUPPORTED) return -1;
+  if (result != CUDA_SUCCESS) {
+    throw Error(BATCHPF_ERR_CUDA, "DMA-BUF attribute query failed (driver status " +
+                std::to_string(static_cast<int>(result)) + ")");
+  }
+  return supported;
 }
 
 __global__ void probeKernel(int *out) { *out = 1; }
@@ -78,10 +102,10 @@ batchpf_status probeDevice(int device, batchpf_device_info *info,
   info->host_native_atomics =
       attribute(cudaDevAttrHostNativeAtomicSupported, device);
   info->gpudirect_rdma = attribute(cudaDevAttrGPUDirectRDMASupported, device);
-  info->dmabuf = -1;   // not exposed by the runtime API; -1 = unknown
+  info->dmabuf = dmaBufSupported(device);
   info->multiprocessors = attribute(cudaDevAttrMultiProcessorCount, device);
-  cudaDriverGetVersion(&info->driver_version);
-  cudaRuntimeGetVersion(&info->runtime_version);
+  cudaCheck(cudaDriverGetVersion(&info->driver_version), "cudaDriverGetVersion");
+  cudaCheck(cudaRuntimeGetVersion(&info->runtime_version), "cudaRuntimeGetVersion");
   info->total_memory_bytes = static_cast<double>(prop.totalGlobalMem);
   cudaCheck(cudaSetDevice(device), "cudaSetDevice");
   std::size_t free_b = 0, total_b = 0;

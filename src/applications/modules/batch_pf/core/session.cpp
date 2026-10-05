@@ -64,6 +64,8 @@ Session::Session(const batchpf_settings &settings)
     p_info.memory_profile = p_profile;
     cudaCheck(cudaSetDevice(settings.device), "cudaSetDevice");
     p_stream = Stream(true);
+    p_log.info(memoryPoolsSupported() ? "allocation: stream-ordered device pools"
+                                     : "allocation: legacy device buffers (pools unsupported)");
   } else {
     // The CPU reference backend needs no GPU; probe only for the log
     p_profile = BATCHPF_MEMORY_AUTO;
@@ -359,7 +361,6 @@ void Session::setLastError(const std::string &msg)
 
 void Session::workerLoop()
 {
-  if (p_on_device) cudaSetDevice(p_settings.device);
   while (true) {
     Job job;
     {
@@ -370,6 +371,7 @@ void Session::workerLoop()
     }
     Done done;
     try {
+      if (p_on_device) cudaCheck(cudaSetDevice(p_settings.device), "worker cudaSetDevice");
       p_engine->run(*job.batch, *job.results);
     } catch (const Error &e) {
       done.status = e.code();

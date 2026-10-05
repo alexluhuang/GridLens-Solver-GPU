@@ -104,7 +104,10 @@ class CpuReferenceBackend : public SolverBackend {
       if (member_status[b] != BATCHPF_MEMBER_OK || !p_numeric[b]) return;
       std::vector<double> y(p_n);
       for (int i = 0; i < p_n; i++) y[i] = rhs[static_cast<int64_t>(i) * p_B + b];
-      klu_solve(p_symbolic, p_numeric[b], p_n, 1, y.data(), &p_commons[b]);
+      if (!klu_solve(p_symbolic, p_numeric[b], p_n, 1, y.data(), &p_commons[b])) {
+        member_status[b] = BATCHPF_MEMBER_SMALL_PIVOT;
+        return;
+      }
       bool finite = true;
       for (int i = 0; i < p_n; i++) {
         finite = finite && std::isfinite(y[i]);
