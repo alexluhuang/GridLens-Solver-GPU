@@ -152,7 +152,9 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
   list(PREPEND CMAKE_PREFIX_PATH ${PETSC_DIR})
   find_package(KLU CONFIG REQUIRED)
 
-  add_library(gridpack_batchpf_core MODULE
+  # The plugin's code is an object library so the unit tests can link the
+  # same objects; the plugin adds its C entry points.
+  add_library(gridpack_batchpf_core_objects OBJECT
     core/backend_alg2.cu
     core/backend_cpu.cpp
     core/backend_plugin.cpp
@@ -162,29 +164,71 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
     core/model.cpp
     core/planner.cpp
     core/platform.cu
-    core/plugin_api.cpp
     core/session.cpp
   )
-  target_compile_features(gridpack_batchpf_core PRIVATE cxx_std_17 cuda_std_17)
-  target_link_libraries(gridpack_batchpf_core PRIVATE
-    gridpack::batchpf_interface
-    gridpack_batchpf_warnings
-    CUDA::cudart_static
-    SuiteSparse::KLU
-    Threads::Threads
-    ${CMAKE_DL_LIBS}
+  target_compile_features(gridpack_batchpf_core_objects PUBLIC cxx_std_17 cuda_std_17)
+  target_link_libraries(gridpack_batchpf_core_objects
+    PUBLIC
+      gridpack::batchpf_interface
+      CUDA::cudart_static
+      SuiteSparse::KLU
+      Threads::Threads
+      ${CMAKE_DL_LIBS}
+    PRIVATE
+      gridpack_batchpf_warnings
   )
   # Static CUDA runtime (CUDA Best Practices Guide 17.4); only the plugin
   # entry point is visible (16.4.1.4)
-  set_target_properties(gridpack_batchpf_core PROPERTIES
+  set_target_properties(gridpack_batchpf_core_objects PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
     CUDA_RUNTIME_LIBRARY Static
     CXX_VISIBILITY_PRESET hidden
     CUDA_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+  )
+  add_library(gridpack_batchpf_core MODULE core/plugin_api.cpp)
+  target_link_libraries(gridpack_batchpf_core PRIVATE
+    gridpack_batchpf_core_objects
+    gridpack_batchpf_warnings
+  )
+  set_target_properties(gridpack_batchpf_core PROPERTIES
+    CUDA_RUNTIME_LIBRARY Static
+    CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${GRIDPACK_BATCHPF_PLUGIN_SUBDIR}
   )
   install(TARGETS gridpack_batchpf_core
     LIBRARY DESTINATION ${GRIDPACK_BATCHPF_PLUGIN_SUBDIR})
+
+  # cuDSS backend plugin (I-11), only if cuDSS is installed. Its CMake
+  # package exports the cudss target. cuDSS and the CUDA math libraries it
+  # uses are shared libraries that must be present at run time; without them
+  # only this backend is unavailable.
+  find_package(cudss CONFIG QUIET HINTS $ENV{CUDSS_ROOT} /opt/cudss)
+  if (cudss_FOUND)
+    add_library(gridpack_batchpf_cudss MODULE cudss/backend_cudss.cu)
+    target_compile_features(gridpack_batchpf_cudss PRIVATE cxx_std_17 cuda_std_17)
+    target_link_libraries(gridpack_batchpf_cudss PRIVATE
+      gridpack::batchpf_interface
+      gridpack_batchpf_warnings
+      cudss
+      CUDA::cudart_static
+    )
+    set_target_properties(gridpack_batchpf_cudss PROPERTIES
+      CUDA_RUNTIME_LIBRARY Static
+      CXX_VISIBILITY_PRESET hidden
+      CUDA_VISIBILITY_PRESET hidden
+      VISIBILITY_INLINES_HIDDEN ON
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${GRIDPACK_BATCHPF_PLUGIN_SUBDIR}
+      INSTALL_RPATH "${cudss_LIBRARY_DIR}"
+      BUILD_RPATH "${cudss_LIBRARY_DIR}"
+    )
+    install(TARGETS gridpack_batchpf_cudss
+      LIBRARY DESTINATION ${GRIDPACK_BATCHPF_PLUGIN_SUBDIR})
+    message(STATUS "GPU batch plugins: cuDSS backend enabled (cuDSS ${cudss_VERSION})")
+  else()
+    message(STATUS "GPU batch plugins: cuDSS not found; cuDSS backend not built")
+  endif()
 endif()
 
 # -------------------------------------------------------------
