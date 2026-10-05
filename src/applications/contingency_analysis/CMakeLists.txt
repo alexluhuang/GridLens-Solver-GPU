@@ -79,6 +79,17 @@ add_custom_command(
   DEPENDS "${GRIDPACK_DATA_DIR}/input/ca/input_118.xml"
   )
 
+# Full N-1 of IEEE 118 with the GPU batch path (guide 7.3.1)
+add_custom_command(
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/input_118_gpu.xml"
+  COMMAND ${CMAKE_COMMAND}
+  -D INPUT:PATH="${GRIDPACK_DATA_DIR}/input/ca/input_118_gpu.xml"
+  -D OUTPUT:PATH="${CMAKE_CURRENT_BINARY_DIR}/input_118_gpu.xml"
+  -D PKG:STRING="${GRIDPACK_MATSOLVER_PKG}"
+  -P "${PROJECT_SOURCE_DIR}/cmake-modules/set_lu_solver_pkg.cmake"
+  DEPENDS "${GRIDPACK_DATA_DIR}/input/ca/input_118_gpu.xml"
+  )
+
 add_custom_command(
   OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/input_14_auto_n1.xml"
   COMMAND ${CMAKE_COMMAND}
@@ -141,6 +152,7 @@ add_custom_target(ca.x.input
   ${CMAKE_CURRENT_BINARY_DIR}/input_14_auto_n1.xml
   ${CMAKE_CURRENT_BINARY_DIR}/input_14_qlim.xml
   ${CMAKE_CURRENT_BINARY_DIR}/input_118.xml
+  ${CMAKE_CURRENT_BINARY_DIR}/input_118_gpu.xml
   ${CMAKE_CURRENT_BINARY_DIR}/IEEE14_ca.raw
   ${CMAKE_CURRENT_BINARY_DIR}/IEEE118.raw
   ${CMAKE_CURRENT_BINARY_DIR}/contingencies_14.xml
@@ -163,8 +175,15 @@ install(FILES
   ${GRIDPACK_DATA_DIR}/contingencies/contingencies_14.xml
   ${GRIDPACK_DATA_DIR}/contingencies/contingencies_nk_example.xml
   ${CMAKE_CURRENT_BINARY_DIR}/input_118.xml
+  ${CMAKE_CURRENT_BINARY_DIR}/input_118_gpu.xml
   ${GRIDPACK_DATA_DIR}/raw/IEEE118.raw
   ${GRIDPACK_DATA_DIR}/contingencies/contingencies_118.xml
+  ${GRIDPACK_DATA_DIR}/input/ca/input.polish.xml
+  ${GRIDPACK_DATA_DIR}/raw/Polish_model_v23.raw
+  ${GRIDPACK_DATA_DIR}/contingencies/contingencies_polish.xml
+  ${GRIDPACK_DATA_DIR}/input/ca/input.euro.xml
+  ${GRIDPACK_DATA_DIR}/raw/EuropeanOpenModel_v23.raw
+  ${GRIDPACK_DATA_DIR}/contingencies/contingencies_euro.xml
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_driver.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_driver.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_main.cpp
@@ -181,4 +200,3 @@ set(TIMEOUT 120.0)
 gridpack_add_run_test("contingency_analysis" ca.x input_14.xml)
 gridpack_add_run_test("contingency_analysis_auto_n1" ca.x input_14_auto_n1.xml)
 gridpack_add_run_test("contingency_analysis_qlim" ca.x input_14_qlim.xml)
-

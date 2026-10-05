@@ -354,3 +354,11 @@ install(FILES
   include/gridpack/batchpf/batchpf_backend.h
   DESTINATION include/gridpack/batchpf
 )
+# The contingency-analysis driver includes these and links the host
+# library, also when it is built from the installed example
+install(FILES
+  host/batch_path.hpp
+  host/reconcile.hpp
+  DESTINATION include/gridpack/applications/modules/batch_pf/host
+)
+install(TARGETS gridpack_batchpf_host ARCHIVE DESTINATION lib)

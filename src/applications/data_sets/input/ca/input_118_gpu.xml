@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Full N-1 contingency analysis of the IEEE 118-bus case with the GPU batch
+  path. Without the GPUBatch block (or with enabled=off) ca.x runs exactly
+  as stock GridPACK. On a machine without a usable GPU the run falls back to
+  GridPACK's CPU loop and logs why.
+
+  Every GPUBatch and Execution key is optional; the values below are the
+  defaults. At start-up rank 0 prints each effective value and where it
+  came from. The batch_pf README lists every key.
+-->
+<Configuration>
+  <Contingency_analysis>
+    <printCalcFiles>false</printCalcFiles>
+    <writeStats>false</writeStats>
+    <FullBranchN1>true</FullBranchN1>
+    <FullGeneratorN1>true</FullGeneratorN1>
+    <qlim>true</qlim>
+    <minVoltage>0.9</minVoltage>
+    <maxVoltage>1.1</maxVoltage>
+    <outputFormat>csv_delta</outputFormat>
+    <GPUBatch>
+      <enabled>auto</enabled>                  <!-- auto | on | off -->
+      <onUnavailable>fallback</onUnavailable>  <!-- fallback | error -->
+      <backend>auto</backend>                  <!-- auto | alg2 | cudss | cpu_reference -->
+      <batchSize>auto</batchSize>              <!-- auto, or cases per batch -->
+      <warmStart>base_case</warmStart>         <!-- base_case | raw (GridPACK's start) -->
+      <shadowFraction>0.0</shadowFraction>     <!-- share of GPU cases GridPACK re-solves -->
+      <telemetry>summary</telemetry>           <!-- off | summary | detailed -->
+    </GPUBatch>
+    <Execution>
+      <acceleratorRanks>auto</acceleratorRanks> <!-- auto: one rank per visible GPU -->
+      <cpuBinding>auto</cpuBinding>             <!-- auto | none | performance_first -->
+      <logLevel>info</logLevel>                 <!-- error | warn | info | debug -->
+    </Execution>
+  </Contingency_analysis>
+  <Powerflow>
+    <networkConfiguration>IEEE118.raw</networkConfiguration>
+    <maxIteration>50</maxIteration>
+    <tolerance>1.0e-6</tolerance>
+    <qlim>true</qlim>
+    <LinearSolver>
+      <PETScOptions>
+        -ksp_type preonly
+        -pc_type lu
+        -pc_factor_mat_solver_type superlu_dist
+      </PETScOptions>
+    </LinearSolver>
+  </Powerflow>
+</Configuration>

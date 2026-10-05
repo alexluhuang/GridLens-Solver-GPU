@@ -117,6 +117,13 @@ function(gridpack_setup)
     HINTS ${GRIDPACK_LIB_DIR}
   )
 
+  # GPU batch path of the contingency-analysis driver (host side; the GPU
+  # code is in plugins loaded at run time)
+  find_library(GRIDPACK_BATCHPF_HOST_LIBRARY
+    NAMES gridpack_batchpf_host
+    HINTS ${GRIDPACK_LIB_DIR}
+  )
+
   find_library(GRIDPACK_HADREC_MODULE_LIBRARY
     NAMES gridpack_hadrec_module
     HINTS ${GRIDPACK_LIB_DIR}
@@ -143,6 +150,7 @@ function(gridpack_setup)
   )
 
   set(gp_libs
+    ${GRIDPACK_BATCHPF_HOST_LIBRARY}
     ${GRIDPACK_POWERFLOW_MODULE_LIBRARY}
     ${GRIDPACK_DYNAMIC_SIMULATION_FULL_MODULE_LIBRARY}
     ${GRIDPACK_EMT_MODULE_LIBRARY}
@@ -228,6 +236,7 @@ function(gridpack_setup)
   list(APPEND gp_libs
     @Boost_Real_LIBRARIES@
     @MPI_CXX_LIBRARIES@
+    @CMAKE_DL_LIBS@
   )
 
   set(GRIDPACK_INCLUDE_DIRS

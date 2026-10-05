@@ -39,6 +39,8 @@ add_executable(ca.x
 
 target_link_libraries(ca.x ${GRIDPACK_LIBS})
 
+configure_file(input_118_gpu.xml input_118_gpu.xml COPYONLY)
+
 add_custom_target(ca.x.input
  
   COMMAND ${CMAKE_COMMAND} -E copy 
@@ -107,4 +109,3 @@ add_custom_target(ca.x.input
   ${CMAKE_CURRENT_SOURCE_DIR}/contingencies_euro.xml
 )
 add_dependencies(ca.x ca.x.input)
-
