@@ -121,7 +121,7 @@ __global__ void toInterleaved(const double *in, double *out, const int *mask,
   if (!mask[b]) return;
   const double v = in[static_cast<int64_t>(b) * len + p];
   out[i] = v;
-  if (!isfinite(v)) status[b] = BATCHPF_MEMBER_NONFINITE;
+  if (!isfinite(v)) atomicMax(status + b, BATCHPF_MEMBER_NONFINITE);
 }
 
 /// Per-member pivot check on the factor diagonal (member-major)

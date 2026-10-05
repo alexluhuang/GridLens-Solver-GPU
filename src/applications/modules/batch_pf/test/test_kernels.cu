@@ -366,6 +366,35 @@ int main()
                 dx_rel, bad);
     check(bad == 0, "no member flagged");
     check(dx_rel < 1e-9, "Algorithm 2 matches KLU");
+
+    // ROB-1: a singular member must not spoil the other solves. A masked
+    // member must retain the state from its last successful solve.
+    constexpr int singular = 7;
+    constexpr int masked = 9;
+    std::vector<double> broken = Jh;
+    for (int64_t p = 0; p < pat.nnz; p++) broken[p * B + singular] = 0.0;
+    mask[masked] = 0;
+    db.J.upload(broken.data(), broken.size(), nullptr);
+    dmask.upload(mask.data(), B, nullptr);
+    dst.zero(nullptr);
+    gpu->refactorize(db.J.data(), dmask.data(), dst.data());
+    check(host(dst)[singular] != BATCHPF_MEMBER_OK,
+          "singular member is flagged at factorization for CPU fallback");
+    gpu->solve(drhs.data(), dx.data(), dmask.data(), dst.data());
+    const auto isolated_status = host(dst);
+    const auto isolated_x = host(dx);
+    check(isolated_status[singular] == BATCHPF_MEMBER_NONFINITE,
+          "non-finite takes precedence when solving the singular system");
+    for (int b = 0; b < B; b++) {
+      if (b == singular) continue;
+      check(isolated_status[b] == BATCHPF_MEMBER_OK, "other members remain healthy");
+      for (int k = 0; k < 2 * n; k++) {
+        const auto i = static_cast<std::size_t>(k) * B + b;
+        const double expected = b == masked ? xg[i] : xc[i];
+        check(std::fabs(isolated_x[i] - expected) <= 1e-9 * std::max(1.0, std::fabs(expected)),
+              "healthy solves agree with KLU and masked states are unchanged");
+      }
+    }
   }
 
   if (failures == 0) {

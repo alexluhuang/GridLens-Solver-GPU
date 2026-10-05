@@ -361,6 +361,18 @@ if (GRIDPACK_ENABLE_TESTS)
         --mode parity --backend alg2 --solver ${lu} --ranks 4 --mpiexec ${MPIEXEC}
         --accelerator-ranks 0,1 --gpu-setting "<batchSize>32</batchSize>")
     endif()
+    if (GRIDPACK_BATCHPF_HAVE_CUDA)
+      batchpf_add_test(batchpf.platform.validated_cap ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/validated_cap
+        --mode parity --backend alg2 --solver ${lu}
+        --gpu-setting "<batchSize>32</batchSize>"
+        --gpu-setting "<maxValidatedBatch>8</maxValidatedBatch>" --expect-batch-at-most 8)
+      batchpf_add_test(batchpf.platform.memory_cap ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/memory_cap
+        --mode parity --backend alg2 --solver ${lu}
+        --gpu-setting "<batchSize>64</batchSize>"
+        --gpu-setting "<maxMemoryGB>0.001</maxMemoryGB>" --expect-batch-at-most 32)
+    endif()
 
     # External RAW files are not redistributed. Point this list at locally
     # available validation cases (at most 10k buses, per the handoff).

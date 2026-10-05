@@ -128,8 +128,9 @@ int Session::chooseCapacity(int64_t expected_cases)
 {
   const int64_t expected = std::max<int64_t>(expected_cases, 1);
   if (!p_on_device) {
-    const int b = p_settings.batch_size > 0 ? p_settings.batch_size
+    int b = p_settings.batch_size > 0 ? p_settings.batch_size
                                             : static_cast<int>(std::min<int64_t>(expected, 64));
+    if (p_settings.max_validated_batch > 0) b = std::min(b, p_settings.max_validated_batch);
     p_engine->allocate(b);
     return b;
   }
@@ -154,9 +155,8 @@ int Session::chooseCapacity(int64_t expected_cases)
       cudss_cap = validatedCap(p_settings, caps);
     }
   }
-  const int alg2_cap = (p_backend == BATCHPF_BACKEND_ALG2 &&
-                        p_settings.max_validated_batch > 0)
-                           ? p_settings.max_validated_batch : 0;
+  const int alg2_cap = p_settings.max_validated_batch > 0
+                           ? p_settings.max_validated_batch : kAlg2ValidatedBatch;
   auto capOf = [&](int backend) {
     int c = mem_cap;
     if (backend == BATCHPF_BACKEND_CUDSS && cudss_cap > 0) c = std::min(c, cudss_cap);
@@ -176,6 +176,11 @@ int Session::chooseCapacity(int64_t expected_cases)
                    "cuDSS cap " + std::to_string(cudss_cap));
         b = cudss_cap;
       }
+    }
+    if (p_backend == BATCHPF_BACKEND_ALG2 && b > alg2_cap) {
+      p_log.warn("batch size " + std::to_string(b) + " lowered to the validated "
+                 "alg2 cap " + std::to_string(alg2_cap));
+      b = alg2_cap;
     }
     if (b > mem_cap) {
       p_log.warn("batch size " + std::to_string(b) + " lowered to " +

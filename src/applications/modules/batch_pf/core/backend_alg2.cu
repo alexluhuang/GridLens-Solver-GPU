@@ -126,6 +126,17 @@ __global__ void factorLevelKernel(Alg2Plan p, const int *cols, int ncols,
   factorColumn(p, cols[c], b);
 }
 
+// Many rows can flag the same member. Preserve the strongest failure
+// without racing between threads (non-finite takes precedence).
+__host__ __device__ void recordFailure(int *status, int cause)
+{
+#ifdef __CUDA_ARCH__
+  atomicMax(status, cause);
+#else
+  *status = std::max(*status, cause);
+#endif
+}
+
 /// Pivot health: tiny relative to the reference column, or not finite
 struct PivotCheck {
   Alg2Plan p;
@@ -138,9 +149,9 @@ struct PivotCheck {
     const int64_t j = i / p.B;
     const double piv = p.lu[static_cast<int64_t>(p.diag[j]) * p.B + b];
     if (!isfinite(piv)) {
-      status[b] = BATCHPF_MEMBER_NONFINITE;
+      recordFailure(status + b, BATCHPF_MEMBER_NONFINITE);
     } else if (fabs(piv) <= p.pivot_limit * p.col_scale[j]) {
-      status[b] = BATCHPF_MEMBER_SMALL_PIVOT;
+      recordFailure(status + b, BATCHPF_MEMBER_SMALL_PIVOT);
     }
   }
 };
@@ -172,7 +183,7 @@ struct PermuteOut {
     const int64_t r = i / p.B;
     const double v = p.y[i];
     x[static_cast<int64_t>(p.Q[r]) * p.B + b] = v;
-    if (!isfinite(v)) status[b] = BATCHPF_MEMBER_NONFINITE;
+    if (!isfinite(v)) recordFailure(status + b, BATCHPF_MEMBER_NONFINITE);
   }
 };
 
@@ -271,6 +282,7 @@ class Alg2Backend : public SolverBackend {
     c.version = "batched left-looking LU, levels " +
                 std::to_string(p_lu.lev_ptr.size() - 1);
     c.on_device = true;
+    c.validated_batch = kAlg2ValidatedBatch;
     return c;
   }
 

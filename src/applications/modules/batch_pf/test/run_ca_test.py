@@ -33,6 +33,7 @@ import argparse
 import csv
 import functools
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -189,6 +190,7 @@ def main():
     ap.add_argument("--accelerator-ranks")
     ap.add_argument("--gpu-setting", action="append", default=[])
     ap.add_argument("--stock-cax")
+    ap.add_argument("--expect-batch-at-most", type=int)
     args = ap.parse_args()
     errors = []
     if args.ranks < 1:
@@ -215,6 +217,10 @@ def main():
             expected = len(rows(os.path.join(stock, FILES[4]))) - 2
             complete(test, expected, errors)
             shadow(test, errors)
+            if args.expect_batch_at_most is not None:
+                capacities = re.findall(r"backend \w+ \([^\n]+\), batch size (\d+)", out)
+                if not capacities or any(int(b) > args.expect_batch_at_most for b in capacities):
+                    errors.append("effective batch exceeds the expected admission limit")
             if "shadow validation" not in out:
                 errors.append("no shadow validation summary in the log")
     elif args.mode in ("no_block", "disabled"):

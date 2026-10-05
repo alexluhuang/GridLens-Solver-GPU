@@ -40,6 +40,9 @@
 namespace gridpack {
 namespace batchpf {
 
+// Largest Algorithm 2 batch exercised by the 10k validation study.
+constexpr int kAlg2ValidatedBatch = 2048;
+
 /// What a backend can do (subset of batchpf_backend_caps)
 struct BackendCaps {
   std::string name;
