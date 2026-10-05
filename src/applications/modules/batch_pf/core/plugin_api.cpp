@@ -102,7 +102,7 @@ batchpf_status sessionCreate(const batchpf_settings *settings,
   std::unique_ptr<batchpf_session> s(new (std::nothrow) batchpf_session);
   if (!s) return BATCHPF_ERR_OUT_OF_MEMORY;
   const batchpf_status st = guarded(nullptr, error, error_size, [&] {
-    s->impl.reset(new Session(*settings));
+    s->impl = std::make_unique<Session>(*settings);
   });
   if (st == BATCHPF_OK) *session = s.release();
   return st;

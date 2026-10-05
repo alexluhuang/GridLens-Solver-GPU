@@ -29,6 +29,7 @@
 #include <cuda_runtime.h>
 
 #include <cstdint>
+#include <type_traits>
 
 #include "common.hpp"
 
@@ -38,6 +39,9 @@ namespace batchpf {
 template <class F>
 __global__ void forEachKernel(int64_t n, F f)
 {
+  // The functor is passed to the GPU by value, as raw bytes
+  static_assert(std::is_trivially_copyable<F>::value,
+                "kernel functors must be trivially copyable");
   const int64_t i = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i < n) f(i);
 }

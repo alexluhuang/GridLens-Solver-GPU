@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstring>
 #include <deque>
+#include <memory>
 #include <sstream>
 #include <utility>
 
@@ -28,7 +29,7 @@ namespace batchpf {
 
 Engine::Engine(ModelHost model, EngineConfig config, Logger logger)
     : p_model(std::move(model)), p_config(std::move(config)),
-      p_log(logger), p_buf(new EngineBuffers)
+      p_log(logger), p_buf(std::make_unique<EngineBuffers>())
 {
   p_diag.struct_size = sizeof(p_diag);
   p_diag.struct_version = 1;

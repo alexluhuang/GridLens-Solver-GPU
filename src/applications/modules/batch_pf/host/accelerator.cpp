@@ -18,6 +18,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 
 namespace gridpack {
 namespace batchpf {
@@ -128,7 +129,7 @@ struct Accelerator::Library {
   std::unique_ptr<void, DlClose> handle;
 };
 
-Accelerator::Accelerator() : p_lib(new Library)
+Accelerator::Accelerator() : p_lib(std::make_unique<Library>())
 {
   std::memset(&p_api, 0, sizeof(p_api));
 }

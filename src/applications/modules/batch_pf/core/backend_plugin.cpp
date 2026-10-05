@@ -176,7 +176,7 @@ std::unique_ptr<SolverBackend> loadPluginBackend(const std::string &dir,
   LibraryHandle lib;
   batchpf_backend_api api;
   if (!openBackend(dir, name, &lib, &api, why)) return nullptr;
-  return std::unique_ptr<SolverBackend>(new PluginBackend(std::move(lib), api, setup));
+  return std::make_unique<PluginBackend>(std::move(lib), api, setup);
 }
 
 bool probePluginBackend(const std::string &dir, const std::string &name,

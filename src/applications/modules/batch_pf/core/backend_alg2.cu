@@ -33,6 +33,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <vector>
 
 #include "backend.hpp"
@@ -425,7 +426,7 @@ class Alg2Backend : public SolverBackend {
 
 std::unique_ptr<SolverBackend> makeAlg2Backend(const BackendSetup &setup)
 {
-  return std::unique_ptr<SolverBackend>(new Alg2Backend(setup));
+  return std::make_unique<Alg2Backend>(setup);
 }
 
 }  // namespace batchpf

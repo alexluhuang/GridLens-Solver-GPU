@@ -17,7 +17,9 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <sstream>
+#include <type_traits>
 
 #include "gridpack/configuration/configuration.hpp"
 #include "gridpack/timer/coarse_timer.hpp"
@@ -50,6 +52,7 @@ double now()
 template <class T>
 void appendBytes(std::vector<char> *out, const T *src, std::size_t count)
 {
+  static_assert(std::is_trivially_copyable<T>::value, "copied with memcpy");
   const std::size_t at = out->size();
   out->resize(at + count * sizeof(T));
   if (count > 0) std::memcpy(out->data() + at, src, count * sizeof(T));
@@ -173,7 +176,7 @@ bool BatchPath::Impl::shadowSelected(int event) const
 
 BatchPath::BatchPath(gridpack::utility::Configuration *config,
                      gridpack::parallel::Communicator &world)
-    : p_impl(new Impl)
+    : p_impl(std::make_unique<Impl>())
 {
   Impl &d = *p_impl;
   d.world = world;
@@ -188,7 +191,7 @@ BatchPath::BatchPath(gridpack::utility::Configuration *config,
   const GpuBatchSettings &g = d.settings.gpu;
   d.requested = g.block_present && g.enabled.value != Enabled::Off;
   if (!d.requested) return;
-  d.log.reset(new HostLogger(d.rank, d.settings.exec.log_level.value));
+  d.log = std::make_unique<HostLogger>(d.rank, d.settings.exec.log_level.value);
   if (d.rank == 0) {
     d.info("GPU batch contingency path requested; effective settings:");
     for (const std::string &line : describeSettings(d.settings)) d.info("  " + line);
@@ -345,7 +348,7 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   const double t0 = now();
   const gridpack::powerflow::PFAppModule::SolverParameters prm = pf_app.getSolverParameters();
   const bool controls = prm.switched_shunt || prm.ltc || prm.area_interchange;
-  d.classifier.reset(new Classifier(pf_app, network, d.model, controls));
+  d.classifier = std::make_unique<Classifier>(pf_app, network, d.model, controls);
   if (d.rank == 0) d.info("contingency classifier fast path: " + d.classifier->fastPathNote());
   const int n = static_cast<int>(events.size());
   std::vector<char> local;

@@ -29,6 +29,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -109,6 +110,10 @@ struct PinnedFree {
  */
 template <class T>
 class Buffer {
+  // Elements are moved with memcpy-style copies between memory kinds
+  static_assert(std::is_trivially_copyable<T>::value,
+                "Buffer<T> needs a trivially copyable element type");
+
  public:
   Buffer() = default;
   Buffer(MemoryKind kind, std::size_t count) { allocate(kind, count); }

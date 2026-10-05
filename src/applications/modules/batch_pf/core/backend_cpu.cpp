@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <future>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -146,7 +147,7 @@ class CpuReferenceBackend : public SolverBackend {
 
 std::unique_ptr<SolverBackend> makeCpuReferenceBackend(const BackendSetup &setup)
 {
-  return std::unique_ptr<SolverBackend>(new CpuReferenceBackend(setup));
+  return std::make_unique<CpuReferenceBackend>(setup);
 }
 
 }  // namespace batchpf

@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <memory>
 #include <sstream>
 
 #include "platform.hpp"
@@ -90,7 +91,7 @@ batchpf_device_info Session::deviceInfo() const
 
 void Session::setModel(const batchpf_model &model)
 {
-  p_model.reset(new ModelHost(copyModel(model)));
+  p_model = std::make_unique<ModelHost>(copyModel(model));
   std::ostringstream os;
   os << "model: " << p_model->n_bus << " buses, " << p_model->n_edge
      << " directed branch entries, base " << p_model->sbase << " MVA";
@@ -277,7 +278,7 @@ int Session::plan(const batchpf_solver_params &params, int64_t expected_cases)
   cfg.exchange_pinned = p_profile != BATCHPF_MEMORY_DISCRETE;
   cfg.telemetry = p_settings.telemetry;
   cfg.profiler_ranges = p_settings.profiler_ranges != 0;
-  p_engine.reset(new Engine(*p_model, cfg, p_log));
+  p_engine = std::make_unique<Engine>(*p_model, cfg, p_log);
   p_engine->plan(params);
   p_capacity = chooseCapacity(expected_cases);
   const BackendCaps caps = p_engine->backendCaps();

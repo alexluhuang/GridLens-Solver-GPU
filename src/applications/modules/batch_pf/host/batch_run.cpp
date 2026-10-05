@@ -41,6 +41,7 @@
 #include <set>
 #include <sstream>
 #include <thread>
+#include <type_traits>
 
 #include "batch_path_impl.hpp"
 #include "gridpack/parallel/task_manager.hpp"
@@ -83,6 +84,7 @@ struct Packet {
 template <class T>
 void put(std::vector<char> *buf, const T *src, std::size_t n)
 {
+  static_assert(std::is_trivially_copyable<T>::value, "copied with memcpy");
   const std::size_t at = buf->size();
   buf->resize(at + n * sizeof(T));
   if (n) std::memcpy(buf->data() + at, src, n * sizeof(T));
@@ -91,6 +93,7 @@ void put(std::vector<char> *buf, const T *src, std::size_t n)
 template <class T>
 const char *get(const char *p, T *dst, std::size_t n)
 {
+  static_assert(std::is_trivially_copyable<T>::value, "copied with memcpy");
   if (n) std::memcpy(dst, p, n * sizeof(T));
   return p + n * sizeof(T);
 }

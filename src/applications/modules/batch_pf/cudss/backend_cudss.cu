@@ -354,7 +354,7 @@ batchpf_status setup(const batchpf_backend_plan *plan, batchpf_backend **out,
       plan->batch_capacity <= 0) {
     return BATCHPF_ERR_INVALID_ARGUMENT;
   }
-  std::unique_ptr<batchpf_backend> b(new batchpf_backend);
+  auto b = std::make_unique<batchpf_backend>();
   const batchpf_status st = guarded(b.get(), err, err_size, [&] { b->setup(*plan); });
   if (st == BATCHPF_OK) *out = b.release();
   return st;
