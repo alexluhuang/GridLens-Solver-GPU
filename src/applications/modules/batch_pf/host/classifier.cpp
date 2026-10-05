@@ -102,8 +102,9 @@ Classifier::Classifier(gridpack::powerflow::PFAppModule &pf_app,
   p_fast_ok = true;
   int bridges = 0;
   for (char b : p_bridge) bridges += b ? 1 : 0;
-  p_fast_note = "used; " + std::to_string(bridges) +
-                " branches are bridges and take the full routine";
+  p_fast_note = "used (" + std::to_string(bridges) +
+                " bridge branches: lone-bus or islanding outcome decided from the "
+                "network graph)";
 }
 
 /**
@@ -117,6 +118,7 @@ void Classifier::findBridges()
   const int nb = net.numBuses();
   const int nbr = net.numBranches();
   p_bridge.assign(nbr, 0);
+  p_degree.assign(nb, 0);
   std::vector<std::vector<std::pair<int, int>>> adj(nb);   // (bus, branch)
   for (int i = 0; i < nbr; i++) {
     if (!net.getActiveBranch(i)) continue;
@@ -127,6 +129,8 @@ void Classifier::findBridges()
     if (a == b || busAt(net, a)->isIsolated() || busAt(net, b)->isIsolated()) continue;
     adj[a].emplace_back(b, i);
     adj[b].emplace_back(a, i);
+    p_degree[a]++;
+    p_degree[b]++;
   }
   // Iterative Tarjan bridge search
   std::vector<int> disc(nb, -1), low(nb, 0);
@@ -212,15 +216,39 @@ bool Classifier::classifyFastBranch(int event, gridpack::powerflow::Contingency 
   for (std::size_t k = 0; k < st.size(); k++) {
     if (static_cast<int>(k) != idx && st[k]) other_active = true;
   }
-  if (saved && !other_active && p_bridge[lid]) return false;
+  int lone = -1;
+  if (saved && !other_active && p_bridge[lid]) {
+    // The branch is the only link between two parts of the network
+    int a, b;
+    net.getBranchEndpoints(lid, &a, &b);
+    const bool a_lone = p_degree[a] == 1;
+    const bool b_lone = p_degree[b] == 1;
+    if (a_lone && b_lone) return false;           // two-bus network: full routine
+    if (!a_lone && !b_lone) {
+      // two islands of two or more buses: GridPACK reports ISLANDED
+      out->event = event;
+      out->path = CasePath::Cpu;
+      out->reason = CpuReason::Islanded;
+      out->fast = true;
+      out->island_count = 2;
+      out->slack_bus = p_base_slack;
+      return true;
+    }
+    lone = a_lone ? a : b;
+    if (lone == p_base_slack) return false;       // slack cut off: full routine
+  }
   br->setBranchStatus(c.p_ckt[0], false);
+  PFBus *lone_bus = (lone >= 0) ? busAt(net, lone) : nullptr;
+  if (lone_bus) lone_bus->setIsolated(true);      // as checkLoneBus() does
   SupersetCaseState state, scratch;
   p_app.captureCaseState(p_model, std::vector<int>(), std::vector<int>(1, lid), &state);
+  if (lone_bus) lone_bus->setIsolated(false);
   br->setBranchStatus(c.p_ckt[0], saved);
   p_app.captureCaseState(p_model, std::vector<int>(), std::vector<int>(1, lid), &scratch);
   out->event = event;
   out->path = CasePath::Gpu;
   out->fast = true;
+  out->lone_bus = lone >= 0;
   out->slack_bus = p_base_slack;
   finishUpdates(state, out);
   return true;

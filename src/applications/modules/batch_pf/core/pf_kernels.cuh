@@ -175,14 +175,18 @@ __host__ __device__ inline void atomicAddInt(int *addr, int val)
 // filled, then apply each case's absolute value changes
 // ---------------------------------------------------------------------
 
+/// Index i = item * nfill + j addresses slot slots[j] of item; only the
+/// slots being filled are touched
 struct FillBusBase {
   ModelView m;
   BatchView w;
-  __host__ __device__ void operator()(int64_t i) const
+  const int *slots = nullptr;
+  int nfill = 0;
+  __host__ __device__ void operator()(int64_t j) const
   {
-    const int64_t k = i / w.B;
-    const int bm = static_cast<int>(i % w.B);
-    if (!w.m_fill[bm]) return;
+    const int64_t k = j / nfill;
+    const int bm = slots[j % nfill];
+    const int64_t i = k * w.B + bm;
     w.type[i] = m.base_type[k];
     w.g[i] = m.base_g[k];
     w.b[i] = m.base_b[k];
@@ -198,11 +202,13 @@ struct FillBusBase {
 struct FillEdgeBase {
   ModelView m;
   BatchView w;
-  __host__ __device__ void operator()(int64_t i) const
+  const int *slots = nullptr;
+  int nfill = 0;
+  __host__ __device__ void operator()(int64_t j) const
   {
-    const int64_t e = i / w.B;
-    const int bm = static_cast<int>(i % w.B);
-    if (!w.m_fill[bm]) return;
+    const int64_t e = j / nfill;
+    const int bm = slots[j % nfill];
+    const int64_t i = e * w.B + bm;
     w.eg[i] = m.base_eg[e];
     w.eb[i] = m.base_eb[e];
   }
@@ -248,11 +254,13 @@ struct ApplyEdgeUpdates {
 struct InitState {
   ModelView m;
   BatchView w;
-  __host__ __device__ void operator()(int64_t i) const
+  const int *slots = nullptr;
+  int nfill = 0;
+  __host__ __device__ void operator()(int64_t j) const
   {
-    const int64_t k = i / w.B;
-    const int bm = static_cast<int>(i % w.B);
-    if (!w.m_fill[bm]) return;
+    const int64_t k = j / nfill;
+    const int bm = slots[j % nfill];
+    const int64_t i = k * w.B + bm;
     const int t = w.type[i];
     double v = m.v_init[k];
     double th = m.theta_init[k];

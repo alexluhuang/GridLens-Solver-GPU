@@ -28,6 +28,12 @@
  *  - one branch element whose loss cannot disconnect anything (the branch
  *    keeps another element in service, or it is not a bridge of the
  *    network graph): no lone bus, one island, no slack move;
+ *  - one branch element that is a bridge: if one end has no other branch,
+ *    that end becomes a lone bus, which GridPACK isolates before looking
+ *    for islands, so the rest stays one island and the case is solved with
+ *    that bus isolated (unless the lone bus is the slack); otherwise the
+ *    network splits into two islands of two or more buses and GridPACK
+ *    reports ISLANDED without solving;
  *  - one generator not at the reference bus, or at a reference bus that
  *    keeps another unit online: no topology or slack change.
  * Before the fast path is used, the unmodified network is checked with
@@ -117,6 +123,7 @@ class Classifier {
   std::string p_fast_note;
   int p_base_slack = -1;
   std::vector<char> p_bridge;        // per local branch: removal disconnects
+  std::vector<int> p_degree;         // per bus: in-service branch objects
 };
 
 }  // namespace batchpf

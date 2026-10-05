@@ -69,7 +69,7 @@ struct GpuBatchSettings {
   Setting<int> device{0};
   Setting<int> batch_size{0};                    // 0 = automatic
   Setting<int> max_validated_batch{0};           // 0 = backend default
-  Setting<bool> backfill{false};
+  Setting<bool> backfill{true};
   Setting<int> threads_per_block{0};             // 0 = automatic
   Setting<int> memory_profile{BATCHPF_MEMORY_AUTO};
   Setting<double> memory_headroom_gb{-1.0};      // < 0 = by memory profile

@@ -166,13 +166,18 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots
   u.bus = d.u_bus.device();
   u.edge_member = d.u_edge_member.device();
   u.edge = d.u_edge.device();
-  const int64_t nB = static_cast<int64_t>(p_model.n_bus) * p_B;
-  const int64_t eB = static_cast<int64_t>(p_model.n_edge) * p_B;
-  ex.run(nB, FillBusBase{m, w}, "FillBusBase");
-  ex.run(eB, FillEdgeBase{m, w}, "FillEdgeBase");
+  const int nfill = static_cast<int>(slots.size());
+  std::copy(slots.begin(), slots.end(), d.fill_slots.host());
+  d.fill_slots.toDevice(slots.size(), st);
+  const int *fs = d.fill_slots.device();
+  ex.run(static_cast<int64_t>(p_model.n_bus) * nfill, FillBusBase{m, w, fs, nfill},
+         "FillBusBase");
+  ex.run(static_cast<int64_t>(p_model.n_edge) * nfill, FillEdgeBase{m, w, fs, nfill},
+         "FillEdgeBase");
   ex.run(static_cast<int64_t>(nb), ApplyBusUpdates{w, u}, "ApplyBusUpdates");
   ex.run(static_cast<int64_t>(ne), ApplyEdgeUpdates{w, u}, "ApplyEdgeUpdates");
-  ex.run(nB, InitState{m, w}, "InitState");
+  ex.run(static_cast<int64_t>(p_model.n_bus) * nfill, InitState{m, w, fs, nfill},
+         "InitState");
   if (dev) {
     cudaCheck(cudaEventRecord(d.ev_stop[PH_MATERIALIZE].get(), st), "event");
   } else {

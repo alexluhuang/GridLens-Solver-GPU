@@ -170,7 +170,7 @@ struct EngineBuffers {
   std::vector<int> h_argp, h_argq, h_qviol, h_status;
   std::vector<unsigned long long> h_maxp, h_maxq, h_res, h_rhs;
   // exchange (class X)
-  Exchange<int> u_bus_member, u_edge_member, gather_slots;
+  Exchange<int> u_bus_member, u_edge_member, gather_slots, fill_slots;
   Exchange<batchpf_bus_update> u_bus;
   Exchange<batchpf_edge_update> u_edge;
   Exchange<double> out_v, out_theta, out_q;

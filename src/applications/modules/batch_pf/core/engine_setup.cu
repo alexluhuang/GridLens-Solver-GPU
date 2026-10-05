@@ -99,7 +99,8 @@ void Engine::referenceJacobian(std::vector<double> *values,
   w.m_qviol = qv.data();
   w.warm_start = BATCHPF_WARM_START_BASE_CASE;
   const Executor host(false, nullptr, 0);
-  host.run(n, InitState{m, w}, "InitState");
+  const int slot0 = 0;
+  host.run(n, InitState{m, w, &slot0, 1}, "InitState");
   host.run(n, Mismatch{m, w}, "Mismatch");
   host.run(n, JacobianDiag{m, w}, "JacobianDiag");
   host.run(h.n_edge, JacobianEdge{m, w, h.edge_row.data()}, "JacobianEdge");
@@ -241,6 +242,7 @@ void Engine::allocate(int capacity)
     x->assign(B, 0);
   }
   d.gather_slots.reserve(B, dev, p_config.exchange_pinned);
+  d.fill_slots.reserve(B, dev, p_config.exchange_pinned);
   const std::size_t out = static_cast<std::size_t>(h.n_bus) * B;
   d.out_v.reserve(out, dev, p_config.exchange_pinned);
   d.out_theta.reserve(out, dev, p_config.exchange_pinned);

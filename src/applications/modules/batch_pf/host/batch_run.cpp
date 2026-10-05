@@ -314,6 +314,21 @@ void BatchPath::run(const ProcessCase &process)
       std::shared_ptr<Chunk> ch = inflight.front();
       inflight.pop_front();
       const int m = static_cast<int>(ch->events.size());
+      // Outcome counts of the chunk, as soon as it is done (guide 8.12)
+      int st[4] = {0, 0, 0, 0}, hb[6] = {0, 0, 0, 0, 0, 0};
+      for (const batchpf_outcome &o : ch->outcomes) {
+        st[std::max(0, std::min(3, o.status))]++;
+        for (int bit = 0; bit < 6; bit++) hb[bit] += (o.health_events >> bit) & 1;
+      }
+      std::ostringstream os;
+      os << "GPU chunk of " << m << " cases: " << st[0] << " converged, " << st[1]
+         << " diverged, " << st[2] << " flagged, " << st[3] << " not run";
+      if (st[1] + st[2] > 0) {
+        os << " (small pivot " << hb[0] << ", non-finite " << hb[1] << ", residual "
+           << hb[2] << ", iteration limit " << hb[3] << ", mismatch growth " << hb[4]
+           << ", stagnation " << hb[5] << ")";
+      }
+      d.info(os.str());
       for (int b = 0; b < m; b += packet_cases) {
         ready.push_back({ch, b, std::min(m, b + packet_cases)});
       }

@@ -191,7 +191,12 @@ int Session::chooseCapacity(int64_t expected_cases)
   if (p_backend == BATCHPF_BACKEND_CUDSS && p_settings.backend == BATCHPF_BACKEND_AUTO) {
     backends.push_back(BATCHPF_BACKEND_ALG2);
   }
-  const int64_t want = std::max<int64_t>(32, ((expected + 31) / 32) * 32);
+  // With few cases, one wave (B = cases) is best. With many, keep B at no
+  // more than a quarter of them so refilled slots keep the batch busy and
+  // the slowest cases of the last wave are a small part of the run.
+  const int64_t quarter = p_settings.backfill ? expected / 4 : expected;
+  const int64_t want = std::max<int64_t>(
+      32, ((std::max<int64_t>(quarter, std::min<int64_t>(expected, 128)) + 31) / 32) * 32);
   struct Trial { int backend; int B; double t; };
   std::vector<Trial> trials;
   for (int backend : backends) {
@@ -201,16 +206,20 @@ int Session::chooseCapacity(int64_t expected_cases)
       if (b <= cap) sizes.push_back(b);
     }
     if (sizes.empty()) sizes.push_back(std::max(1, cap));
+    double prev = 0.0;
     for (int b : sizes) {
       try {
         p_engine->setBackend(backend);
         p_engine->allocate(b);
-        const double t = p_engine->timeReferenceSolve(3);
+        const double t = p_engine->timeReferenceSolve(2);
         trials.push_back({backend, b, t});
         std::ostringstream os;
         os << "batch-size sweep: " << backendName(backend) << " B=" << b
            << ": " << t * 1e6 << " us per member (factor + solve)";
         p_log.info(os.str());
+        // Stop once doubling the batch gains less than 5% per member
+        if (prev > 0.0 && t > 0.95 * prev) break;
+        prev = t;
       } catch (const Error &e) {
         p_log.warn(std::string("batch-size sweep: ") + backendName(backend) +
                    " B=" + std::to_string(b) + " failed: " + e.what());
