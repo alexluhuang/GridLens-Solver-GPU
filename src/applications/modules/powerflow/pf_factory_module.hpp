@@ -39,6 +39,7 @@
 #include "gridpack/network/base_network.hpp"
 #include "gridpack/factory/base_factory.hpp"
 #include "gridpack/applications/components/pf_matrix/pf_components.hpp"
+#include "gridpack/applications/modules/powerflow/pf_superset_model.hpp"
 
 namespace gridpack {
 namespace powerflow {
@@ -377,12 +378,56 @@ class PFFactoryModule
      */
     double pickBranchRating(int branchLocalIdx, int elemIdx) const;
 
+    // ---------------------------------------------------------------
+    // Extensions for the GPU batch contingency path. They are only called
+    // when that path is enabled and never change solver behavior.
+    // ---------------------------------------------------------------
+
     /**
      * Select the Jacobian layout on every bus and branch
      */
     void setJacobianFormulation(JacobianFormulation form);
 
+    /**
+     * Report what the last setContingency() did to topology and the slack
+     */
+    void getContingencyEffects(ContingencyEffects *effects) const;
+
+    /**
+     * Export the network as it stands now. Called after the base case is
+     * solved and the Q-limit changes are cleared, so that it describes the
+     * state every contingency solve starts from (plus the base solution).
+     * Recomputes admittances and scheduled injections from the components.
+     */
+    void exportSupersetModel(SupersetModel *model);
+
+    /**
+     * Read back the absolute values of selected buses and branches in the
+     * current (contingency applied) state. End buses of listed branches are
+     * included automatically. Admittances and injections are recomputed by
+     * the components themselves (setYBus, setSBus).
+     * @param model model returned by exportSupersetModel
+     * @param buses local bus indices
+     * @param branches local branch indices
+     * @param state values of the listed buses and of the edges of the
+     *        listed branches
+     */
+    void captureCaseState(const SupersetModel &model,
+        const std::vector<int> &buses, const std::vector<int> &branches,
+        SupersetCaseState *state);
+
   private:
+
+    /**
+     * Superset bus type of a bus in its current state
+     */
+    static int supersetType(PFBus *bus);
+
+    /**
+     * Sum of the admittance of all branch objects joining local buses k and
+     * m, seen from k (cached by setYBus)
+     */
+    void pairAdmittance(int k, int m, double *g, double *b);
 
 
     NetworkPtr p_network;

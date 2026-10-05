@@ -2094,3 +2094,88 @@ bool gridpack::powerflow::PFAppModule::getDataCollectionBranchParam(
 {
   return p_getDataCollectionBranchParam<int>(bus1, bus2, ckt, branchParam, value);
 }
+
+// -------------------------------------------------------------
+// Extensions for the GPU batch contingency path
+// -------------------------------------------------------------
+
+/**
+ * Newton and controller settings, with the controller iteration bound
+ * computed exactly as in solve()
+ */
+gridpack::powerflow::PFAppModule::SolverParameters
+gridpack::powerflow::PFAppModule::getSolverParameters() const
+{
+  SolverParameters prm;
+  prm.tolerance = p_tolerance;
+  prm.max_iteration = p_max_iteration;
+  prm.damping_factor = p_dampingFactor;
+  prm.qlim = p_qlim;
+  prm.qlim_deadband = p_qlim_deadband;
+  int max_ctrl_iter = p_qlim ? p_max_qlim_iterations : 1;
+  if (p_switchedShunt || p_ltc) {
+    max_ctrl_iter = p_max_controller_iterations;
+  }
+  prm.max_controller_iterations = std::max(max_ctrl_iter, 10);
+  prm.switched_shunt = p_switchedShunt;
+  prm.ltc = p_ltc;
+  prm.area_interchange = p_areaInterchange;
+  return prm;
+}
+
+void gridpack::powerflow::PFAppModule::exportSupersetModel(
+    SupersetModel *model)
+{
+  p_factory->exportSupersetModel(model);
+}
+
+void gridpack::powerflow::PFAppModule::getContingencyEffects(
+    ContingencyEffects *effects) const
+{
+  p_factory->getContingencyEffects(effects);
+}
+
+void gridpack::powerflow::PFAppModule::captureCaseState(
+    const SupersetModel &model, const std::vector<int> &buses,
+    const std::vector<int> &branches, SupersetCaseState *state)
+{
+  p_factory->captureCaseState(model, buses, branches, state);
+}
+
+/**
+ * Load an external solution. Admittances are recomputed for the applied
+ * contingency, reactive-limit conversions are replayed, voltages are set,
+ * and bus injections are recomputed at the final state so that the
+ * reporting routines (flows, slack capacity, violation checks) see the
+ * same quantities they see after solve().
+ */
+void gridpack::powerflow::PFAppModule::setExternalSolution(
+    const std::vector<double> &v, const std::vector<double> &theta,
+    const std::vector<int> &qlim_conversion,
+    const std::vector<double> &q_required,
+    const gridpack::utility::ConvergenceSummary &convergence)
+{
+  p_factory->setYBus();
+  int nbus = p_network->numBuses();
+  for (int i = 0; i < nbus; i++) {
+    PFBus *bus = dynamic_cast<PFBus*>(p_network->getBus(i).get());
+    if (qlim_conversion[i] != 0) {
+      bus->applyQlimConversion(qlim_conversion[i] > 0, q_required[i]);
+    }
+    bus->setVoltageState(v[i], theta[i]);
+  }
+  p_network->updateBuses();
+  p_factory->setSBus();
+  for (int i = 0; i < nbus; i++) {
+    if (!p_network->getActiveBus(i)) continue;
+    PFBus *bus = dynamic_cast<PFBus*>(p_network->getBus(i).get());
+    if (bus->isIsolated()) continue;
+    if (bus->getReferenceBus()) {
+      bus->calculatePowerInjection();
+    } else {
+      double rvals[2];
+      bus->rhsValues(rvals);
+    }
+  }
+  p_convergence = convergence;
+}

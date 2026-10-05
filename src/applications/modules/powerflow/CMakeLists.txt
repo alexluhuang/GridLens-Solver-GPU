@@ -62,6 +62,7 @@ target_link_libraries(gridpack_powerflow_module
 install(FILES 
   pf_app_module.hpp
   pf_factory_module.hpp
+  pf_superset_model.hpp
   DESTINATION include/gridpack/applications/modules/powerflow
 )
 

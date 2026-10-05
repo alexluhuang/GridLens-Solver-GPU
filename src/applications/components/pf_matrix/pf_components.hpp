@@ -724,6 +724,66 @@ class PFBus
     void setJacobianFormulation(JacobianFormulation form)
     { p_largeMatrix = (form == JACOBIAN_LARGE); }
 
+    // ---------------------------------------------------------------
+    // Read-only accessors used to export the network to the GPU batch
+    // path. They report state already held by the bus and change nothing.
+    // ---------------------------------------------------------------
+
+    /**
+     * Scheduled net injection (generation minus constant-power load, per
+     * unit) computed by the last setSBus() call
+     */
+    void getScheduledInjection(double *p0, double *q0) const
+    { *p0 = p_P0; *q0 = p_Q0; }
+
+    /**
+     * Voltage magnitude (pu) and angle (radians) that resetVoltage()
+     * restores, i.e. the starting point of every stock contingency solve
+     */
+    double getInitialVoltage() const { return p_voltage; }
+    double getInitialAngle() const { return p_angle; }
+
+    /**
+     * Totals over in-service loads: constant power (MW, MVAr), constant
+     * current (IP, IQ) and constant admittance (YP, YQ) parts
+     */
+    void getOnlineLoadTotals(double *pl, double *ql, double *ip, double *iq,
+        double *yp, double *yq) const;
+
+    /**
+     * Totals of reactive limits (MVAr) over in-service generators, as used
+     * by chkQlim() to decide PV to PQ conversion
+     */
+    void getOnlineGenQLimits(double *qmax, double *qmin) const;
+
+    /**
+     * True if remote voltage regulation (IREG) would adjust this bus in the
+     * controller loop: a PV bus whose in-service generators all regulate a
+     * different bus. Mirrors the test in adjustRemoteRegulation().
+     */
+    bool hasActiveRemoteRegulation() const;
+
+    // ---------------------------------------------------------------
+    // State injection used to report results solved outside GridPACK
+    // (GPU batch path). They are only called by that path.
+    // ---------------------------------------------------------------
+
+    /**
+     * Set the voltage magnitude (pu) and angle (radians) directly, including
+     * the values seen by neighboring buses and branches
+     */
+    void setVoltageState(double v, double theta);
+
+    /**
+     * Apply a PV to PQ conversion that was decided outside GridPACK with the
+     * same rule as chkQlim(): online generators are clamped to their upper
+     * (at_max) or lower limits and the bus becomes PQ. clearQlim() undoes it.
+     * @param at_max true if the upper limit was exceeded
+     * @param q_required reactive requirement (MVAr) that triggered it; used
+     *        only for the warning text that chkQlim() also records
+     */
+    void applyQlimConversion(bool at_max, double q_required);
+
   private:
     bool p_largeMatrix;
     static std::vector<std::string> p_qlimWarnings;
@@ -1080,6 +1140,13 @@ class PFBranch
      */
     void setJacobianFormulation(JacobianFormulation form)
     { p_largeMatrix = (form == JACOBIAN_LARGE); }
+
+    /**
+     * True if the branch was in service when the network was loaded. Off
+     * branch blocks stay in the Jacobian (with zero values) while this is
+     * true, which is what makes a shared sparsity pattern possible.
+     */
+    bool isActiveAtLoad() const { return p_active; }
 
   private:
     bool p_largeMatrix;

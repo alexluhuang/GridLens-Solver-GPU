@@ -38,6 +38,7 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <algorithm>
 #include "boost/smart_ptr/shared_ptr.hpp"
 #include "gridpack/parser/dictionary.hpp"
 #include "gridpack/parallel/global_vector.hpp"
@@ -1625,6 +1626,10 @@ void PFFactoryModule::computeAreaExport(std::map<int,double> &areaExport)
   }
 }
 
+// -------------------------------------------------------------
+// Extensions for the GPU batch contingency path
+// -------------------------------------------------------------
+
 /**
  * Select the Jacobian layout on every bus and branch
  */
@@ -1639,6 +1644,197 @@ void PFFactoryModule::setJacobianFormulation(JacobianFormulation form)
   for (int i = 0; i < numBranch; i++) {
     dynamic_cast<PFBranch*>(p_network->getBranch(i).get())
       ->setJacobianFormulation(form);
+  }
+}
+
+/**
+ * Report what the last setContingency() did to topology and the slack
+ */
+void PFFactoryModule::getContingencyEffects(ContingencyEffects *effects) const
+{
+  effects->island_count = p_islandCount;
+  effects->lone_bus = p_hasLoneBus;
+  effects->slack_transferred = p_slackTransferred;
+  effects->slack_bus = p_currentSlackBusIdx;
+  effects->isolated_buses = p_loneBusIndices;
+  effects->isolated_buses.insert(effects->isolated_buses.end(),
+      p_islandIsolatedBusIndices.begin(), p_islandIsolatedBusIndices.end());
+}
+
+/**
+ * Superset bus type of a bus in its current state. Isolation wins over the
+ * reference role, which wins over voltage control.
+ */
+int PFFactoryModule::supersetType(PFBus *bus)
+{
+  if (bus->isIsolated()) return SUPERSET_ISOLATED;
+  if (bus->getReferenceBus()) return SUPERSET_REF;
+  if (bus->isPV()) return SUPERSET_PV;
+  return SUPERSET_PQ;
+}
+
+/**
+ * Sum of the admittance of all branch objects joining local buses k and m,
+ * seen from k. Uses the values cached by the last PFBranch::setYBus().
+ */
+void PFFactoryModule::pairAdmittance(int k, int m, double *g, double *b)
+{
+  *g = 0.0;
+  *b = 0.0;
+  std::vector<int> nghbrs = p_network->getConnectedBranches(k);
+  for (size_t j = 0; j < nghbrs.size(); j++) {
+    int idx1, idx2;
+    p_network->getBranchEndpoints(nghbrs[j], &idx1, &idx2);
+    PFBranch *branch =
+      dynamic_cast<PFBranch*>(p_network->getBranch(nghbrs[j]).get());
+    if (!branch->isActiveAtLoad()) continue;
+    gridpack::ComplexType y;
+    if (idx1 == k && idx2 == m) {
+      y = branch->getForwardYBus();
+    } else if (idx2 == k && idx1 == m) {
+      y = branch->getReverseYBus();
+    } else {
+      continue;
+    }
+    *g += real(y);
+    *b += imag(y);
+  }
+}
+
+/**
+ * Export the network as it stands now (see header). Rows list the edges of
+ * a bus in the order of its connected branches, which is the order
+ * PFBus::rhsValues() sums them in.
+ */
+void PFFactoryModule::exportSupersetModel(SupersetModel *model)
+{
+  setYBus();
+  setSBus();
+  int numBus = p_network->numBuses();
+  int numBranch = p_network->numBranches();
+  model->sbase = 0.0;
+  model->buses.clear();
+  model->buses.resize(numBus);
+  model->has_remote_regulation = false;
+  model->has_switched_shunt = false;
+  model->has_ltc = false;
+  for (int i = 0; i < numBus; i++) {
+    PFBus *bus = dynamic_cast<PFBus*>(p_network->getBus(i).get());
+    SupersetBus &sb = model->buses[i];
+    model->sbase = bus->getSBase();
+    sb.original_index = bus->getOriginalIndex();
+    sb.type = supersetType(bus);
+    gridpack::ComplexType y = bus->getYBus();
+    sb.g_diag = real(y);
+    sb.b_diag = imag(y);
+    bus->getScheduledInjection(&sb.p0, &sb.q0);
+    sb.v_init = bus->getInitialVoltage();
+    sb.theta_init = bus->getInitialAngle();
+    sb.v_solved = bus->getVoltage();
+    sb.theta_solved = bus->getPhase();
+    bus->getOnlineLoadTotals(&sb.pl, &sb.ql, &sb.ip, &sb.iq, &sb.yp, &sb.yq);
+    bus->getOnlineGenQLimits(&sb.qmax, &sb.qmin);
+    sb.remote_regulation = bus->hasActiveRemoteRegulation();
+    sb.switched_shunt = bus->hasSwitchedShunt();
+    if (sb.remote_regulation) model->has_remote_regulation = true;
+    if (sb.switched_shunt) model->has_switched_shunt = true;
+  }
+  for (int i = 0; i < numBranch; i++) {
+    PFBranch *branch = dynamic_cast<PFBranch*>(p_network->getBranch(i).get());
+    if (branch->hasLTC()) model->has_ltc = true;
+  }
+
+  // Edges: one per directed bus pair joined by an in-service branch object
+  model->row_start.assign(numBus + 1, 0);
+  model->edge_col.clear();
+  model->edge_g.clear();
+  model->edge_b.clear();
+  std::vector<std::map<int,int> > edge_of(numBus);
+  for (int k = 0; k < numBus; k++) {
+    model->row_start[k] = static_cast<int>(model->edge_col.size());
+    std::vector<int> nghbrs = p_network->getConnectedBranches(k);
+    for (size_t j = 0; j < nghbrs.size(); j++) {
+      PFBranch *branch =
+        dynamic_cast<PFBranch*>(p_network->getBranch(nghbrs[j]).get());
+      if (!branch->isActiveAtLoad()) continue;
+      int idx1, idx2;
+      p_network->getBranchEndpoints(nghbrs[j], &idx1, &idx2);
+      int m = (idx1 == k) ? idx2 : idx1;
+      if (m == k || edge_of[k].count(m) > 0) continue;
+      edge_of[k][m] = static_cast<int>(model->edge_col.size());
+      double g, b;
+      pairAdmittance(k, m, &g, &b);
+      model->edge_col.push_back(m);
+      model->edge_g.push_back(g);
+      model->edge_b.push_back(b);
+    }
+  }
+  model->row_start[numBus] = static_cast<int>(model->edge_col.size());
+  model->edge_mate.assign(model->edge_col.size(), -1);
+  for (int k = 0; k < numBus; k++) {
+    for (int e = model->row_start[k]; e < model->row_start[k+1]; e++) {
+      model->edge_mate[e] = edge_of[model->edge_col[e]][k];
+    }
+  }
+  model->branch_edge.assign(numBranch, -1);
+  for (int i = 0; i < numBranch; i++) {
+    PFBranch *branch = dynamic_cast<PFBranch*>(p_network->getBranch(i).get());
+    if (!branch->isActiveAtLoad()) continue;
+    int idx1, idx2;
+    p_network->getBranchEndpoints(i, &idx1, &idx2);
+    if (idx1 == idx2) continue;
+    model->branch_edge[i] = edge_of[idx1][idx2];
+  }
+}
+
+/**
+ * Read back absolute values of selected buses and branches (see header)
+ */
+void PFFactoryModule::captureCaseState(const SupersetModel &model,
+    const std::vector<int> &buses, const std::vector<int> &branches,
+    SupersetCaseState *state)
+{
+  state->buses.clear();
+  state->edges.clear();
+  std::vector<int> bus_list = buses;
+  for (size_t j = 0; j < branches.size(); j++) {
+    int i = branches[j];
+    dynamic_cast<PFBranch*>(p_network->getBranch(i).get())->setYBus();
+    int idx1, idx2;
+    p_network->getBranchEndpoints(i, &idx1, &idx2);
+    bus_list.push_back(idx1);
+    bus_list.push_back(idx2);
+  }
+  std::sort(bus_list.begin(), bus_list.end());
+  bus_list.erase(std::unique(bus_list.begin(), bus_list.end()),
+      bus_list.end());
+  for (size_t j = 0; j < bus_list.size(); j++) {
+    PFBus *bus = dynamic_cast<PFBus*>(p_network->getBus(bus_list[j]).get());
+    bus->setYBus();
+    bus->setSBus();
+    SupersetBusUpdate u;
+    u.bus = bus_list[j];
+    u.type = supersetType(bus);
+    gridpack::ComplexType y = bus->getYBus();
+    u.g_diag = real(y);
+    u.b_diag = imag(y);
+    bus->getScheduledInjection(&u.p0, &u.q0);
+    bus->getOnlineGenQLimits(&u.qmax, &u.qmin);
+    u.remote_regulation = bus->hasActiveRemoteRegulation();
+    state->buses.push_back(u);
+  }
+  for (size_t j = 0; j < branches.size(); j++) {
+    int e = model.branch_edge[branches[j]];
+    if (e < 0) continue;
+    int idx1, idx2;
+    p_network->getBranchEndpoints(branches[j], &idx1, &idx2);
+    SupersetEdgeUpdate f, r;
+    f.edge = e;
+    pairAdmittance(idx1, idx2, &f.g, &f.b);
+    r.edge = model.edge_mate[e];
+    pairAdmittance(idx2, idx1, &r.g, &r.b);
+    state->edges.push_back(f);
+    state->edges.push_back(r);
   }
 }
 

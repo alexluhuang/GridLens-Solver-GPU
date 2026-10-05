@@ -567,11 +567,68 @@ class PFAppModule
     bool getDataCollectionBranchParam(int bus1, int bus2, std::string ckt,
         std::string branchParam, int *value);
 
+    // ---------------------------------------------------------------
+    // Extensions for the GPU batch contingency path. None of them is
+    // called unless that path is enabled.
+    // ---------------------------------------------------------------
+
+    /**
+     * Newton and controller settings read from the Powerflow block, so an
+     * external solver can apply the same rules as solve()
+     */
+    struct SolverParameters {
+      double tolerance;          // Powerflow/tolerance
+      int max_iteration;         // Powerflow/maxIteration
+      double damping_factor;     // Powerflow/dampingFactor
+      bool qlim;                 // Powerflow/qlim
+      double qlim_deadband;      // Powerflow/qlimDeadband
+      int max_controller_iterations; // as computed in solve()
+      bool switched_shunt;       // Powerflow/SwitchedShunt
+      bool ltc;                  // Powerflow/LTC
+      bool area_interchange;     // Powerflow/AreaInterchange
+    };
+    SolverParameters getSolverParameters() const;
+
     /**
      * Jacobian layout selected by Powerflow/jacobianFormulation
      */
     JacobianFormulation getJacobianFormulation() const
     { return p_jacobianFormulation; }
+
+    /**
+     * Export the network for the batch path (see PFFactoryModule)
+     */
+    void exportSupersetModel(SupersetModel *model);
+
+    /**
+     * Report the effects of the last setContingency()
+     */
+    void getContingencyEffects(ContingencyEffects *effects) const;
+
+    /**
+     * Read back values changed by the current contingency
+     */
+    void captureCaseState(const SupersetModel &model,
+        const std::vector<int> &buses, const std::vector<int> &branches,
+        SupersetCaseState *state);
+
+    /**
+     * Load a solution computed outside GridPACK into the network, so that
+     * the normal checks and writers report it. The contingency must already
+     * be applied with setContingency().
+     * @param v voltage magnitude per local bus (pu)
+     * @param theta voltage angle per local bus (rad)
+     * @param qlim_conversion per local bus: 0 none, +1 converted at the
+     *        upper reactive limit, -1 at the lower limit
+     * @param q_required per local bus: reactive requirement (MVAr) at
+     *        conversion, used for the warning text
+     * @param convergence convergence record of the external solve
+     */
+    void setExternalSolution(const std::vector<double> &v,
+        const std::vector<double> &theta,
+        const std::vector<int> &qlim_conversion,
+        const std::vector<double> &q_required,
+        const gridpack::utility::ConvergenceSummary &convergence);
 
   private:
 

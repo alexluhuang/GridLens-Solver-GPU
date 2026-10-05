@@ -2994,6 +2994,113 @@ void gridpack::powerflow::PFBus::getZIPLoadPower(double V,
 }
 
 /**
+ * Totals over in-service loads of the constant power, constant current and
+ * constant admittance parts (same units as the RAW file)
+ */
+void gridpack::powerflow::PFBus::getOnlineLoadTotals(double *pl, double *ql,
+    double *ip, double *iq, double *yp, double *yq) const
+{
+  *pl = 0.0; *ql = 0.0; *ip = 0.0; *iq = 0.0; *yp = 0.0; *yq = 0.0;
+  for (size_t i = 0; i < p_lstatus.size(); i++) {
+    if (p_lstatus[i] == 1) {
+      *pl += p_pl[i];
+      *ql += p_ql[i];
+      *ip += p_ip[i];
+      *iq += p_iq[i];
+      *yp += p_yp[i];
+      *yq += p_yq[i];
+    }
+  }
+}
+
+/**
+ * Totals of reactive limits over in-service generators. These are the
+ * limits chkQlim() compares the reactive requirement against.
+ */
+void gridpack::powerflow::PFBus::getOnlineGenQLimits(double *qmax,
+    double *qmin) const
+{
+  *qmax = 0.0;
+  *qmin = 0.0;
+  for (size_t i = 0; i < p_gstatus.size(); i++) {
+    if (p_gstatus[i] == 1) {
+      *qmax += p_qmax[i];
+      *qmin += p_qmin[i];
+    }
+  }
+}
+
+/**
+ * True if adjustRemoteRegulation() would move this bus's voltage: a PV bus
+ * with no in-service locally regulating generator and at least one
+ * in-service generator regulating another bus
+ */
+bool gridpack::powerflow::PFBus::hasActiveRemoteRegulation() const
+{
+  if (!p_isPV || p_isIREG_PV) return false;
+  int orig_idx = getOriginalIndex();
+  bool has_remote = false;
+  for (size_t j = 0; j < p_gstatus.size() && j < p_ireg.size(); j++) {
+    if (p_gstatus[j] != 1) continue;
+    if (p_ireg[j] == 0) return false;
+    if (p_ireg[j] != orig_idx) has_remote = true;
+  }
+  return has_remote;
+}
+
+/**
+ * Set voltage magnitude and angle directly. The exchanged angle is wrapped
+ * to [-pi, pi) exactly as setValues() does it.
+ */
+void gridpack::powerflow::PFBus::setVoltageState(double v, double theta)
+{
+  p_v = v;
+  p_a = theta;
+  if (p_vMag_ptr) *p_vMag_ptr = p_v;
+  if (p_vAng_ptr) {
+    double pi = 4.0*atan(1.0);
+    if (p_a >= 0.0) {
+      *p_vAng_ptr = fmod(p_a+pi,2.0*pi)-pi;
+    } else {
+      *p_vAng_ptr = fmod(p_a-pi,2.0*pi)+pi;
+    }
+  }
+}
+
+/**
+ * Apply a PV to PQ conversion decided outside GridPACK. The state changes
+ * are the ones chkQlim() makes when the requirement is outside the total
+ * limits, so clearQlim() restores the bus afterwards.
+ */
+void gridpack::powerflow::PFBus::applyQlimConversion(bool at_max,
+    double q_required)
+{
+  if (!p_isPV) return;
+  double qmax_tot, qmin_tot;
+  getOnlineGenQLimits(&qmax_tot, &qmin_tot);
+  char warnBuf[256];
+  if (at_max) {
+    snprintf(warnBuf, sizeof(warnBuf),
+             "\nWarning: Bus %d Q requirement (%8.3f) exceeds total QMAX (%8.3f), converting to PQ\n",
+             getOriginalIndex(), q_required, qmax_tot);
+  } else {
+    snprintf(warnBuf, sizeof(warnBuf),
+             "\nWarning: Bus %d Q requirement (%8.3f) below total QMIN (%8.3f), converting to PQ\n",
+             getOriginalIndex(), q_required, qmin_tot);
+  }
+  p_qlimWarnings.push_back(std::string(warnBuf));
+  p_save2isPV = p_isPV;
+  for (size_t i = 0; i < p_gstatus.size(); i++) {
+    if (p_gstatus[i] == 1) {
+      p_qg[i] = at_max ? p_qmax[i] : p_qmin[i];
+    }
+  }
+  p_isPV = false;
+  p_type = 1;
+  if (p_PV_ptr) *p_PV_ptr = false;
+}
+
+/**
  *  Simple constructor
  */
 gridpack::powerflow::PFBranch::PFBranch(void)
