@@ -1,9 +1,36 @@
-FROM ubuntu:questing
+# syntax=docker/dockerfile:1.19
+# check=error=true
+
+# Base image. The default builds today's CPU-only image; a GPU image uses an
+# NVIDIA CUDA development image with a full version tag, for example
+#   --build-arg BASE_IMAGE=nvidia/cuda:13.0.1-devel-ubuntu24.04
+ARG BASE_IMAGE=ubuntu:questing
+FROM ${BASE_IMAGE}
 
 # Configure dependency versions
 ARG boost_version=1.81.0
 ARG ga_version=5.9.1
 ARG petsc_version=3.24.2
+
+# GPU batch contingency path (build-time choices only; everything else is a
+# run-time setting in configuration.xml). The defaults reproduce the
+# CPU-only image, including its Debug build type; GPU images should use
+# GRIDPACK_BUILD_TYPE=Release.
+#   GRIDPACK_ENABLE_GPU_BATCH  OFF, AUTO or ON (needs a CUDA base image)
+#   CUDA_ARCHITECTURES         GPU code targets; "all" = every supported GPU
+#                              plus PTX for newer ones
+#   CUDSS_APT_PACKAGE          cuDSS package from NVIDIA's repository
+ARG GRIDPACK_ENABLE_GPU_BATCH=OFF
+ARG CUDA_ARCHITECTURES=all
+ARG CUDSS_APT_PACKAGE=cudss
+ARG GRIDPACK_BUILD_TYPE=Debug
+ARG GRIDPACK_IMAGE_VERSION=dev
+
+LABEL org.opencontainers.image.title="GridPACK" \
+      org.opencontainers.image.description="GridPACK power grid simulation framework; optional GPU batch N-1 contingency analysis" \
+      org.opencontainers.image.source="https://github.com/GridOPTICS/GridPACK" \
+      org.opencontainers.image.version="${GRIDPACK_IMAGE_VERSION}" \
+      org.opencontainers.image.licenses="BSD-2-Clause"
 
 # Setup environment variables used throughout installation
 ENV DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC GNUMAKEFLAGS=--no-print-directory
@@ -32,6 +59,16 @@ RUN apt-get update && \
     python3 python3-pip python3-venv python3-dev python-is-python3 \
     openmpi-bin openmpi-common openmpi-doc libopenmpi-dev && \
     apt-get clean
+
+# cuDSS for the GPU batch path, only in GPU builds. NVIDIA's CUDA images
+# carry NVIDIA's package repository; the package also installs a CMake
+# package exporting the cudss target, which the build finds on its own.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    if [ "${GRIDPACK_ENABLE_GPU_BATCH}" != "OFF" ]; then \
+      apt-get update && \
+      apt-get install -y --no-install-recommends ${CUDSS_APT_PACKAGE}; \
+    fi
 
 # Compile/Install Boost
 WORKDIR ${GP_EXT_DEPS}
@@ -101,9 +138,11 @@ RUN cmake -Wdev -D GA_DIR:STRING=${ga_gp_dir} \
     -D GRIDPACK_TEST_TIMEOUT:STRING=120 \
     -D ENABLE_ENVIRONMENT_FROM_COMM:BOOL=YES \
     -D CMAKE_INSTALL_PREFIX:PATH=${GRIDPACK_INSTALL_DIR} \
-    -D CMAKE_BUILD_TYPE:STRING=Debug \
+    -D CMAKE_BUILD_TYPE:STRING=${GRIDPACK_BUILD_TYPE} \
     -D BUILD_SHARED_LIBS=true \
     -D CMAKE_CXX_FLAGS_DEBUG:STRING="-D_GLIBCXX_NO_ASSERTIONS" \
+    -D GRIDPACK_ENABLE_GPU_BATCH:STRING=${GRIDPACK_ENABLE_GPU_BATCH} \
+    -D CMAKE_CUDA_ARCHITECTURES:STRING=${CUDA_ARCHITECTURES} \
     ..
 RUN make install
 
@@ -124,3 +163,8 @@ RUN pyvnum=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.versi
 
 WORKDIR ${GRIDPACK_ROOT_DIR}/workspace
 ENV PATH=${GRIDPACK_INSTALL_DIR}/bin:${GRIDPACK_INSTALL_DIR}/local/bin:${PATH}
+
+# Default command: a shell, as in GridPACK's documented usage
+# (docker run ... bash). No ENTRYPOINT, so "docker run ... ca.x
+# configuration.xml" works the same way.
+CMD ["/bin/bash"]
