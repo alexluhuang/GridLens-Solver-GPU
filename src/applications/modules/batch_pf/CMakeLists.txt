@@ -252,6 +252,9 @@ if (GRIDPACK_ENABLE_TESTS)
     gridpack::batchpf_interface gridpack_batchpf_warnings)
   batchpf_add_test(batchpf.unit.control $<TARGET_FILE:batchpf_test_control>)
 
+  set(batchpf_data ${GRIDPACK_DATA_DIR}/raw)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+
   if (GRIDPACK_BATCHPF_HAVE_CUDA)
     # Element functions on GPU and CPU, Algorithm 2 against KLU
     add_executable(batchpf_test_kernels test/test_kernels.cu)
@@ -260,8 +263,79 @@ if (GRIDPACK_ENABLE_TESTS)
     set_target_properties(batchpf_test_kernels PROPERTIES CUDA_RUNTIME_LIBRARY Static)
     batchpf_add_test(batchpf.unit.kernels $<TARGET_FILE:batchpf_test_kernels>)
 
+    # Kernel parity with GridPACK's large Jacobian layout, and fast-path
+    # classification against GridPACK's contingency routine
+    add_executable(batchpf_test_gridpack test/test_gridpack.cpp host/classifier.cpp)
+    target_include_directories(batchpf_test_gridpack SYSTEM PRIVATE
+      ${GridPACK_SOURCE_DIR} ${GA_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+    target_link_libraries(batchpf_test_gridpack PRIVATE
+      gridpack_batchpf_core_objects
+      gridpack_batchpf_warnings
+      gridpack_powerflow_module
+      gridpack_pfmatrix_components
+      gridpack_ymatrix_components
+      gridpack_components
+      gridpack_stream
+      gridpack_partition
+      gridpack_environment
+      gridpack_math
+      gridpack_configuration
+      gridpack_timer
+      gridpack_parallel
+      gridpack_block_parsers
+      ${PARMETIS_LIBRARY} ${METIS_LIBRARY}
+      ${Boost_LIBRARIES}
+      ${GA_LIBRARIES}
+      ${PETSC_LIBRARIES}
+      ${MPI_CXX_LIBRARIES}
+    )
+    foreach(grid IEEE14_ca IEEE118)
+      set(dir ${CMAKE_CURRENT_BINARY_DIR}/parity_${grid})
+      file(MAKE_DIRECTORY ${dir})
+      configure_file(${batchpf_data}/${grid}.raw ${dir}/${grid}.raw COPYONLY)
+      file(WRITE ${dir}/input.xml
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<Configuration><Powerflow>"
+        "<networkConfiguration>${grid}.raw</networkConfiguration>"
+        "<jacobianFormulation>large</jacobianFormulation>"
+        "<maxIteration>50</maxIteration><tolerance>1.0e-6</tolerance>"
+        "<LinearSolver><PETScOptions>-ksp_type preonly -pc_type lu "
+        "-pc_factor_mat_solver_type klu</PETScOptions>"
+        "</LinearSolver></Powerflow></Configuration>\n")
+      add_test(NAME batchpf.parity.components_${grid}
+        COMMAND $<TARGET_FILE:batchpf_test_gridpack> input.xml
+        WORKING_DIRECTORY ${dir})
+      set_tests_properties(batchpf.parity.components_${grid} PROPERTIES
+        PASS_REGULAR_EXPRESSION "No errors detected"
+        FAIL_REGULAR_EXPRESSION "failure detected")
+    endforeach()
   endif()
 
+  # End-to-end runs of ca.x against the same ca.x without the batch path
+  if (Python3_Interpreter_FOUND)
+    set(runner ${CMAKE_CURRENT_SOURCE_DIR}/test/run_ca_test.py)
+    set(raw118 ${batchpf_data}/IEEE118.raw)
+    set(raw14 ${batchpf_data}/IEEE14_ca.raw)
+    set(work ${CMAKE_CURRENT_BINARY_DIR}/ca_tests)
+    set(lu klu)   # KLU, as the plan uses for the CPU path (GridPACK builds PETSc with it)
+    foreach(mode no_block disabled no_device no_plugin invalid required)
+      batchpf_add_test(batchpf.platform.${mode} ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw14} --workdir ${work}/${mode}
+        --mode ${mode} --solver ${lu})
+    endforeach()
+    set(backends cpu_reference)
+    if (GRIDPACK_BATCHPF_HAVE_CUDA)
+      list(APPEND backends alg2)
+      if (cudss_FOUND)
+        list(APPEND backends cudss)
+      endif()
+    endif()
+    foreach(b ${backends})
+      batchpf_add_test(batchpf.parity.ca_ieee118_${b} ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/parity_${b}
+        --mode parity --backend ${b} --solver ${lu})
+    endforeach()
+  endif()
 endif()
 
 # -------------------------------------------------------------

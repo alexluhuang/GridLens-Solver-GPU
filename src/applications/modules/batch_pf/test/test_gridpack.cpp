@@ -1,0 +1,302 @@
+/*
+ *     Copyright (c) 2013 Battelle Memorial Institute
+ *     Licensed under modified BSD License. A copy of this license can be found
+ *     in the LICENSE file in the top level directory of this distribution.
+ */
+/**
+ * @file   test_gridpack.cpp
+ * @date   2026-10-05
+ *
+ * @brief batchpf.parity.*: the batch path against GridPACK's own components.
+ *
+ * Usage: batchpf_test_gridpack input.xml
+ * (the input names a RAW file and sets Powerflow/jacobianFormulation=large)
+ *
+ *  1. Kernel parity (guide 8.10, 8.14): at the solved base case, the
+ *     mismatch and Jacobian computed by the GPU element functions from the
+ *     exported superset model equal the values GridPACK's power flow
+ *     components return in their large layout (extension E6), entry by
+ *     entry. Where GridPACK has no block (a branch next to the reference
+ *     bus), the superset value must be zero.
+ *  2. Classification: every N-1 case classified by the fast path gives the
+ *     same path and the same values as GridPACK's full contingency routine.
+ */
+
+#include <mpi.h>
+#include <ga.h>
+#include <macdecls.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "../core/pf_kernels.cuh"
+#include "../core/planner.hpp"
+#include "../host/classifier.hpp"
+#include "gridpack/applications/modules/powerflow/pf_app_module.hpp"
+#include "gridpack/configuration/configuration.hpp"
+#include "gridpack/math/math.hpp"
+
+using namespace gridpack::batchpf;
+using gridpack::powerflow::PFBranch;
+using gridpack::powerflow::PFBus;
+
+namespace {
+
+int failures = 0;
+
+void check(bool ok, const std::string &what)
+{
+  if (!ok) {
+    std::printf("FAILED: %s\n", what.c_str());
+    failures++;
+  }
+}
+
+bool close(double a, double b, double tol)
+{
+  return std::fabs(a - b) <= tol * std::max(1.0, std::max(std::fabs(a), std::fabs(b)));
+}
+
+/// Kernel parity at the current (solved) state
+void kernelParity(gridpack::powerflow::PFAppModule &app,
+                  boost::shared_ptr<gridpack::powerflow::PFNetwork> net)
+{
+  gridpack::powerflow::SupersetModel model;
+  app.exportSupersetModel(&model);
+  const int n = static_cast<int>(model.buses.size());
+  const JacobianPattern pat = buildPattern(n, model.row_start, model.edge_col);
+  // Superset values from the element functions, one member, on the CPU
+  std::vector<int> type(n), one(1, 1), conv(n, 0), edge_row(model.edge_col.size());
+  std::vector<double> g(n), b(n), p0(n), q0(n), qmax(n), qmin(n), v(n), th(n), thw(n);
+  std::vector<double> ql(n), ip(n), iq(n), yp(n), yq(n), pinj(n), qinj(n), qreq(n);
+  for (int k = 0; k < n; k++) {
+    const auto &s = model.buses[k];
+    type[k] = s.type;
+    g[k] = s.g_diag;
+    b[k] = s.b_diag;
+    p0[k] = s.p0;
+    q0[k] = s.q0;
+    qmax[k] = s.qmax;
+    qmin[k] = s.qmin;
+    v[k] = s.v_solved;
+    th[k] = s.theta_solved;
+    thw[k] = s.theta_solved;   // already GridPACK's wrapped (exchanged) angle
+    ql[k] = s.ql;
+    ip[k] = s.ip;
+    iq[k] = s.iq;
+    yp[k] = s.yp;
+    yq[k] = s.yq;
+    for (int e = model.row_start[k]; e < model.row_start[k + 1]; e++) edge_row[e] = k;
+  }
+  std::vector<double> eg = model.edge_g, eb = model.edge_b;
+  std::vector<double> F(2 * n), X(2 * n), J(static_cast<std::size_t>(pat.nnz), 0.0);
+  std::vector<unsigned long long> mp(1, 0), mq(1, 0);
+  std::vector<int> ap(1, 1 << 30), aq(1, 1 << 30), qv(1, 0);
+  ModelView m;
+  m.n_bus = n;
+  m.n_edge = static_cast<int>(eg.size());
+  m.sbase = model.sbase;
+  m.row_start = model.row_start.data();
+  m.edge_col = model.edge_col.data();
+  m.ql = ql.data();
+  m.ip = ip.data();
+  m.iq = iq.data();
+  m.yp = yp.data();
+  m.yq = yq.data();
+  m.diag_pos = pat.diag_pos.data();
+  m.edge_pos = pat.edge_pos.data();
+  BatchView w;
+  w.B = 1;
+  w.type = type.data();
+  w.g = g.data();
+  w.b = b.data();
+  w.p0 = p0.data();
+  w.q0 = q0.data();
+  w.qmax = qmax.data();
+  w.qmin = qmin.data();
+  w.eg = eg.data();
+  w.eb = eb.data();
+  w.v = v.data();
+  w.theta = th.data();
+  w.thw = thw.data();
+  w.pinj = pinj.data();
+  w.qinj = qinj.data();
+  w.F = F.data();
+  w.X = X.data();
+  w.J = J.data();
+  w.conv = conv.data();
+  w.qreq = qreq.data();
+  w.m_eval = one.data();
+  w.m_maxp = mp.data();
+  w.m_maxq = mq.data();
+  w.m_argp = ap.data();
+  w.m_argq = aq.data();
+  w.m_qviol = qv.data();
+  const Mismatch mis{m, w};
+  const JacobianDiag jd{m, w};
+  const JacobianEdge je{m, w, edge_row.data()};
+  for (int k = 0; k < n; k++) mis(k);
+  for (int k = 0; k < n; k++) jd(k);
+  for (int e = 0; e < m.n_edge; e++) je(e);
+
+  // GridPACK's own values in the large layout
+  double worst_f = 0.0, worst_d = 0.0, worst_o = 0.0;
+  for (int k = 0; k < n; k++) {
+    PFBus *bus = dynamic_cast<PFBus *>(net->getBus(k).get());
+    if (bus->isIsolated()) continue;
+    double r[4] = {0, 0, 0, 0};
+    const int nr = bus->rhsValues(r);
+    if (nr == 2 && !bus->getReferenceBus()) {
+      worst_f = std::max(worst_f, std::fabs(r[0] - F[2 * k]));
+      worst_f = std::max(worst_f, std::fabs(r[1] - F[2 * k + 1]));
+    }
+    double jv[4] = {0, 0, 0, 0};
+    const int nj = bus->diagonalJacobianValues(jv);
+    check(nj == 4, "large layout gives 2x2 diagonal blocks");
+    for (int q = 0; q < 4; q++) {
+      const double mine = J[pat.diag_pos[4 * k + q]];
+      if (!close(jv[q], mine, 1e-10)) {
+        worst_d = std::max(worst_d, std::fabs(jv[q] - mine));
+      }
+    }
+  }
+  // Branch blocks summed per bus pair, compared with the edge blocks
+  std::map<int, std::vector<double>> sum;
+  for (int i = 0; i < net->numBranches(); i++) {
+    const int e = model.branch_edge[i];
+    if (e < 0) continue;
+    PFBranch *br = dynamic_cast<PFBranch *>(net->getBranch(i).get());
+    double f[4] = {0, 0, 0, 0}, r[4] = {0, 0, 0, 0};
+    const int nf = br->forwardJacobianValues(f);
+    const int nrv = br->reverseJacobianValues(r);
+    std::vector<double> &sf = sum[e], &sr = sum[model.edge_mate[e]];
+    sf.resize(4, 0.0);
+    sr.resize(4, 0.0);
+    for (int q = 0; q < 4; q++) {
+      if (nf == 4) sf[q] += f[q];
+      if (nrv == 4) sr[q] += r[q];
+    }
+  }
+  for (const auto &x : sum) {
+    for (int q = 0; q < 4; q++) {
+      const double mine = J[pat.edge_pos[4 * x.first + q]];
+      if (!close(x.second[q], mine, 1e-10)) {
+        worst_o = std::max(worst_o, std::fabs(x.second[q] - mine));
+      }
+    }
+  }
+  std::printf("kernel parity: mismatch max |diff| %.2e, diagonal blocks %.2e, "
+              "branch blocks %.2e\n", worst_f, worst_d, worst_o);
+  check(worst_f < 1e-9, "mismatch equals GridPACK's rhsValues()");
+  check(worst_d == 0.0, "diagonal blocks equal GridPACK's large layout");
+  check(worst_o == 0.0, "branch blocks equal GridPACK's large layout");
+}
+
+/// Fast-path classification against GridPACK's full routine, all N-1
+void classifierParity(gridpack::powerflow::PFAppModule &app,
+                      boost::shared_ptr<gridpack::powerflow::PFNetwork> net)
+{
+  gridpack::powerflow::SupersetModel model;
+  app.exportSupersetModel(&model);
+  Classifier cls(app, net, model, false);
+  std::vector<gridpack::powerflow::Contingency> cases;
+  for (int i = 0; i < net->numBranches(); i++) {
+    PFBranch *br = dynamic_cast<PFBranch *>(net->getBranch(i).get());
+    for (const std::string &tag : br->getLineTags()) {
+      gridpack::powerflow::Contingency c;
+      c.p_type = gridpack::powerflow::Branch;
+      c.p_name = "branch";
+      c.p_from.push_back(br->getBus1OriginalIndex());
+      c.p_to.push_back(br->getBus2OriginalIndex());
+      c.p_ckt.push_back(tag);
+      c.p_saveLineStatus.push_back(true);
+      cases.push_back(c);
+    }
+  }
+  for (int k = 0; k < net->numBuses(); k++) {
+    PFBus *bus = dynamic_cast<PFBus *>(net->getBus(k).get());
+    for (const std::string &gid : bus->getGenerators()) {
+      gridpack::powerflow::Contingency c;
+      c.p_type = gridpack::powerflow::Generator;
+      c.p_name = "generator";
+      c.p_busid.push_back(bus->getOriginalIndex());
+      c.p_genid.push_back(gid);
+      c.p_saveGenStatus.push_back(true);
+      cases.push_back(c);
+    }
+  }
+  int fast = 0, mismatched = 0;
+  for (std::size_t e = 0; e < cases.size(); e++) {
+    const CaseClass a = cls.classify(static_cast<int>(e), cases[e]);
+    if (!a.fast) continue;
+    fast++;
+    const CaseClass b = cls.classifyFull(static_cast<int>(e), cases[e]);
+    bool same = a.path == b.path && (a.path == CasePath::Gpu || a.reason == b.reason);
+    std::map<int, batchpf_bus_update> fb;
+    for (const auto &u : b.bus_updates) fb[u.bus] = u;
+    for (const auto &u : a.bus_updates) {
+      const auto it = fb.find(u.bus);
+      if (it == fb.end()) {
+        same = false;
+        continue;
+      }
+      same = same && it->second.type == u.type && it->second.g_diag == u.g_diag &&
+             it->second.b_diag == u.b_diag && it->second.p0 == u.p0 &&
+             it->second.q0 == u.q0 && it->second.qmax == u.qmax;
+    }
+    std::map<int, batchpf_edge_update> fe;
+    for (const auto &u : b.edge_updates) fe[u.edge] = u;
+    for (const auto &u : a.edge_updates) {
+      const auto it = fe.find(u.edge);
+      same = same && it != fe.end() && it->second.g == u.g && it->second.b == u.b;
+    }
+    if (!same) {
+      mismatched++;
+      if (mismatched < 5) std::printf("classification differs for case %zu\n", e);
+    }
+  }
+  std::printf("classifier parity: %zu cases, %d by the fast path, %d differ from "
+              "GridPACK's full routine\n", cases.size(), fast, mismatched);
+  check(mismatched == 0, "fast path equals GridPACK's contingency routine");
+}
+
+}  // namespace
+
+int main(int argc, char **argv)
+{
+  MPI_Init(&argc, &argv);
+  GA_Initialize();
+  MA_init(C_DBL, 200000, 200000);
+  gridpack::math::Initialize(&argc, &argv);
+  {
+    gridpack::parallel::Communicator world;
+    gridpack::utility::Configuration *config =
+        gridpack::utility::Configuration::configuration();
+    config->open(argc > 1 ? argv[1] : "input.xml", world);
+    boost::shared_ptr<gridpack::powerflow::PFNetwork> net(
+        new gridpack::powerflow::PFNetwork(world));
+    gridpack::powerflow::PFAppModule app;
+    app.suppressOutput(true);
+    app.readNetwork(net, config);
+    app.initialize();
+    check(app.getJacobianFormulation() == gridpack::powerflow::JACOBIAN_LARGE,
+          "input selects the large Jacobian layout");
+    const bool ok = app.solve();
+    check(ok, "base case converges");
+    kernelParity(app, net);
+    classifierParity(app, net);
+  }
+  gridpack::math::Finalize();
+  GA_Terminate();
+  if (failures == 0) {
+    std::printf("No errors detected\n");
+  } else {
+    std::printf("%d failure detected\n", failures);
+  }
+  MPI_Finalize();
+  return failures == 0 ? 0 : 1;
+}

@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+#
+#     Copyright (c) 2013 Battelle Memorial Institute
+#     Licensed under modified BSD License. A copy of this license can be
+#     found in the LICENSE file in the top level directory of this
+#     distribution.
+#
+"""End-to-end tests of ca.x with and without the GPU batch path.
+
+Each mode runs ca.x on a RAW case with full N-1 and compares against a run
+of the same ca.x without a GPUBatch block (stock GridPACK behavior):
+
+  parity       GPUBatch with the given backend and warmStart=raw must give
+               the same statuses and iterations, and the same flows,
+               voltages and violations within a numeric tolerance (FID-1,
+               FID-2). The only allowed difference is the convergence
+               record GridPACK writes for cases it never solves (ISLANDED,
+               NO_SLACK), which repeats the previous case on that rank.
+  no_block     no GPUBatch block: output identical to stock (CONF-2)
+  disabled     GPUBatch enabled=off: identical to stock (RT-4)
+  no_device    GPUBatch with no visible GPU: the run completes on the CPU
+               path with a logged reason and stock output (CONF-3)
+  no_plugin    pluginPath pointing to an empty directory: same (CONF-3)
+  invalid      an invalid GPUBatch value stops the run at start-up with a
+               message naming the key (CONF-4, RT-5)
+  required     enabled=on and onUnavailable=error without a usable plugin
+               stops the run (guide 6.0)
+
+Prints "No errors detected" on success (GridPACK's test convention).
+"""
+
+import argparse
+import csv
+import os
+import shutil
+import subprocess
+import sys
+
+TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
+<Configuration>
+  <Contingency_analysis>
+    <printCalcFiles>false</printCalcFiles>
+    <writeStats>false</writeStats>
+    <FullBranchN1>true</FullBranchN1>
+    <FullGeneratorN1>true</FullGeneratorN1>
+    <qlim>true</qlim>
+    <outputFormat>csv_delta</outputFormat>
+{gpu}  </Contingency_analysis>
+  <Powerflow>
+    <networkConfiguration>{raw}</networkConfiguration>
+    <maxIteration>50</maxIteration>
+    <tolerance>1.0e-6</tolerance>
+    <qlim>true</qlim>
+    <LinearSolver>
+      <PETScOptions>-ksp_type preonly -pc_type lu -pc_factor_mat_solver_type {solver}</PETScOptions>
+    </LinearSolver>
+  </Powerflow>
+</Configuration>
+"""
+
+FILES = ["ca_results_convergence.csv", "ca_results_delta.csv",
+         "ca_results_violations.csv", "ca_results_summary.json",
+         "ca_results_contingencies.csv"]
+
+
+def run(cax, workdir, raw, gpu_lines, solver, env=None):
+    os.makedirs(workdir, exist_ok=True)
+    shutil.copy(raw, workdir)
+    gpu = ""
+    if gpu_lines is not None:
+        gpu = "    <GPUBatch>\n" + "".join("      %s\n" % g for g in gpu_lines) + \
+              "    </GPUBatch>\n"
+    with open(os.path.join(workdir, "input.xml"), "w") as f:
+        f.write(TEMPLATE.format(gpu=gpu, raw=os.path.basename(raw), solver=solver))
+    e = dict(os.environ)
+    if env:
+        e.update(env)
+    p = subprocess.run([cax, "input.xml"], cwd=workdir, env=e,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       universal_newlines=True, timeout=3000)
+    with open(os.path.join(workdir, "log.txt"), "w") as f:
+        f.write(p.stdout)
+    return p.returncode, p.stdout
+
+
+def rows(path):
+    with open(path) as f:
+        return list(csv.reader(f))
+
+
+def compare(a, b, tol, errors, allow_unsolved=True):
+    """Compare the outputs of two run directories"""
+    # convergence: status and iterations equal (except unsolved cases)
+    ca = {r[0]: r for r in rows(os.path.join(a, FILES[0]))[1:]}
+    cb = {r[0]: r for r in rows(os.path.join(b, FILES[0]))[1:]}
+    if set(ca) != set(cb):
+        errors.append("convergence tables list different cases")
+    for k in ca:
+        if k not in cb:
+            continue
+        x, y = ca[k], cb[k]
+        if x[10] != y[10]:
+            errors.append("case %s status %s vs %s" % (k, x[10], y[10]))
+        elif x[10] in ("ISLANDED", "NO_SLACK") and allow_unsolved:
+            continue
+        elif x[4] != y[4] and x[10] != "DIVERGED":
+            errors.append("case %s iterations %s vs %s" % (k, x[4], y[4]))
+    # tables: same rows, numbers within tol
+    for name, nkey in ((FILES[1], 6), (FILES[2], None), (FILES[4], 1)):
+        ra, rb = rows(os.path.join(a, name)), rows(os.path.join(b, name))
+        if ra[0] != rb[0]:
+            errors.append("%s: header differs" % name)
+            continue
+        body_a, body_b = ra[1:], rb[1:]
+        if nkey is None:
+            body_a, body_b = sorted(map(tuple, body_a)), sorted(map(tuple, body_b))
+            nkey = len(ra[0]) - 3
+        ka = {tuple(r[:nkey]): r for r in body_a}
+        kb = {tuple(r[:nkey]): r for r in body_b}
+        if set(ka) != set(kb):
+            errors.append("%s: %d vs %d rows, different keys" % (name, len(ka), len(kb)))
+            continue
+        worst = 0.0
+        for k in ka:
+            for x, y in zip(ka[k], kb[k]):
+                if x == y:
+                    continue
+                try:
+                    worst = max(worst, abs(float(x) - float(y)))
+                except ValueError:
+                    errors.append("%s: text differs at %s" % (name, k[:3]))
+        if worst > tol:
+            errors.append("%s: numbers differ by up to %g" % (name, worst))
+
+
+def identical(a, b, errors):
+    for name in FILES:
+        with open(os.path.join(a, name)) as f, open(os.path.join(b, name)) as g:
+            if f.read() != g.read():
+                errors.append("%s differs from the stock run" % name)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cax", required=True)
+    ap.add_argument("--raw", required=True)
+    ap.add_argument("--workdir", required=True)
+    ap.add_argument("--mode", required=True)
+    ap.add_argument("--backend", default="alg2")
+    ap.add_argument("--solver", default="klu")
+    ap.add_argument("--tol", type=float, default=1e-3)
+    args = ap.parse_args()
+    errors = []
+    stock = os.path.join(args.workdir, "stock")
+    code, _ = run(args.cax, stock, args.raw, None, args.solver)
+    if code != 0:
+        print("stock run failed")
+        print("failure detected")
+        return 1
+    test = os.path.join(args.workdir, args.mode)
+    if args.mode == "parity":
+        code, out = run(args.cax, test, args.raw,
+                        ["<enabled>on</enabled>", "<onUnavailable>error</onUnavailable>",
+                         "<backend>%s</backend>" % args.backend, "<warmStart>raw</warmStart>",
+                         "<shadowFraction>1.0</shadowFraction>"], args.solver)
+        if code != 0:
+            errors.append("GPU run failed with exit code %d" % code)
+        else:
+            compare(stock, test, args.tol, errors)
+            if "shadow validation" not in out:
+                errors.append("no shadow validation summary in the log")
+    elif args.mode in ("no_block", "disabled"):
+        lines = None if args.mode == "no_block" else ["<enabled>off</enabled>"]
+        code, out = run(args.cax, test, args.raw, lines, args.solver)
+        if code != 0:
+            errors.append("run failed")
+        else:
+            identical(stock, test, errors)
+            if "[gpu-batch" in out:
+                errors.append("batch path printed messages although not requested")
+    elif args.mode in ("no_device", "no_plugin"):
+        lines = ["<backend>%s</backend>" % args.backend]
+        env = None
+        if args.mode == "no_device":
+            env = {"CUDA_VISIBLE_DEVICES": ""}
+        else:
+            empty = os.path.join(args.workdir, "empty_plugins")
+            os.makedirs(empty, exist_ok=True)
+            lines.append("<pluginPath>%s</pluginPath>" % empty)
+        code, out = run(args.cax, test, args.raw, lines, args.solver, env)
+        if code != 0:
+            errors.append("run did not complete without the accelerator")
+        else:
+            identical(stock, test, errors)
+            if "running GridPACK's CPU contingency loop" not in out:
+                errors.append("no fallback reason in the log")
+    elif args.mode == "invalid":
+        code, out = run(args.cax, test, args.raw, ["<batchSize>lots</batchSize>"], args.solver)
+        if code == 0:
+            errors.append("invalid setting did not stop the run")
+        if "GPUBatch/batchSize" not in out:
+            errors.append("error message does not name the key")
+        if os.path.exists(os.path.join(test, FILES[0])):
+            errors.append("a partial run wrote results")
+    elif args.mode == "required":
+        empty = os.path.join(args.workdir, "empty_plugins")
+        os.makedirs(empty, exist_ok=True)
+        code, out = run(args.cax, test, args.raw,
+                        ["<enabled>on</enabled>", "<onUnavailable>error</onUnavailable>",
+                         "<pluginPath>%s</pluginPath>" % empty], args.solver)
+        if code == 0:
+            errors.append("required accelerator missing but the run continued")
+    else:
+        errors.append("unknown mode " + args.mode)
+    for e in errors[:20]:
+        print("FAILED:", e)
+    if errors:
+        print("%d failure detected" % len(errors))
+        return 1
+    print("No errors detected")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
