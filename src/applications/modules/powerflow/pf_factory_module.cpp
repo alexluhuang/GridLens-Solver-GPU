@@ -1625,5 +1625,22 @@ void PFFactoryModule::computeAreaExport(std::map<int,double> &areaExport)
   }
 }
 
+/**
+ * Select the Jacobian layout on every bus and branch
+ */
+void PFFactoryModule::setJacobianFormulation(JacobianFormulation form)
+{
+  int numBus = p_network->numBuses();
+  for (int i = 0; i < numBus; i++) {
+    dynamic_cast<PFBus*>(p_network->getBus(i).get())
+      ->setJacobianFormulation(form);
+  }
+  int numBranch = p_network->numBranches();
+  for (int i = 0; i < numBranch; i++) {
+    dynamic_cast<PFBranch*>(p_network->getBranch(i).get())
+      ->setJacobianFormulation(form);
+  }
+}
+
 } // namespace powerflow
 } // namespace gridpack

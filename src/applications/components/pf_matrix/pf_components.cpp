@@ -64,7 +64,8 @@
 #include "pf_components.hpp"
 #include "gridpack/parser/dictionary.hpp"
 
-//#define LARGE_MATRIX
+// The LARGE_MATRIX layout is now a run-time choice: see
+// setJacobianFormulation() and Powerflow/jacobianFormulation.
 
 // Static member initialization
 gridpack::powerflow::InitStartMode gridpack::powerflow::PFBus::p_initStartMode = INIT_START_WARM;
@@ -114,6 +115,7 @@ std::vector<std::string>& gridpack::powerflow::PFBus::getQlimWarnings()
  */
 gridpack::powerflow::PFBus::PFBus(void)
 {
+  p_largeMatrix = false;
   p_shunt_gs = 0.0;
   p_shunt_bs = 0.0;
   p_v = 0.0;
@@ -176,23 +178,23 @@ bool gridpack::powerflow::PFBus::matrixDiagSize(int *isize, int *jsize) const
 {
   if (p_mode == Jacobian) {
     if (!isIsolated()) {
-#ifdef LARGE_MATRIX
-      *isize = 2;
-      *jsize = 2;
-      return true;
-#else
-      if (getReferenceBus()) {
-        return false;
-      } else if (p_isPV && !p_isIREG_PV) {
-        *isize = 1;
-        *jsize = 1;
-        return true;
-      } else {
+      if (p_largeMatrix) {
         *isize = 2;
         *jsize = 2;
         return true;
+      } else {
+        if (getReferenceBus()) {
+          return false;
+        } else if (p_isPV && !p_isIREG_PV) {
+          *isize = 1;
+          *jsize = 1;
+          return true;
+        } else {
+          *isize = 2;
+          *jsize = 2;
+          return true;
+        }
       }
-#endif
     } else {
       return false;
     }
@@ -248,19 +250,19 @@ bool gridpack::powerflow::PFBus::vectorSize(int *size) const
 {
   if (p_mode == RHS || p_mode == State) {
     if (!isIsolated()) {
-#ifdef LARGE_MATRIX
-      *size = 2;
-      return true;
-#else
-      if (getReferenceBus()) {
-        return false;
-      } else if (p_isPV && !p_isIREG_PV) {
-        *size = 1;
-      } else {
+      if (p_largeMatrix) {
         *size = 2;
+        return true;
+      } else {
+        if (getReferenceBus()) {
+          return false;
+        } else if (p_isPV && !p_isIREG_PV) {
+          *size = 1;
+        } else {
+          *size = 2;
+        }
+        return true;
       }
-      return true;
-#endif
     } else {
       return false;
     }
@@ -762,13 +764,13 @@ void gridpack::powerflow::PFBus::setValues(gridpack::ComplexType *values)
   double vt = p_v;
   double at = p_a;
   p_a -= real(values[0]);
-#ifdef LARGE_MATRIX
-  p_v -= real(values[1]);
-#else
-  if (!p_isPV || p_isIREG_PV) {
+  if (p_largeMatrix) {
     p_v -= real(values[1]);
+  } else {
+    if (!p_isPV || p_isIREG_PV) {
+      p_v -= real(values[1]);
+    }
   }
-#endif
   *p_vMag_ptr = p_v;
   double pi = 4.0*atan(1.0);
   if (p_a >= 0.0) {
@@ -783,14 +785,14 @@ void gridpack::powerflow::PFBus::setValues(gridpack::RealType *values)
   double vt = p_v;
   double at = p_a;
   p_a -= values[0];
-#ifdef LARGE_MATRIX
-  //p_v -= real(values[1]);
-  p_v -= values[1];
-#else
-  if (!p_isPV) {
+  if (p_largeMatrix) {
+    //p_v -= real(values[1]);
     p_v -= values[1];
+  } else {
+    if (!p_isPV) {
+      p_v -= values[1];
+    }
   }
-#endif
   *p_vMag_ptr = p_v;
   double pi = 4.0*atan(1.0);
   if (p_a >= 0.0) {
@@ -1965,28 +1967,28 @@ bool gridpack::powerflow::PFBus::serialWrite(char *string, const int bufsize,
     int ngen=p_pFac.size();
     // Evalate p_Pinj and p_Qinj if bus is reference bus. This is skipped when
     // evaluating matrix elements.
-#ifndef LARGE_MATRIX
-    if (getReferenceBus() || isIsolated()) {
-      std::vector<boost::shared_ptr<BaseComponent> > branches;
-      getNeighborBranches(branches);
-      int size = branches.size();
-      double P, Q, p, q;
-      P = 0.0;
-      Q = 0.0;
-      for (i=0; i<size; i++) {
-        gridpack::powerflow::PFBranch *branch
-          = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
-        branch->getPQ(this, &p, &q);
-        P += p;
-        Q += q;
+    if (!p_largeMatrix) {
+      if (getReferenceBus() || isIsolated()) {
+        std::vector<boost::shared_ptr<BaseComponent> > branches;
+        getNeighborBranches(branches);
+        int size = branches.size();
+        double P, Q, p, q;
+        P = 0.0;
+        Q = 0.0;
+        for (i=0; i<size; i++) {
+          gridpack::powerflow::PFBranch *branch
+            = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
+          branch->getPQ(this, &p, &q);
+          P += p;
+          Q += q;
+        }
+        // Also add bus i's own Pi, Qi
+        P += p_v*p_v*p_ybusr;
+        Q += p_v*p_v*(-p_ybusi);
+        p_Pinj = P;
+        p_Qinj = Q;
       }
-      // Also add bus i's own Pi, Qi
-      P += p_v*p_v*p_ybusr;
-      Q += p_v*p_v*(-p_ybusi);
-      p_Pinj = P;
-      p_Qinj = Q;
     }
-#endif
     double pl =0.0;
     double ql =0.0;
     for (i=0; i<p_pl.size(); i++) {
@@ -2188,28 +2190,28 @@ void gridpack::powerflow::PFBus::saveData(
   int ngen=p_pFac.size();
   // Evalate p_Pinj and p_Qinj if bus is reference bus. This is skipped when
   // evaluating matrix elements.
-#ifndef LARGE_MATRIX
-  if (getReferenceBus() || isIsolated()) {
-    std::vector<boost::shared_ptr<BaseComponent> > branches;
-    getNeighborBranches(branches);
-    int size = branches.size();
-    double P, Q, p, q;
-    P = 0.0;
-    Q = 0.0;
-    for (i=0; i<size; i++) {
-      gridpack::powerflow::PFBranch *branch
-        = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
-      branch->getPQ(this, &p, &q);
-      P += p;
-      Q += q;
+  if (!p_largeMatrix) {
+    if (getReferenceBus() || isIsolated()) {
+      std::vector<boost::shared_ptr<BaseComponent> > branches;
+      getNeighborBranches(branches);
+      int size = branches.size();
+      double P, Q, p, q;
+      P = 0.0;
+      Q = 0.0;
+      for (i=0; i<size; i++) {
+        gridpack::powerflow::PFBranch *branch
+          = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
+        branch->getPQ(this, &p, &q);
+        P += p;
+        Q += q;
+      }
+      // Also add bus i's own Pi, Qi
+      P += p_v*p_v*p_ybusr;
+      Q += p_v*p_v*(-p_ybusi);
+      p_Pinj = P;
+      p_Qinj = Q;
     }
-    // Also add bus i's own Pi, Qi
-    P += p_v*p_v*p_ybusr;
-    Q += p_v*p_v*(-p_ybusi);
-    p_Pinj = P;
-    p_Qinj = Q;
   }
-#endif
   double pl=0.0;
   double ql=0.0;
   for (i=0; i<p_pl.size(); i++) {
@@ -2317,28 +2319,28 @@ void gridpack::powerflow::PFBus::saveDataAlsotoOrg(
   int ngen=p_pFac.size();
   // Evalate p_Pinj and p_Qinj if bus is reference bus. This is skipped when
   // evaluating matrix elements.
-#ifndef LARGE_MATRIX
-  if (getReferenceBus() || isIsolated()) {
-    std::vector<boost::shared_ptr<BaseComponent> > branches;
-    getNeighborBranches(branches);
-    int size = branches.size();
-    double P, Q, p, q;
-    P = 0.0;
-    Q = 0.0;
-    for (i=0; i<size; i++) {
-      gridpack::powerflow::PFBranch *branch
-        = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
-      branch->getPQ(this, &p, &q);
-      P += p;
-      Q += q;
+  if (!p_largeMatrix) {
+    if (getReferenceBus() || isIsolated()) {
+      std::vector<boost::shared_ptr<BaseComponent> > branches;
+      getNeighborBranches(branches);
+      int size = branches.size();
+      double P, Q, p, q;
+      P = 0.0;
+      Q = 0.0;
+      for (i=0; i<size; i++) {
+        gridpack::powerflow::PFBranch *branch
+          = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
+        branch->getPQ(this, &p, &q);
+        P += p;
+        Q += q;
+      }
+      // Also add bus i's own Pi, Qi
+      P += p_v*p_v*p_ybusr;
+      Q += p_v*p_v*(-p_ybusi);
+      p_Pinj = P;
+      p_Qinj = Q;
     }
-    // Also add bus i's own Pi, Qi
-    P += p_v*p_v*p_ybusr;
-    Q += p_v*p_v*(-p_ybusi);
-    p_Pinj = P;
-    p_Qinj = Q;
   }
-#endif
   double pl=0.0;
   double ql=0.0;
   for (i=0; i<p_pl.size(); i++) {
@@ -2563,57 +2565,57 @@ int gridpack::powerflow::PFBus::diagonalJacobianValues(double *rvals)
         dqzip_dV += p_iq[i] - 2.0 * p_yq[i] * p_v;
       }
     }
-#ifdef LARGE_MATRIX
-    if (!getReferenceBus()) {
-      rvals[0] = -p_Qinj - p_ybusi * p_v *p_v;
-      rvals[1] = p_Pinj - p_ybusr * p_v *p_v;
-      rvals[2] = p_Pinj / p_v + p_ybusr * p_v;
-      rvals[3] = p_Qinj / p_v - p_ybusi * p_v;
-      // Fix up matrix elements if bus is PV bus
-      if (p_isPV) {
+    if (p_largeMatrix) {
+      if (!getReferenceBus()) {
+        rvals[0] = -p_Qinj - p_ybusi * p_v *p_v;
+        rvals[1] = p_Pinj - p_ybusr * p_v *p_v;
+        rvals[2] = p_Pinj / p_v + p_ybusr * p_v;
+        rvals[3] = p_Qinj / p_v - p_ybusi * p_v;
+        // Fix up matrix elements if bus is PV bus
+        if (p_isPV) {
+          rvals[1] = 0.0;
+          rvals[2] = 0.0;
+          rvals[3] = 1.0;
+        } else {
+          // Add ZIP load derivatives for PQ buses
+          rvals[2] += dpzip_dV / p_sbase;
+          rvals[3] += dqzip_dV / p_sbase;
+        }
+        return 4;
+      } else {
+        rvals[0] = 1.0;
         rvals[1] = 0.0;
         rvals[2] = 0.0;
         rvals[3] = 1.0;
-      } else {
+        return 4;
+      }
+    } else {
+      if (!getReferenceBus() && !p_isPV) {
+        // Standard PQ
+        rvals[0] = -p_Qinj - p_ybusi * p_v *p_v;
+        rvals[1] = p_Pinj - p_ybusr * p_v *p_v;
+        rvals[2] = p_Pinj / p_v + p_ybusr * p_v;
+        rvals[3] = p_Qinj / p_v - p_ybusi * p_v;
         // Add ZIP load derivatives for PQ buses
         rvals[2] += dpzip_dV / p_sbase;
         rvals[3] += dqzip_dV / p_sbase;
+        return 4;
+      } else if (!getReferenceBus() && p_isPV && p_isIREG_PV) {
+        // IREG PV: equations [ΔP, V_remote-VS], variables [θ, V]
+        rvals[0] = -p_Qinj - p_ybusi * p_v * p_v;  // ∂ΔP/∂θ
+        rvals[1] = 0.0;                              // ∂(V_remote-VS)/∂θ
+        rvals[2] = p_Pinj / p_v + p_ybusr * p_v;    // ∂ΔP/∂V
+        rvals[2] += dpzip_dV / p_sbase;
+        rvals[3] = 1.0e-10;                            // small pivot helper
+        return 4;
+      } else if (!getReferenceBus() && p_isPV) {
+        // Standard PV
+        rvals[0] = -p_Qinj - p_ybusi * p_v *p_v;
+        return 1;
+      } else {
+        return 0;
       }
-      return 4;
-    } else {
-      rvals[0] = 1.0;
-      rvals[1] = 0.0;
-      rvals[2] = 0.0;
-      rvals[3] = 1.0;
-      return 4;
     }
-#else
-    if (!getReferenceBus() && !p_isPV) {
-      // Standard PQ
-      rvals[0] = -p_Qinj - p_ybusi * p_v *p_v;
-      rvals[1] = p_Pinj - p_ybusr * p_v *p_v;
-      rvals[2] = p_Pinj / p_v + p_ybusr * p_v;
-      rvals[3] = p_Qinj / p_v - p_ybusi * p_v;
-      // Add ZIP load derivatives for PQ buses
-      rvals[2] += dpzip_dV / p_sbase;
-      rvals[3] += dqzip_dV / p_sbase;
-      return 4;
-    } else if (!getReferenceBus() && p_isPV && p_isIREG_PV) {
-      // IREG PV: equations [ΔP, V_remote-VS], variables [θ, V]
-      rvals[0] = -p_Qinj - p_ybusi * p_v * p_v;  // ∂ΔP/∂θ
-      rvals[1] = 0.0;                              // ∂(V_remote-VS)/∂θ
-      rvals[2] = p_Pinj / p_v + p_ybusr * p_v;    // ∂ΔP/∂V
-      rvals[2] += dpzip_dV / p_sbase;
-      rvals[3] = 1.0e-10;                            // small pivot helper
-      return 4;
-    } else if (!getReferenceBus() && p_isPV) {
-      // Standard PV
-      rvals[0] = -p_Qinj - p_ybusi * p_v *p_v;
-      return 1;
-    } else {
-      return 0;
-    }
-#endif
   } else {
     return 0;
   }
@@ -2666,53 +2668,53 @@ int gridpack::powerflow::PFBus::rhsValues(double *rvals)
       P += pzip / p_sbase;
       Q += qzip / p_sbase;
       rvals[0] = P;
-#ifdef LARGE_MATRIX
-      if (!p_isPV) {
-        rvals[1] = Q;
+      if (p_largeMatrix) {
+        if (!p_isPV) {
+          rvals[1] = Q;
+        } else {
+          rvals[1] = 0.0;
+        }
+        nvals = 2;
       } else {
-        rvals[1] = 0.0;
+        nvals = 1;
+        if (!p_isPV) {
+          rvals[1] = Q;
+          nvals = 2;
+        } else if (p_isIREG_PV) {
+          // V_remote - VS constraint
+          double v_remote = (p_ireg_remote_v_ptr) ? *p_ireg_remote_v_ptr : p_ireg_vs;
+          rvals[1] = v_remote - p_ireg_vs;
+          nvals = 2;
+        }
       }
-      nvals = 2;
-#else
-      nvals = 1;
-      if (!p_isPV) {
-        rvals[1] = Q;
-        nvals = 2;
-      } else if (p_isIREG_PV) {
-        // V_remote - VS constraint
-        double v_remote = (p_ireg_remote_v_ptr) ? *p_ireg_remote_v_ptr : p_ireg_vs;
-        rvals[1] = v_remote - p_ireg_vs;
-        nvals = 2;
-      }
-#endif
       return nvals;
     } else {
-#ifdef LARGE_MATRIX
-      std::vector<boost::shared_ptr<BaseComponent> > branches;
-      getNeighborBranches(branches);
-      int size = branches.size();
-      int i;
-      double P, Q, p, q;
-      P = 0.0;
-      Q = 0.0;
-      for (i=0; i<size; i++) {
-        gridpack::powerflow::PFBranch *branch
-          = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
-        branch->getPQ(this, &p, &q);
-        P += p;
-        Q += q;
+      if (p_largeMatrix) {
+        std::vector<boost::shared_ptr<BaseComponent> > branches;
+        getNeighborBranches(branches);
+        int size = branches.size();
+        int i;
+        double P, Q, p, q;
+        P = 0.0;
+        Q = 0.0;
+        for (i=0; i<size; i++) {
+          gridpack::powerflow::PFBranch *branch
+            = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
+          branch->getPQ(this, &p, &q);
+          P += p;
+          Q += q;
+        }
+        // Also add bus i's own Pi, Qi
+        P += p_v*p_v*p_ybusr;
+        Q += p_v*p_v*(-p_ybusi);
+        p_Pinj = P;
+        p_Qinj = Q;
+        rvals[0] = 0.0;
+        rvals[1] = 0.0;
+        return 2;
+      } else {
+        return 0;
       }
-      // Also add bus i's own Pi, Qi
-      P += p_v*p_v*p_ybusr;
-      Q += p_v*p_v*(-p_ybusi);
-      p_Pinj = P;
-      p_Qinj = Q;
-      rvals[0] = 0.0;
-      rvals[1] = 0.0;
-      return 2;
-#else
-      return 0;
-#endif
     }
   } else {
     return false;
@@ -2996,6 +2998,7 @@ void gridpack::powerflow::PFBus::getZIPLoadPower(double V,
  */
 gridpack::powerflow::PFBranch::PFBranch(void)
 {
+  p_largeMatrix = false;
   p_reactance.clear();
   p_resistance.clear();
   p_tap_ratio.clear();
@@ -3055,32 +3058,32 @@ bool gridpack::powerflow::PFBranch::matrixForwardSize(int *isize, int *jsize) co
     ok = ok && !bus2->isIsolated();
     ok = ok && (p_active);
     if (ok) {
-#ifdef LARGE_MATRIX
-      *isize = 2;
-      *jsize = 2;
-      return true;
-#else
-      // IREG PV buses have 2 vars/eqs (like PQ), not 1 (like standard PV)
-      bool bus1PV = bus1->isPV() && !bus1->isIREG_PV();
-      bool bus2PV = bus2->isPV() && !bus2->isIREG_PV();
-      if (bus1PV && bus2PV) {
-        *isize = 1;
-        *jsize = 1;
-        return true;
-      } else if (bus1PV) {
-        *isize = 1;
-        *jsize = 2;
-        return true;
-      } else if (bus2PV) {
+      if (p_largeMatrix) {
         *isize = 2;
-        *jsize = 1;
+        *jsize = 2;
         return true;
       } else {
-        *isize = 2;
-        *jsize = 2;
-        return true;
+        // IREG PV buses have 2 vars/eqs (like PQ), not 1 (like standard PV)
+        bool bus1PV = bus1->isPV() && !bus1->isIREG_PV();
+        bool bus2PV = bus2->isPV() && !bus2->isIREG_PV();
+        if (bus1PV && bus2PV) {
+          *isize = 1;
+          *jsize = 1;
+          return true;
+        } else if (bus1PV) {
+          *isize = 1;
+          *jsize = 2;
+          return true;
+        } else if (bus2PV) {
+          *isize = 2;
+          *jsize = 1;
+          return true;
+        } else {
+          *isize = 2;
+          *jsize = 2;
+          return true;
+        }
       }
-#endif
     } else {
       return false;
     }
@@ -3102,32 +3105,32 @@ bool gridpack::powerflow::PFBranch::matrixReverseSize(int *isize, int *jsize) co
     ok = ok && !bus2->isIsolated();
     ok = ok && (p_active);
     if (ok) {
-#ifdef LARGE_MATRIX
-      *isize = 2;
-      *jsize = 2;
-      return true;
-#else
-      // IREG PV buses have 2 vars/eqs (like PQ), not 1 (like standard PV)
-      bool bus1PV = bus1->isPV() && !bus1->isIREG_PV();
-      bool bus2PV = bus2->isPV() && !bus2->isIREG_PV();
-      if (bus1PV && bus2PV) {
-        *isize = 1;
-        *jsize = 1;
-        return true;
-      } else if (bus1PV) {
+      if (p_largeMatrix) {
         *isize = 2;
-        *jsize = 1;
-        return true;
-      } else if (bus2PV) {
-        *isize = 1;
         *jsize = 2;
         return true;
       } else {
-        *isize = 2;
-        *jsize = 2;
-        return true;
+        // IREG PV buses have 2 vars/eqs (like PQ), not 1 (like standard PV)
+        bool bus1PV = bus1->isPV() && !bus1->isIREG_PV();
+        bool bus2PV = bus2->isPV() && !bus2->isIREG_PV();
+        if (bus1PV && bus2PV) {
+          *isize = 1;
+          *jsize = 1;
+          return true;
+        } else if (bus1PV) {
+          *isize = 2;
+          *jsize = 1;
+          return true;
+        } else if (bus2PV) {
+          *isize = 1;
+          *jsize = 2;
+          return true;
+        } else {
+          *isize = 2;
+          *jsize = 2;
+          return true;
+        }
       }
-#endif
     } else {
       return false;
     }
@@ -3976,46 +3979,7 @@ int gridpack::powerflow::PFBranch::forwardJacobianValues(double *rvals)
     // IREG PV buses have 2 vars/eqs (like PQ), not 1 (like standard PV)
     bool bus1PV = bus1->isPV() && !bus1->isIREG_PV();
     bool bus2PV = bus2->isPV() && !bus2->isIREG_PV();
-#ifdef LARGE_MATRIX
-    rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
-    rvals[1] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
-    rvals[2] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
-    rvals[3] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
-    rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-    rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
-    rvals[2] *= bus1->getVoltage();
-    rvals[3] *= bus1->getVoltage();
-    // fix up matrix if one or both buses at the end of the branch is a PV bus
-    if (bus1PV && bus2PV) {
-      rvals[1] = 0.0;
-      rvals[2] = 0.0;
-      rvals[3] = 0.0;
-    } else if (bus1PV) {
-      rvals[1] = 0.0;
-      rvals[3] = 0.0;
-    } else if (bus2PV) {
-      rvals[2] = 0.0;
-      rvals[3] = 0.0;
-    }
-    nvals = 4;
-#else
-    if (bus1PV && bus2PV) {
-      rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
-      rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-      nvals = 1;
-    } else if (bus1PV) {
-      rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
-      rvals[1] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
-      rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-      rvals[1] *= bus1->getVoltage();
-      nvals = 2;
-    } else if (bus2PV) {
-      rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
-      rvals[1] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
-      rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-      rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
-      nvals = 2;
-    } else {
+    if (p_largeMatrix) {
       rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
       rvals[1] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
       rvals[2] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
@@ -4024,9 +3988,48 @@ int gridpack::powerflow::PFBranch::forwardJacobianValues(double *rvals)
       rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
       rvals[2] *= bus1->getVoltage();
       rvals[3] *= bus1->getVoltage();
+      // fix up matrix if one or both buses at the end of the branch is a PV bus
+      if (bus1PV && bus2PV) {
+        rvals[1] = 0.0;
+        rvals[2] = 0.0;
+        rvals[3] = 0.0;
+      } else if (bus1PV) {
+        rvals[1] = 0.0;
+        rvals[3] = 0.0;
+      } else if (bus2PV) {
+        rvals[2] = 0.0;
+        rvals[3] = 0.0;
+      }
       nvals = 4;
+    } else {
+      if (bus1PV && bus2PV) {
+        rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        nvals = 1;
+      } else if (bus1PV) {
+        rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
+        rvals[1] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[1] *= bus1->getVoltage();
+        nvals = 2;
+      } else if (bus2PV) {
+        rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
+        rvals[1] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
+        nvals = 2;
+      } else {
+        rvals[0] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
+        rvals[1] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
+        rvals[2] = (p_ybusr_frwd*cs + p_ybusi_frwd*sn);
+        rvals[3] = (p_ybusr_frwd*sn - p_ybusi_frwd*cs);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[2] *= bus1->getVoltage();
+        rvals[3] *= bus1->getVoltage();
+        nvals = 4;
+      }
     }
-#endif
     // For IREG PV bus1: replace Q-row with V_remote constraint
     if (bus1->isIREG_PV()) {
       int remote = bus1->getIREGRemoteBus();
@@ -4061,46 +4064,7 @@ int gridpack::powerflow::PFBranch::reverseJacobianValues(double *rvals)
     // IREG PV buses have 2 vars/eqs (like PQ), not 1 (like standard PV)
     bool bus1PV = bus1->isPV() && !bus1->isIREG_PV();
     bool bus2PV = bus2->isPV() && !bus2->isIREG_PV();
-#ifdef LARGE_MATRIX
-    rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
-    rvals[1] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
-    rvals[2] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
-    rvals[3] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
-    rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-    rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
-    rvals[2] *= bus2->getVoltage();
-    rvals[3] *= bus2->getVoltage();
-    // fix up matrix if one or both buses at the end of the branch is a PV bus
-    if (bus1PV && bus2PV) {
-      rvals[1] = 0.0;
-      rvals[2] = 0.0;
-      rvals[3] = 0.0;
-    } else if (bus1PV) {
-      rvals[2] = 0.0;
-      rvals[3] = 0.0;
-    } else if (bus2PV) {
-      rvals[1] = 0.0;
-      rvals[3] = 0.0;
-    }
-    nvals = 4;
-#else
-    if (bus1PV && bus2PV) {
-      rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
-      rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-      nvals = 1;
-    } else if (bus1PV) {
-      rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
-      rvals[1] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
-      rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-      rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
-      nvals = 2;
-    } else if (bus2PV) {
-      rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
-      rvals[1] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
-      rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
-      rvals[1] *= bus2->getVoltage();
-      nvals = 2;
-    } else {
+    if (p_largeMatrix) {
       rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
       rvals[1] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
       rvals[2] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
@@ -4109,9 +4073,48 @@ int gridpack::powerflow::PFBranch::reverseJacobianValues(double *rvals)
       rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
       rvals[2] *= bus2->getVoltage();
       rvals[3] *= bus2->getVoltage();
+      // fix up matrix if one or both buses at the end of the branch is a PV bus
+      if (bus1PV && bus2PV) {
+        rvals[1] = 0.0;
+        rvals[2] = 0.0;
+        rvals[3] = 0.0;
+      } else if (bus1PV) {
+        rvals[2] = 0.0;
+        rvals[3] = 0.0;
+      } else if (bus2PV) {
+        rvals[1] = 0.0;
+        rvals[3] = 0.0;
+      }
       nvals = 4;
-    } 
-#endif
+    } else {
+      if (bus1PV && bus2PV) {
+        rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        nvals = 1;
+      } else if (bus1PV) {
+        rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
+        rvals[1] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
+        nvals = 2;
+      } else if (bus2PV) {
+        rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
+        rvals[1] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[1] *= bus2->getVoltage();
+        nvals = 2;
+      } else {
+        rvals[0] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
+        rvals[1] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
+        rvals[2] = (p_ybusr_rvrs*cs + p_ybusi_rvrs*sn);
+        rvals[3] = (p_ybusr_rvrs*sn - p_ybusi_rvrs*cs);
+        rvals[0] *= ((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[1] *= -((bus1->getVoltage())*(bus2->getVoltage()));
+        rvals[2] *= bus2->getVoltage();
+        rvals[3] *= bus2->getVoltage();
+        nvals = 4;
+      } 
+    }
     return nvals;
   } else {
     return 0;

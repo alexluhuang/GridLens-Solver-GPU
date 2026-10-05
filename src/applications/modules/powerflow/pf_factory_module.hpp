@@ -377,7 +377,13 @@ class PFFactoryModule
      */
     double pickBranchRating(int branchLocalIdx, int elemIdx) const;
 
+    /**
+     * Select the Jacobian layout on every bus and branch
+     */
+    void setJacobianFormulation(JacobianFormulation form);
+
   private:
+
 
     NetworkPtr p_network;
     std::vector<bool> p_saveIsolatedStatus;

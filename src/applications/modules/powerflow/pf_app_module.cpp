@@ -63,6 +63,7 @@
 gridpack::powerflow::PFAppModule::PFAppModule(void)
 {
   p_no_print = false;
+  p_jacobianFormulation = JACOBIAN_STANDARD;
 }
 
 /**
@@ -219,6 +220,20 @@ void gridpack::powerflow::PFAppModule::readNetwork(
   ComplexType tol;
   // Phase shift sign
   double phaseShiftSign = cursor->get("phaseShiftSign",1.0);
+  // Jacobian layout: "standard" (default) or "large" (formerly the
+  // compile-time LARGE_MATRIX option). Anything else is an input error.
+  std::string jacForm = "standard";
+  cursor->get("jacobianFormulation",&jacForm);
+  if (jacForm == "standard") {
+    p_jacobianFormulation = JACOBIAN_STANDARD;
+  } else if (jacForm == "large") {
+    p_jacobianFormulation = JACOBIAN_LARGE;
+  } else {
+    char ebuf[256];
+    sprintf(ebuf,"Powerflow/jacobianFormulation must be 'standard' or "
+        "'large', not '%s'\n",jacForm.c_str());
+    throw gridpack::Exception(ebuf);
+  }
 
   int t_pti = timer->createCategory("Powerflow: Network Parser");
   timer->start(t_pti);
@@ -375,6 +390,9 @@ void gridpack::powerflow::PFAppModule::initialize()
   int t_setc = timer->createCategory("Powerflow: Factory Set Components");
   timer->start(t_setc);
   p_factory->setComponents();
+  if (p_jacobianFormulation != JACOBIAN_STANDARD) {
+    p_factory->setJacobianFormulation(p_jacobianFormulation);
+  }
   timer->stop(t_setc);
 
   // Set up bus data exchange buffers. Need to decide what data needs to be

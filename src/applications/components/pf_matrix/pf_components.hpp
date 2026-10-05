@@ -73,6 +73,17 @@ enum InitStartMode {
   INIT_START_FLAT = 1   // Flat start: PV/Slack use VS, PQ use 1.0 pu, all angles 0
 };
 
+// Jacobian layout used by the power flow components. STANDARD is the
+// historical default. LARGE gives every non-isolated bus a 2x2 block (PV
+// buses get a fixed-voltage row, the reference bus an identity block); it
+// used to require recompiling with LARGE_MATRIX defined and is now chosen at
+// run time with Powerflow/jacobianFormulation. The GPU batch path uses it as
+// a test oracle for its own superset Jacobian.
+enum JacobianFormulation {
+  JACOBIAN_STANDARD = 0,
+  JACOBIAN_LARGE = 1
+};
+
 class PFBus
   : public gridpack::ymatrix::YMBus
 {
@@ -706,7 +717,15 @@ class PFBus
      */
     double getSwitchedShuntB() const;
 
+    /**
+     * Select the Jacobian layout (see JacobianFormulation). Set by the
+     * factory on every component; the default is JACOBIAN_STANDARD.
+     */
+    void setJacobianFormulation(JacobianFormulation form)
+    { p_largeMatrix = (form == JACOBIAN_LARGE); }
+
   private:
+    bool p_largeMatrix;
     static std::vector<std::string> p_qlimWarnings;
     static InitStartMode p_initStartMode;
     static bool p_qlim;
@@ -1055,7 +1074,15 @@ class PFBranch
      */
     int getLTCElementIndex() const;
 
+    /**
+     * Select the Jacobian layout (see JacobianFormulation). Set by the
+     * factory on every component; the default is JACOBIAN_STANDARD.
+     */
+    void setJacobianFormulation(JacobianFormulation form)
+    { p_largeMatrix = (form == JACOBIAN_LARGE); }
+
   private:
+    bool p_largeMatrix;
     std::vector<bool> p_ignore;
     std::vector<double> p_reactance;
     std::vector<double> p_resistance;

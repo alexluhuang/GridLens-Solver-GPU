@@ -567,7 +567,16 @@ class PFAppModule
     bool getDataCollectionBranchParam(int bus1, int bus2, std::string ckt,
         std::string branchParam, int *value);
 
+    /**
+     * Jacobian layout selected by Powerflow/jacobianFormulation
+     */
+    JacobianFormulation getJacobianFormulation() const
+    { return p_jacobianFormulation; }
+
   private:
+
+    // Jacobian layout (standard unless Powerflow/jacobianFormulation=large)
+    JacobianFormulation p_jacobianFormulation;
 
     /**
      * Template function for modifying generator parameters in data collection
