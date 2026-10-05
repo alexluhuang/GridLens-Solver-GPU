@@ -232,6 +232,39 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
 endif()
 
 # -------------------------------------------------------------
+# Tests (guide 8.14; names follow batchpf.unit.*, batchpf.parity.*,
+# batchpf.platform.*). GridPACK's convention: a test passes when it prints
+# "No errors detected".
+# -------------------------------------------------------------
+if (GRIDPACK_ENABLE_TESTS)
+  function(batchpf_add_test name)
+    add_test(NAME ${name} COMMAND ${ARGN})
+    set_tests_properties(${name} PROPERTIES
+      PASS_REGULAR_EXPRESSION "No errors detected"
+      FAIL_REGULAR_EXPRESSION "failure detected"
+      TIMEOUT 1800)
+  endfunction()
+
+  # Control logic: plain C++, runs without CUDA
+  add_executable(batchpf_test_control test/test_control.cpp core/engine_control.cpp)
+  target_compile_features(batchpf_test_control PRIVATE cxx_std_17)
+  target_link_libraries(batchpf_test_control PRIVATE
+    gridpack::batchpf_interface gridpack_batchpf_warnings)
+  batchpf_add_test(batchpf.unit.control $<TARGET_FILE:batchpf_test_control>)
+
+  if (GRIDPACK_BATCHPF_HAVE_CUDA)
+    # Element functions on GPU and CPU, Algorithm 2 against KLU
+    add_executable(batchpf_test_kernels test/test_kernels.cu)
+    target_link_libraries(batchpf_test_kernels PRIVATE
+      gridpack_batchpf_core_objects gridpack_batchpf_warnings)
+    set_target_properties(batchpf_test_kernels PROPERTIES CUDA_RUNTIME_LIBRARY Static)
+    batchpf_add_test(batchpf.unit.kernels $<TARGET_FILE:batchpf_test_kernels>)
+
+  endif()
+
+endif()
+
+# -------------------------------------------------------------
 # installation
 # -------------------------------------------------------------
 install(FILES
