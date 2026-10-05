@@ -146,7 +146,7 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<int> &slots
       d.u_edge_member.host()[ie] = b;
       d.u_edge.host()[ie++] = r;
     }
-    startSlot(p_slots[b], cases[i]);
+    startSlot(p_slots[b], CaseIndex{cases[i]});
   }
   const Executor ex(dev, st, p_config.threads_per_block);
   if (dev) cudaCheck(cudaEventRecord(d.ev_start[PH_MATERIALIZE].get(), st), "event");
@@ -369,7 +369,7 @@ void Engine::finishSlots(const batchpf_batch &batch, batchpf_results &results,
   if (dev) cudaCheck(cudaStreamSynchronize(st), "gather");
   for (int li = 0; li < cnt; li++) {
     SlotState &s = p_slots[slots[li]];
-    const int c = s.case_idx;
+    const int c = s.case_idx.value;
     const std::size_t off = static_cast<std::size_t>(c) * n;
     const std::size_t src = static_cast<std::size_t>(li) * n;
     std::copy(d.out_v.host() + src, d.out_v.host() + src + n, results.v + off);

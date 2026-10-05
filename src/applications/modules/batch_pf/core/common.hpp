@@ -22,6 +22,9 @@
 #define GRIDPACK_BATCHPF_CORE_COMMON_HPP
 
 #include <cuda_runtime.h>
+#include <gsl/assert>
+#include <gsl/narrow>
+#include <gsl/span>
 
 #include <algorithm>
 #include <cstddef>
@@ -156,19 +159,27 @@ class Buffer {
   /// Copy count elements from host memory into this buffer
   void upload(const T *src, std::size_t count, cudaStream_t stream)
   {
+    upload(gsl::span<const T>(src, gsl::narrow<gsl::index>(count)), stream);
+  }
+
+  void upload(gsl::span<const T> src, cudaStream_t stream)
+  {
+    Expects(src.size() <= p_count);
+    const auto count = src.size();
     if (count == 0) return;
     if (p_kind == MemoryKind::Device) {
-      cudaCheck(cudaMemcpyAsync(p_ptr, src, count * sizeof(T),
+      cudaCheck(cudaMemcpyAsync(p_ptr, src.data(), count * sizeof(T),
                                 cudaMemcpyHostToDevice, stream),
                 "cudaMemcpyAsync H2D");
     } else {
-      std::copy(src, src + count, p_ptr);
+      std::copy(src.begin(), src.end(), p_ptr);
     }
   }
 
   /// Copy count elements from this buffer into host memory
   void download(T *dst, std::size_t count, cudaStream_t stream) const
   {
+    Expects(count <= p_count);
     if (count == 0) return;
     if (p_kind == MemoryKind::Device) {
       cudaCheck(cudaMemcpyAsync(dst, p_ptr, count * sizeof(T),

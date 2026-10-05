@@ -194,7 +194,7 @@ void Classifier::finishUpdates(const SupersetCaseState &state, CaseClass *out) c
   }
 }
 
-bool Classifier::classifyFastBranch(int event, gridpack::powerflow::Contingency &c,
+bool Classifier::classifyFastBranch(CaseIndex event, gridpack::powerflow::Contingency &c,
                                     CaseClass *out)
 {
   auto &net = *p_network;
@@ -231,7 +231,7 @@ bool Classifier::classifyFastBranch(int event, gridpack::powerflow::Contingency 
       out->reason = CpuReason::Islanded;
       out->fast = true;
       out->island_count = 2;
-      out->slack_bus = p_base_slack;
+      out->slack_bus = BusIndex{p_base_slack};
       return true;
     }
     lone = a_lone ? a : b;
@@ -249,12 +249,12 @@ bool Classifier::classifyFastBranch(int event, gridpack::powerflow::Contingency 
   out->path = CasePath::Gpu;
   out->fast = true;
   out->lone_bus = lone >= 0;
-  out->slack_bus = p_base_slack;
+  out->slack_bus = BusIndex{p_base_slack};
   finishUpdates(state, out);
   return true;
 }
 
-bool Classifier::classifyFastGenerator(int event, gridpack::powerflow::Contingency &c,
+bool Classifier::classifyFastGenerator(CaseIndex event, gridpack::powerflow::Contingency &c,
                                        CaseClass *out)
 {
   auto &net = *p_network;
@@ -280,12 +280,12 @@ bool Classifier::classifyFastGenerator(int event, gridpack::powerflow::Contingen
   out->event = event;
   out->path = CasePath::Gpu;
   out->fast = true;
-  out->slack_bus = p_base_slack;
+  out->slack_bus = BusIndex{p_base_slack};
   finishUpdates(state, out);
   return true;
 }
 
-CaseClass Classifier::classifyFull(int event, gridpack::powerflow::Contingency &c)
+CaseClass Classifier::classifyFull(CaseIndex event, gridpack::powerflow::Contingency &c)
 {
   auto &net = *p_network;
   CaseClass out;
@@ -317,7 +317,7 @@ CaseClass Classifier::classifyFull(int event, gridpack::powerflow::Contingency &
   out.island_count = fx.island_count;
   out.lone_bus = fx.lone_bus;
   out.slack_transferred = fx.slack_transferred;
-  out.slack_bus = fx.slack_bus;
+  out.slack_bus = BusIndex{fx.slack_bus};
   if (!found) {
     out.path = CasePath::Cpu;
     out.reason = CpuReason::NotFound;
@@ -333,7 +333,7 @@ CaseClass Classifier::classifyFull(int event, gridpack::powerflow::Contingency &
   return out;
 }
 
-CaseClass Classifier::classify(int event, gridpack::powerflow::Contingency &c)
+CaseClass Classifier::classify(CaseIndex event, gridpack::powerflow::Contingency &c)
 {
   CaseClass out;
   out.event = event;

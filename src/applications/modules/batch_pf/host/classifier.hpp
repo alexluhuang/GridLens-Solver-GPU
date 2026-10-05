@@ -50,6 +50,7 @@
 
 #include "gridpack/applications/modules/powerflow/pf_app_module.hpp"
 #include "gridpack/batchpf/batchpf_plugin.h"
+#include "gridpack/batchpf/index.hpp"
 
 namespace gridpack {
 namespace batchpf {
@@ -71,14 +72,14 @@ const char *cpuReasonName(CpuReason r);
 
 /// Classification record of one case (I-3)
 struct CaseClass {
-  int event = -1;
+  CaseIndex event;
   CasePath path = CasePath::Cpu;
   CpuReason reason = CpuReason::None;
   bool fast = false;                 // classified by the fast path
   int island_count = 1;
   bool lone_bus = false;
   bool slack_transferred = false;
-  int slack_bus = -1;                // local index
+  BusIndex slack_bus;                // local index
   std::vector<batchpf_bus_update> bus_updates;
   std::vector<batchpf_edge_update> edge_updates;
 };
@@ -97,19 +98,19 @@ class Classifier {
              const gridpack::powerflow::SupersetModel &model, bool study_controls);
 
   /// Classify one case; the network is restored before returning
-  CaseClass classify(int event, gridpack::powerflow::Contingency &c);
+  CaseClass classify(CaseIndex event, gridpack::powerflow::Contingency &c);
 
   /// Classify with the full GridPACK routine only (for cross-checks)
-  CaseClass classifyFull(int event, gridpack::powerflow::Contingency &c);
+  CaseClass classifyFull(CaseIndex event, gridpack::powerflow::Contingency &c);
 
   /// Whether the fast path is enabled, with the reason if not
   bool fastPathEnabled() const { return p_fast_ok; }
   const std::string &fastPathNote() const { return p_fast_note; }
 
  private:
-  bool classifyFastBranch(int event, gridpack::powerflow::Contingency &c,
+  bool classifyFastBranch(CaseIndex event, gridpack::powerflow::Contingency &c,
                           CaseClass *out);
-  bool classifyFastGenerator(int event, gridpack::powerflow::Contingency &c,
+  bool classifyFastGenerator(CaseIndex event, gridpack::powerflow::Contingency &c,
                              CaseClass *out);
   void finishUpdates(const gridpack::powerflow::SupersetCaseState &state,
                      CaseClass *out) const;

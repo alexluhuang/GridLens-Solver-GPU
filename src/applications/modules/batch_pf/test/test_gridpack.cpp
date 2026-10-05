@@ -264,10 +264,10 @@ void classifierParity(gridpack::powerflow::PFAppModule &app,
   }
   int fast = 0, mismatched = 0;
   for (std::size_t e = 0; e < cases.size(); e++) {
-    const CaseClass a = cls.classify(static_cast<int>(e), cases[e]);
+    const CaseClass a = cls.classify(CaseIndex{static_cast<int>(e)}, cases[e]);
     if (!a.fast) continue;
     fast++;
-    const CaseClass b = cls.classifyFull(static_cast<int>(e), cases[e]);
+    const CaseClass b = cls.classifyFull(CaseIndex{static_cast<int>(e)}, cases[e]);
     bool same = a.path == b.path && (a.path == CasePath::Gpu || a.reason == b.reason);
     std::map<int, batchpf_bus_update> fb;
     for (const auto &u : b.bus_updates) fb[u.bus] = u;

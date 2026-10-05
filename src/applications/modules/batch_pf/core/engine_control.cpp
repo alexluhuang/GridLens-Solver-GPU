@@ -125,7 +125,7 @@ void record(SlotState &s, const StepResult &r)
 
 }  // namespace
 
-void startSlot(SlotState &s, int case_idx)
+void startSlot(SlotState &s, CaseIndex case_idx)
 {
   s = SlotState();
   s.case_idx = case_idx;

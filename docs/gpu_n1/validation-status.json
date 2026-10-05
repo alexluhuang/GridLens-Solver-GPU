@@ -1,0 +1,15 @@
+{
+  "updated": "2026-10-05",
+  "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
+  "completed": {
+    "cpu_only_ctest": {"passed": 116, "failed": 0, "seconds": 68.36},
+    "gpu_all_architectures_ctest": {"passed": 21, "failed": 0, "seconds": 20.12},
+    "full_n1_polish_alg2": {"passed": true, "seconds": 70.15, "ranks": 8},
+    "full_n1_polish_cudss": {"passed": true, "seconds": 63.03, "ranks": 8},
+    "full_n1_memphis_stock_comparison": {"passed": true, "ranks": 8},
+    "installed_binary_and_rebuilt_example": {"passed": true, "network": "IEEE118"}
+  },
+  "in_progress": ["full N-1 ACTIVSg10k, Texas7k, Memphis on both backends", "standards findings", "documentation", "performance measurements"],
+  "external_gates": ["second platform", "multiple DGX Sparks", "amd64 image runtime"],
+  "notes": ["Run stock tests sequentially: concurrent serial/parallel tests share files.", "Do not test grids larger than ACTIVSg10k.", "Original guide proposals are not measured results."]
+}

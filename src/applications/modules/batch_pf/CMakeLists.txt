@@ -68,6 +68,7 @@ add_library(gridpack_batchpf_warnings INTERFACE)
 target_compile_options(gridpack_batchpf_warnings INTERFACE
   $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra>
   $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wextra>
+  $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--resource-usage>
 )
 
 # -------------------------------------------------------------
@@ -152,6 +153,7 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
   # prefix in this directory only.
   list(PREPEND CMAKE_PREFIX_PATH ${PETSC_DIR})
   find_package(KLU CONFIG REQUIRED)
+  find_package(Microsoft.GSL 4 CONFIG REQUIRED)
 
   # The plugin's code is an object library so the unit tests can link the
   # same objects; the plugin adds its C entry points.
@@ -173,6 +175,7 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
       gridpack::batchpf_interface
       CUDA::cudart_static
       SuiteSparse::KLU
+      Microsoft.GSL::GSL
       Threads::Threads
       ${CMAKE_DL_LIBS}
     PRIVATE
@@ -262,6 +265,11 @@ if (GRIDPACK_ENABLE_TESTS)
   find_package(Python3 COMPONENTS Interpreter QUIET)
 
   if (GRIDPACK_BATCHPF_HAVE_CUDA)
+    add_executable(batchpf_test_model test/test_model.cpp)
+    target_link_libraries(batchpf_test_model PRIVATE
+      gridpack_batchpf_core_objects gridpack_batchpf_warnings)
+    batchpf_add_test(batchpf.unit.model $<TARGET_FILE:batchpf_test_model>)
+
     # Element functions on GPU and CPU, Algorithm 2 against KLU
     add_executable(batchpf_test_kernels test/test_kernels.cu)
     target_link_libraries(batchpf_test_kernels PRIVATE
@@ -402,6 +410,7 @@ endif()
 install(FILES
   include/gridpack/batchpf/batchpf_plugin.h
   include/gridpack/batchpf/batchpf_backend.h
+  include/gridpack/batchpf/index.hpp
   DESTINATION include/gridpack/batchpf
 )
 # The contingency-analysis driver includes these and links the host

@@ -61,10 +61,10 @@ void appendBytes(std::vector<char> *out, const T *src, std::size_t count)
 /// Serialize classification records for the all-gather
 void pack(const CaseClass &c, std::vector<char> *out)
 {
-  const int32_t head[10] = {c.event, static_cast<int32_t>(c.path),
+  const int32_t head[10] = {c.event.value, static_cast<int32_t>(c.path),
                             static_cast<int32_t>(c.reason), c.fast ? 1 : 0,
                             c.island_count, c.lone_bus ? 1 : 0,
-                            c.slack_transferred ? 1 : 0, c.slack_bus,
+                            c.slack_transferred ? 1 : 0, c.slack_bus.value,
                             static_cast<int32_t>(c.bus_updates.size()),
                             static_cast<int32_t>(c.edge_updates.size())};
   appendBytes(out, head, 10);
@@ -76,14 +76,14 @@ std::size_t unpack(const char *p, CaseClass *c)
 {
   int32_t head[10];
   std::memcpy(head, p, sizeof(head));
-  c->event = head[0];
+  c->event = CaseIndex{head[0]};
   c->path = static_cast<CasePath>(head[1]);
   c->reason = static_cast<CpuReason>(head[2]);
   c->fast = head[3] != 0;
   c->island_count = head[4];
   c->lone_bus = head[5] != 0;
   c->slack_transferred = head[6] != 0;
-  c->slack_bus = head[7];
+  c->slack_bus = BusIndex{head[7]};
   std::size_t off = sizeof(head);
   c->bus_updates.resize(head[8]);
   std::memcpy(c->bus_updates.data(), p + off, head[8] * sizeof(batchpf_bus_update));
@@ -354,7 +354,7 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   std::vector<char> local;
   int nlocal = 0;
   for (int e = d.rank; e < n; e += d.size) {
-    pack(d.classifier->classify(e, events[e]), &local);
+    pack(d.classifier->classify(CaseIndex{e}, events[e]), &local);
     nlocal++;
   }
   // Q-limit warnings printed by GridPACK while applying cases are not
@@ -376,7 +376,7 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   while (off < static_cast<std::size_t>(total)) {
     CaseClass c;
     off += unpack(all.data() + off, &c);
-    if (c.event >= 0 && c.event < n) d.classes[c.event] = c;
+    if (c.event.value >= 0 && c.event.value < n) d.classes[c.event.value] = c;
   }
   int fast = 0;
   for (int e = 0; e < n; e++) {

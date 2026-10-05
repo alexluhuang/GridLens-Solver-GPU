@@ -67,7 +67,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     if [ "${GRIDPACK_ENABLE_GPU_BATCH}" != "OFF" ]; then \
       apt-get update && \
-      apt-get install -y --no-install-recommends ${CUDSS_APT_PACKAGE}; \
+      apt-get install -y --no-install-recommends ${CUDSS_APT_PACKAGE} libmsgsl-dev; \
     fi
 
 # Compile/Install Boost

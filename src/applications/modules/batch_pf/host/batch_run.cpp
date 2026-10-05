@@ -210,7 +210,7 @@ void BatchPath::Impl::shadowCompare(int event, const GpuCaseResult &res)
   gridpack::powerflow::PFBus::clearQlimWarnings();
   app->suppressOutput(false);
   if (classes[event].fast) {
-    const CaseClass full = classifier->classifyFull(event, c);
+    const CaseClass full = classifier->classifyFull(CaseIndex{event}, c);
     auto close = [](double a, double b) {
       return std::fabs(a - b) <= 1.0e-12 * std::max(1.0, std::fabs(a));
     };
@@ -264,7 +264,7 @@ void BatchPath::run(const ProcessCase &process)
       bc.n_edge_updates = static_cast<int32_t>(c.edge_updates.size());
       bc.bus_updates = c.bus_updates.data();
       bc.edge_updates = c.edge_updates.data();
-      bc.slack_bus = c.slack_bus;
+      bc.slack_bus = c.slack_bus.value;
       ch->cases.push_back(bc);
     }
     ch->outcomes.assign(m, batchpf_outcome());

@@ -39,6 +39,7 @@
 #define GRIDPACK_BATCHPF_CORE_ENGINE_CONTROL_HPP
 
 #include <vector>
+#include "gridpack/batchpf/index.hpp"
 
 namespace gridpack {
 namespace batchpf {
@@ -79,7 +80,7 @@ struct SlotState {
   enum class Stage { Free, StartCtrl, NewtonIter, StagnationQcheck,
                      CtrlQcheck, FinalApply, CaQcheck, Done };
   Stage stage = Stage::Free;
-  int case_idx = -1;
+  CaseIndex case_idx;
   // actions of the next step, run in this order
   bool act_apply = false;         // x -= X
   bool act_qcheck = false;        // reactive-limit check
@@ -102,7 +103,7 @@ struct SlotState {
 };
 
 /// Put a newly filled slot at the start of its first controller iteration
-void startSlot(SlotState &s, int case_idx);
+void startSlot(SlotState &s, CaseIndex case_idx);
 
 /// Consume a step's results and choose the slot's next actions
 void advanceSlot(SlotState &s, const StepResult &r, const ControlRules &rules);

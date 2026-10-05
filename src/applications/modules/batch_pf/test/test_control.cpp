@@ -54,7 +54,7 @@ struct Run {
 Run simulate(const Script &sc, const ControlRules &rules)
 {
   Run run;
-  startSlot(run.s, 0);
+  startSlot(run.s, CaseIndex{0});
   std::size_t ne = 0, nq = 0;
   for (int step = 0; step < 1000 && run.s.stage != SlotState::Stage::Done; step++) {
     StepResult r;
