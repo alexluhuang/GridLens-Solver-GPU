@@ -11,6 +11,43 @@ model](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workf
 The Unreleased section will be empty for tagged releases. Unreleased
 functionality appears in the develop branch.
 
+- Added
+  - Power Flow
+    - Distributed generation on PSS/E v34+ load records (DGENP, DGENQ,
+      DGENF), kept separate from the load and netted from its
+      constant-power demand
+    - Two-terminal dc lines: line-commutated converter model with
+      rectifier alpha min / inverter gamma min control modes, current
+      margin and VCMOD mode switch, solved with the sequential ac/dc method
+      in the controller loop (hvdcTolerance XML parameter)
+    - System switching devices (PSS/E v34-v36) read as branch elements
+  - Contingency Analysis
+    - Dc line (pole) contingencies: contingency type DCLine/HVDC with
+      contingencyDCLines, FullHVDCN1 auto-generation and a dc_line column
+      in _contingencies.csv; dc lines start each contingency from the
+      base-case operating point
+  - Documentation
+    - docs/markdown/WECC_COMPATIBILITY.md describes these changes and the
+      DG and dc line models
+- Fixed
+  - Parser
+    - Comment stripping ignored only a '/' inside the first quoted field,
+      so a '/' in a transformer or branch name truncated the record and
+      transformers were loaded out of service
+    - 3-winding transformer taps were not converted for CW=2 (kV) or CW=3;
+      2-winding CW=2 taps were divided by NOMV instead of the bus base
+      voltage. Winding ratios now follow the PSS/E CW codes in the v33-v35
+      parsers, and LTC tap limits are stored in the units of the tap ratio
+    - 3-winding transformer impedances with CZ=1 were rescaled from the
+      winding MVA base
+    - 2-winding transformers merged into a branch defined in the opposite
+      direction did not record BRANCH_SWITCHED, so their tap and phase
+      shift applied at the wrong end
+  - Power Flow
+    - Linear solver exceptions overflowed a fixed-size message buffer and
+      aborted the run; the network-file error message had a mismatched
+      format string
+
 ## [3.7.0]
 - Added
   - Power Flow
