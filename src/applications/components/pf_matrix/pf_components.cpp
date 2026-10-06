@@ -340,7 +340,13 @@ bool gridpack::powerflow::PFBus::vectorValues(RealType *values)
  */
 bool gridpack::powerflow::PFBus::chkQlim(double q_deadband)
 {
-  if (!p_isPV) {
+  // A disconnected bus is outside the network being solved (islands and
+  // lone buses are isolated so the Jacobian stays nonsingular), so it has
+  // no computed reactive output to hold against its limits. rhsValues()
+  // skips it and leaves the injection of the last case that computed one.
+  // Checking that stale value used to convert the bus and force a needless
+  // extra calculation whenever a failed case preceded the outage.
+  if (!p_isPV || isIsolated()) {
     if (p_PV_ptr) *p_PV_ptr = p_isPV;
     return false;
   }

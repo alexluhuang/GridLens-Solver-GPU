@@ -121,7 +121,34 @@ outage alone takes two rounds. The CPU restoration test reports only a
 count discrepancy; its delta, violations and identity tables agree.
 
 The two-case list is `reproductions/texas-isolated-injection-sequence.xml`.
-The full comparison remains failed and this correction is not implemented.
-Work stopped at the user's request. The independently prepared original-source
-voltage-corrected reference patch is
-`reproductions/cpu-voltage-cleanup-reference.patch`; it is not yet built.
+
+## Second correction: disconnected buses skip the reactive-limit check
+
+This is a separate change from the voltage-cleanup decision above. Guide
+8.6.2 isolates islands and lone buses so the Jacobian stays nonsingular;
+such a bus is outside the network being solved. Kundur and Malik §6.4.2(b)
+compares a generator's *computed* reactive output with its limits, and an
+isolated bus has no computed output in that case. GridPACK's `rhsValues`
+already skips isolated buses, but `chkQlim` did not, so it compared a value
+left by an earlier case. The GPU check only examines PV rows, and isolated
+buses are not PV rows, so it already behaved this way.
+
+`PFBus::chkQlim` now treats an isolated bus as having no violation. Solved
+voltages, flows and statuses are unchanged; only a needless extra controller
+calculation, its reported count and its warning disappear. The change also
+applies without acceleration and in the real-time path rating driver, which
+uses the same check. When no earlier case has run, an isolated bus still
+holds the base solution's injection, which is normally within its limits,
+so the first case on a rank normally gives the same result as before.
+
+Checks: the component test gives a PV bus a computed injection beyond its
+limits, then isolates it. Before the change GridPACK converted the isolated
+bus on IEEE14, IEEE118 and the 240-bus fixture; afterward it does not. The
+Texas two-case sequence through `test_case_restoration.py` previously
+failed only on the later case's count (zero against two rounds). It now
+reports two rounds in sequence and alone and passes every table comparison.
+
+Stock GridPACK's convergence table prints a row's tolerance with the
+precision the previous row left on the shared stream (six digits for a
+rank's first row, four afterward). Comparisons are numeric, so this
+untouched formatting is not changed.

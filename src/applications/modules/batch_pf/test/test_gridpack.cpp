@@ -19,7 +19,8 @@
  *     entry. Where GridPACK has no block (a branch next to the reference
  *     bus), the superset value must be zero.
  *     The reactive-limit check then converts the same buses as GridPACK's
- *     chkQlim() at that state.
+ *     chkQlim() at that state, and neither check converts a disconnected
+ *     bus, whatever injection that bus last computed.
  *  2. Classification: every N-1 case classified by the fast path gives the
  *     same path and the same values as GridPACK's full contingency routine.
  */
@@ -234,6 +235,51 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   check(differ == 0, "GPU check converts the buses GridPACK converts");
 }
 
+/**
+ * A disconnected bus is outside the solved network (guide 8.6.2), so the
+ * reactive-limit check must ignore the injection it last computed. A PV bus
+ * is moved far from its solution, as a diverging case leaves it, so that
+ * its computed reactive output exceeds its limits. GridPACK converts it
+ * while it is connected; once it is isolated it must stay PV, as in the GPU
+ * check, which only looks at PV rows.
+ */
+void isolatedQlimCheck(gridpack::powerflow::PFAppModule &app,
+                       boost::shared_ptr<gridpack::powerflow::PFNetwork> net, Checks &check)
+{
+  const double deadband = app.getSolverParameters().qlim_deadband;
+  std::array<double, 4> r{};
+  int tested = -1;
+  bool converts_isolated = false, stays_pv = true;
+  for (int k = 0; k < net->numBuses() && tested < 0; k++) {
+    PFBus *bus = dynamic_cast<PFBus *>(net->getBus(k).get());
+    if (!bus->isPV() || bus->getReferenceBus() || bus->isIsolated() ||
+        bus->getNumGenerators() == 0) {
+      continue;
+    }
+    const double v = bus->getVoltage(), theta = bus->getPhase();
+    bus->setVoltageState(1.5 * v, theta);
+    bus->rhsValues(r.data());
+    const bool converts_connected = bus->chkQlim(deadband);
+    bus->clearQlim();
+    if (converts_connected) {
+      tested = bus->getOriginalIndex();
+      bus->setIsolated(true);
+      converts_isolated = bus->chkQlim(deadband);
+      stays_pv = bus->isPV();
+      bus->setIsolated(false);
+      bus->clearQlim();
+    }
+    bus->setVoltageState(v, theta);
+    bus->rhsValues(r.data());
+  }
+  PFBus::clearQlimWarnings();
+  std::cout << "isolated-bus check: bus " << tested << " exceeds its limits while connected; "
+            << "isolated, it is " << (converts_isolated || !stays_pv ? "" : "not ")
+            << "converted\n";
+  check(tested >= 0, "some PV bus exceeds its reactive limits in the test state");
+  check(!converts_isolated && stays_pv, "a disconnected bus is not converted on a stale injection");
+}
+
 /// Fast-path classification against GridPACK's full routine, all N-1
 void classifierParity(gridpack::powerflow::PFAppModule &app,
                        boost::shared_ptr<gridpack::powerflow::PFNetwork> net, Checks &check)
@@ -326,6 +372,7 @@ int main(int argc, char **argv)
     const bool ok = app.solve();
     check(ok, "base case converges");
     kernelParity(app, net, check);
+    isolatedQlimCheck(app, net, check);
     classifierParity(app, net, check);
   }
   gridpack::math::Finalize();
