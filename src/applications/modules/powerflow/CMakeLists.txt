@@ -38,6 +38,7 @@ endif()
 add_library(gridpack_powerflow_module
   pf_app_module.cpp
   pf_factory_module.cpp
+  pf_hvdc.cpp
   ${CMAKE_SOURCE_DIR}/utilities/results_exporter.cpp
   )
 
@@ -62,6 +63,7 @@ target_link_libraries(gridpack_powerflow_module
 install(FILES 
   pf_app_module.hpp
   pf_factory_module.hpp
+  pf_hvdc.hpp
   pf_superset_model.hpp
   DESTINATION include/gridpack/applications/modules/powerflow
 )
