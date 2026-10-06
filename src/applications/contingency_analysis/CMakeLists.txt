@@ -192,6 +192,8 @@ install(FILES
 )
 
 install(TARGETS ca.x DESTINATION bin)
+# Launcher that picks the MPI rank count from the available cores
+install(PROGRAMS ca_run.sh DESTINATION bin)
 
 # -------------------------------------------------------------
 # run application as test

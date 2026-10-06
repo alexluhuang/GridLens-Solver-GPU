@@ -65,6 +65,16 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 </Configuration>
 """
 
+def default_ranks(cores=None):
+    """MPI ranks for a study, the same rule as contingency_analysis/ca_run.sh:
+    cores - 4 with 8 or more cores, otherwise cores - 2 (at least 1). The
+    GPU run and its CPU comparison always use the same count."""
+    if cores is None:
+        cores = len(os.sched_getaffinity(0))
+    return cores - 4 if cores >= 8 else max(1, cores - 2)
+
+
+FLAT = "ca_results_flat.csv"
 FILES = ["ca_results_convergence.csv", "ca_results_delta.csv",
          "ca_results_violations.csv", "ca_results_summary.json",
          "ca_results_contingencies.csv"]
@@ -222,6 +232,8 @@ def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
     tables = [(FILES[2], 4), (FILES[4], 1)]
     if output_format == "csv_delta":
         tables.append((FILES[1], 6))
+    if output_format == "csv_flat":
+        tables.append((FLAT, 5))
     for name, nkey in tables:
         compare_table(a, b, name, nkey, tol, errors)
     with open(os.path.join(a, FILES[3])) as f, open(os.path.join(b, FILES[3])) as g:
@@ -270,16 +282,21 @@ def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
             errors.append("summary JSON differs")
 
 
-def identical(a, b, errors):
-    for name in FILES:
+def identical(a, b, errors, output_format="csv_delta"):
+    names = [n for n in FILES if n != FILES[1] or output_format == "csv_delta"]
+    if output_format == "csv_flat":
+        names.append(FLAT)
+    for name in names:
         with open(os.path.join(a, name)) as f, open(os.path.join(b, name)) as g:
             if f.read() != g.read():
                 errors.append("%s differs from the stock run" % name)
 
 
 def ordered(workdir, errors, output_format="csv_delta"):
-    for name in (FILES[0], FILES[1], FILES[2], FILES[4]):
+    for name in (FILES[0], FILES[1], FILES[2], FILES[4], FLAT):
         if name == FILES[1] and output_format != "csv_delta":
+            continue
+        if name == FLAT and output_format != "csv_flat":
             continue
         previous = -1
         with open(os.path.join(workdir, name)) as f:
@@ -378,7 +395,8 @@ def main():
     ap.add_argument("--backend", default="alg2")
     ap.add_argument("--solver", default="klu")
     ap.add_argument("--tol", type=float, default=1e-3)
-    ap.add_argument("--ranks", type=int, default=1)
+    ap.add_argument("--ranks", default="auto",
+                    help="MPI ranks for both runs, or auto (see default_ranks)")
     ap.add_argument("--mpiexec", default="mpiexec")
     ap.add_argument("--accelerator-ranks")
     ap.add_argument("--gpu-setting", action="append", default=[])
@@ -386,17 +404,19 @@ def main():
     ap.add_argument("--expect-batch-at-most", type=int)
     ap.add_argument("--require-shadow-sets", action="store_true")
     ap.add_argument("--require-reported-state", action="store_true")
-    ap.add_argument("--output-format", choices=("csv_delta", "text"), default="csv_delta")
+    ap.add_argument("--output-format", choices=("csv_flat", "csv_delta", "text"),
+                    default="csv_flat")
     ap.add_argument("--warm-start", choices=("raw", "base_case"))
     ap.add_argument("--shadow-fraction", type=float)
     ap.add_argument("--contingency-list", help="Optional existing XML list for a repeatable sample")
     args = ap.parse_args()
     errors = []
+    args.ranks = default_ranks() if args.ranks == "auto" else int(args.ranks)
     if args.ranks < 1:
         ap.error("--ranks must be positive")
     launcher = [args.mpiexec, "--bind-to", "none", "-n", str(args.ranks)] if args.ranks > 1 else []
-    if args.output_format != "csv_delta" and args.mode != "benchmark":
-        ap.error("--output-format=text is for benchmark mode; parity tests compare the full tables")
+    if args.output_format == "text" and args.mode == "parity":
+        ap.error("--output-format=text omits the branch tables; parity tests compare them")
     if args.shadow_fraction is not None and not 0 <= args.shadow_fraction <= 1:
         ap.error("--shadow-fraction must be between zero and one")
     invoke = functools.partial(run, launcher=launcher, execution=args.accelerator_ranks,
@@ -456,7 +476,7 @@ def main():
         if code != 0:
             errors.append("run failed")
         else:
-            identical(stock, test, errors)
+            identical(stock, test, errors, args.output_format)
             if "[gpu-batch" in out:
                 errors.append("batch path printed messages although not requested")
     elif args.mode in ("no_device", "no_plugin"):
@@ -472,7 +492,7 @@ def main():
         if code != 0:
             errors.append("run did not complete without the accelerator")
         else:
-            identical(stock, test, errors)
+            identical(stock, test, errors, args.output_format)
             if "running GridPACK's CPU contingency loop" not in out:
                 errors.append("no fallback reason in the log")
     elif args.mode == "invalid":

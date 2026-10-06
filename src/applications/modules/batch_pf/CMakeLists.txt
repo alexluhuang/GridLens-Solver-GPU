@@ -345,10 +345,18 @@ if (GRIDPACK_ENABLE_TESTS)
       --raw ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.raw
       --contingency-list ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.xml
       --workdir ${work}/cpu_case_restoration --solver ${lu})
+    # The harness defaults to csv_flat and to the launcher's rank rule. Byte
+    # comparisons with stock need one rank: with more, stock writes rows in
+    # completion order.
     foreach(mode no_block disabled no_device no_plugin invalid required)
       batchpf_add_test(batchpf.platform.${mode} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw14} --workdir ${work}/${mode}
-        --mode ${mode} --solver ${lu})
+        --mode ${mode} --solver ${lu} --ranks 1)
+    endforeach()
+    foreach(fmt csv_delta text)
+      batchpf_add_test(batchpf.platform.no_block_${fmt} ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/no_block_${fmt}
+        --mode no_block --solver ${lu} --ranks 1 --output-format ${fmt})
     endforeach()
     set(backends)
     if (GRIDPACK_BATCHPF_HAVE_CUDA)
@@ -361,19 +369,23 @@ if (GRIDPACK_ENABLE_TESTS)
       batchpf_add_test(batchpf.parity.ca_ieee118_${b} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/parity_${b}
         --mode parity --require-shadow-sets --require-reported-state --backend ${b} --solver ${lu})
+      batchpf_add_test(batchpf.parity.ca_ieee118_delta_${b} ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/parity_delta_${b}
+        --mode parity --require-shadow-sets --require-reported-state --backend ${b} --solver ${lu}
+        --output-format csv_delta)
       # The CPU outage activates remote regulation before the GPU result is
       # reported. Its voltage setpoint must not leak into that result's shadow.
       batchpf_add_test(batchpf.parity.remote_fallback_${b} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x>
         --raw ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.raw
         --contingency-list ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.xml
-        --workdir ${work}/remote_fallback_${b}
+        --workdir ${work}/remote_fallback_${b} --ranks 1
         --mode parity --require-shadow-sets --require-reported-state --backend ${b} --solver ${lu})
     endforeach()
     if (NOT GRIDPACK_BATCHPF_HAVE_CUDA)
       batchpf_add_test(batchpf.platform.cpu_only_ieee118 ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/cpu_only_118
-        --mode no_block --solver ${lu})
+        --mode no_block --solver ${lu} --ranks 1)
     endif()
 
     if (GRIDPACK_BATCHPF_HAVE_CUDA AND MPIEXEC)
@@ -417,7 +429,7 @@ if (GRIDPACK_ENABLE_TESTS)
         batchpf_add_test(batchpf.parity.external_${case_name}_${b}
           ${Python3_EXECUTABLE} ${runner} --cax $<TARGET_FILE:ca.x> --raw ${raw}
           --workdir ${work}/${case_name}_${b} --mode parity --require-shadow-sets --require-reported-state --backend ${b}
-          --solver ${lu} --ranks 8 --mpiexec ${MPIEXEC})
+          --solver ${lu} --mpiexec ${MPIEXEC})
         # Full csv_delta studies can write tens of GB. Allow comparison
         # time as well as two solves; each solver still has its own timeout.
         set_tests_properties(batchpf.parity.external_${case_name}_${b} PROPERTIES TIMEOUT 7200)
