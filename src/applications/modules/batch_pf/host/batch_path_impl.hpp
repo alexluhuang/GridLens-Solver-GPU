@@ -111,6 +111,7 @@ struct BatchPath::Impl {
   double t_report = 0.0, t_start = 0.0;
   int reported_gpu = 0, fallback = 0;
   double replica_bytes = 0.0;
+  SwapCounters swap_start;
 
   // helpers (batch_path.cpp)
   batchpf_settings pluginSettings() const;

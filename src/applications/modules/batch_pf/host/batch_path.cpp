@@ -328,6 +328,7 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   d.ca_qlim = ca_qlim;
   d.output_file = output_file;
   d.replica_bytes = processResidentBytes();
+  d.swap_start = hostSwapCounters();
 
   // B5: export the network as every contingency solve starts from it
   pf_app.exportSupersetModel(&d.model);

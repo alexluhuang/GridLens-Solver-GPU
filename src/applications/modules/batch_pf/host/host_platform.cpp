@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
@@ -256,6 +257,26 @@ double hostAvailableBytes()
     if (key == "MemAvailable:") return kb * 1024.0;
   }
   return 0.0;
+}
+
+SwapCounters hostSwapCounters()
+{
+  SwapCounters result;
+  std::ifstream f("/proc/vmstat");
+  std::string key;
+  std::uint64_t pages = 0;
+  bool found_in = false, found_out = false;
+  while (f >> key >> pages) {
+    if (key == "pswpin") {
+      result.pages_in = pages;
+      found_in = true;
+    } else if (key == "pswpout") {
+      result.pages_out = pages;
+      found_out = true;
+    }
+  }
+  result.available = found_in && found_out;
+  return result;
 }
 
 double processResidentBytes()

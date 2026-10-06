@@ -23,6 +23,7 @@
 #ifndef GRIDPACK_BATCHPF_HOST_HOST_PLATFORM_HPP
 #define GRIDPACK_BATCHPF_HOST_HOST_PLATFORM_HPP
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,15 @@ std::string applyBinding(const CpuTopology &t, CpuBinding policy, int local_rank
 
 /// OS-reported available memory (MemAvailable), bytes; 0 if unknown
 double hostAvailableBytes();
+
+struct SwapCounters {
+  std::uint64_t pages_in = 0;
+  std::uint64_t pages_out = 0;
+  bool available = false;
+};
+
+/// Node-wide swap page counters; unavailable when /proc/vmstat cannot supply both.
+SwapCounters hostSwapCounters();
 
 /// Resident memory of this process, bytes
 double processResidentBytes();

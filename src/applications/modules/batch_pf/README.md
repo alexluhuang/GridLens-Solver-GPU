@@ -223,6 +223,9 @@ python3 src/applications/modules/batch_pf/test/run_ca_test.py \
 ```
 
 The harness saves both logs, XML, timing records and `benchmark.json`.
+The batch summary reports available host memory and local-node swap pages
+since preparation began (guide §8.12). Swap counters include other work on
+the node; a missing `/proc/vmstat` is reported as unavailable, never as zero.
 Benchmark mode defaults to the RAW initial state and no shadow solves.
 Use `--warm-start base_case` for production-start measurements,
 `--shadow-fraction` for sampling, and repeated `--gpu-setting` arguments

@@ -757,6 +757,16 @@ void BatchPath::finish()
      << ", GPU report phase " << gpu_phase << "; host memory available "
      << hostAvailableBytes() / 1.0e9 << " GB";
   d.info(ts.str());
+  const SwapCounters swap_end = hostSwapCounters();
+  std::ostringstream ms;
+  ms << "local-node swap during batch preparation and run: ";
+  if (d.swap_start.available && swap_end.available) {
+    ms << (swap_end.pages_in - d.swap_start.pages_in) << " pages in, "
+       << (swap_end.pages_out - d.swap_start.pages_out) << " pages out";
+  } else {
+    ms << "unavailable (/proc/vmstat)";
+  }
+  d.info(ms.str());
 }
 
 }  // namespace batchpf
