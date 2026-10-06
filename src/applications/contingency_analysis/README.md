@@ -11,8 +11,12 @@ You can specify contingencies in two ways (or combine both):
 <Contingency_analysis>
   <FullBranchN1>true</FullBranchN1>      <!-- N-1 for all branches -->
   <FullGeneratorN1>true</FullGeneratorN1> <!-- N-1 for all generators -->
+  <FullHVDCN1>true</FullHVDCN1>           <!-- N-1 for all two-terminal dc lines -->
 </Contingency_analysis>
 ```
+`FullHVDCN1` adds one contingency per in-service two-terminal dc line, named
+`DC_<line name>`. Each PSS/E two-terminal dc record is one pole, so these are
+pole outages; list bipole outages in a contingency file.
 
 **Option 2: Use a contingency list file**
 ```xml
@@ -30,6 +34,20 @@ You can specify contingencies in two ways (or combine both):
 </Contingency_analysis>
 ```
 When combined, duplicates from the file are automatically skipped.
+
+**Dc line (pole) contingencies in a contingency file** block one or more
+two-terminal dc lines. Line names may contain blanks, so several lines are
+separated by `;` or `,`; names are matched after trimming and collapsing
+internal white space (`DC    53_5` matches `DC 53_5`):
+```xml
+<Contingency>
+  <contingencyType>DCLine</contingencyType>   <!-- or HVDC -->
+  <contingencyName>PDCI_BIPOLE</contingencyName>
+  <contingencyDCLines>CELILO1P_1; CELILO2P_2</contingencyDCLines>
+</Contingency>
+```
+A blocked line's converter injections are removed at both ends. A line is
+also blocked for the contingency if one of its converter buses is isolated.
 
 ### Other Options
 
@@ -196,7 +214,7 @@ each row is self-contained (no separate base-case join needed).
 |---|---|---|
 | 1 | `event_idx` | 0 = base case (only if a base row is emitted), 1..N = contingencies in input-deck order |
 | 2 | `contingency` | contingency name from the input XML (`base_case` for the base) |
-| 3 | `type` | `branch` or `generator` — what kind of contingency was tripped |
+| 3 | `type` | `branch`, `generator` or `hvdc` — what kind of contingency was tripped |
 | 4–6 | `from_bus`, `to_bus`, `ckt` | Identity of the **monitored branch** in the row (not the tripped element) |
 | 7–8 | `base_kv_from`, `base_kv_to` | Endpoint base kV |
 | 9–10 | `area_from`, `area_to` | PSS/E area numbers |
@@ -240,13 +258,14 @@ When monitor filters are active, the data-row count of `_delta.csv` /
 
 Lookup table decoding the `event_idx` used by every other output. Columns:
 `event_idx, contingency, type, n_elements, from_bus, to_bus, circuit_id,
-gen_bus, gen_id`. One row per contingency; `event_idx=0` is the base case
+gen_bus, gen_id, dc_line`. One row per contingency; `event_idx=0` is the base case
 (`n_elements=0`, id columns blank). An N-1 row carries the single outaged
 element in the id columns, so it joins directly against the other CSVs. A
 multi-element (N-k) event stays on one row with `n_elements=k` and the
 element ids `;`-separated inside the same columns, e.g. `from_bus=1;3`,
 `to_bus=2;4`, `circuit_id=1;1`. Generator events fill `gen_bus`/`gen_id`
-and leave the branch columns blank.
+and leave the branch columns blank. Dc line events (`type=hvdc`) fill
+`dc_line` with the blocked line names, e.g. `CELILO1P_1;CELILO2P_2`.
 
 ---
 

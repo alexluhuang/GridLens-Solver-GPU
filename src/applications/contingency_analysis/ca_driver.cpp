@@ -45,6 +45,23 @@
 #include <cstdlib>
 #include <set>
 
+namespace {
+
+/**
+ * Label used for a contingency type in the output files
+ * @param event contingency
+ * @return "branch", "generator" or "hvdc"
+ */
+const char* contingencyTypeName(const gridpack::powerflow::Contingency &event)
+{
+  if (event.p_type == gridpack::powerflow::Branch) return "branch";
+  if (event.p_type == gridpack::powerflow::Generator) return "generator";
+  if (event.p_type == gridpack::powerflow::DCLine) return "hvdc";
+  return "unknown";
+}
+
+}  // namespace
+
 // Statistical-summary output (vmag.txt, pflow.txt, etc.) used to be controlled
 // by a USE_STATBLOCK build-time macro; it is now a runtime XML option,
 // `Configuration.Contingency_analysis.writeStats`, defaulting to true to
@@ -165,6 +182,28 @@ std::vector<gridpack::powerflow::Contingency>
         // Add generator contingency to contingency list
         ret.push_back(contingency);
       }
+    } else if (ca_type == "DCLine" || ca_type == "HVDC") {
+      // Two-terminal dc lines (poles) to block. Names may contain blanks,
+      // so several lines are separated by ';' or ','
+      std::string names;
+      contingencies[idx]->get("contingencyDCLines",&names);
+      gridpack::powerflow::Contingency contingency;
+      contingency.p_name = ca_name;
+      contingency.p_type = gridpack::powerflow::DCLine;
+      std::string cur;
+      for (size_t k = 0; k <= names.size(); k++) {
+        if (k == names.size() || names[k] == ';' || names[k] == ',') {
+          std::string nm = gridpack::powerflow::normalizeHVDCName(cur);
+          if (!nm.empty()) {
+            contingency.p_dclines.push_back(nm);
+            contingency.p_saveDCLineStatus.push_back(true);
+          }
+          cur.clear();
+        } else {
+          cur += names[k];
+        }
+      }
+      if (!contingency.p_dclines.empty()) ret.push_back(contingency);
     }
   }
   return ret;
@@ -180,7 +219,7 @@ std::vector<gridpack::powerflow::Contingency>
 std::vector<gridpack::powerflow::Contingency>
   gridpack::contingency_analysis::CADriver::generateN1Contingencies(
       gridpack::powerflow::PFAppModule &pf_app,
-      bool gen_branches, bool gen_generators)
+      bool gen_branches, bool gen_generators, bool gen_dclines)
 {
   std::vector<gridpack::powerflow::Contingency> ret;
   gridpack::utility::StringUtils utils;
@@ -261,6 +300,25 @@ std::vector<gridpack::powerflow::Contingency>
     }
   }
 
+  // Generate N-1 two-terminal dc line (pole) contingencies
+  if (gen_dclines) {
+    std::vector<std::string> names = pf_app.getHVDCLineNames(true);
+    for (size_t i=0; i<names.size(); i++) {
+      gridpack::powerflow::Contingency contingency;
+      std::string tag = names[i];
+      std::replace(tag.begin(), tag.end(), ' ', '_');
+      contingency.p_name = "DC_" + tag;
+      contingency.p_type = gridpack::powerflow::DCLine;
+      contingency.p_dclines.push_back(names[i]);
+      contingency.p_saveDCLineStatus.push_back(true);
+      ret.push_back(contingency);
+    }
+    if (gridpack::parallel::Communicator().rank() == 0) {
+      printf("Auto-generated %d N-1 dc line contingencies\n",
+          static_cast<int>(names.size()));
+    }
+  }
+
   return ret;
 }
 
@@ -335,6 +393,13 @@ bool gridpack::contingency_analysis::CADriver::isDuplicateContingency(
       if (all_match) {
         return true;  // Duplicate found
       }
+    } else if (contingency.p_type == gridpack::powerflow::DCLine) {
+      // Same set of dc lines (order doesn't matter)
+      std::set<std::string> a(contingency.p_dclines.begin(),
+          contingency.p_dclines.end());
+      std::set<std::string> b(existing.p_dclines.begin(),
+          existing.p_dclines.end());
+      if (a == b) return true;
     }
   }
 
@@ -1314,7 +1379,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     std::string ct_name = evt.p_name;
     while (!ct_name.empty() && ct_name[ct_name.size()-1] == ' ')
       ct_name.resize(ct_name.size()-1);
-    const char *type_str = (evt.p_type == Branch) ? "branch" : "generator";
+    const char *type_str = contingencyTypeName(evt);
     std::map<int, std::pair<double,double> > vbymag_ang;
     for (size_t vi = 0; vi < v_strs.size(); vi++) {
       int    bus_id = 0, use_vmag = 0, changed = 0;
@@ -1445,6 +1510,11 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     world.barrier();
     MPI_Abort(static_cast<MPI_Comm>(world), 1);
   }
+  // Operating point of the two-terminal dc lines in the base case
+  if (world.rank() == 0) pf_app.writeHVDCSummary();
+  // Contingency solves start their dc lines from the base-case operating
+  // point, as the ac solution does from the base voltages
+  pf_app.setHVDCReference();
   // Suppress voltage violations already present at base.
   pf_app.ignoreVoltageViolations();
 
@@ -1533,9 +1603,12 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // Check if auto-generation of N-1 contingencies is enabled
   // FullBranchN1: generate N-1 contingencies for all branches
   // FullGeneratorN1: generate N-1 contingencies for all generators
+  // FullHVDCN1: generate N-1 contingencies for all two-terminal dc lines
+  // (each record is one pole)
   cursor = config->getCursor("Configuration.Contingency_analysis");
   bool full_branch_n1 = false;
   bool full_generator_n1 = false;
+  bool full_hvdc_n1 = false;
 
   if (!cursor->get("FullBranchN1",&tmp_bool)) {
     full_branch_n1 = false;
@@ -1551,7 +1624,13 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     full_generator_n1 = (tmp_bool == "true");
   }
 
-  bool auto_generate_n1 = full_branch_n1 || full_generator_n1;
+  if (cursor->get("FullHVDCN1",&tmp_bool)) {
+    util.toLower(tmp_bool);
+    full_hvdc_n1 = (tmp_bool == "true");
+  }
+
+  bool auto_generate_n1 = full_branch_n1 || full_generator_n1 ||
+    full_hvdc_n1;
 
   std::vector<gridpack::powerflow::Contingency> events;
   int auto_generated_count = 0;
@@ -1565,9 +1644,11 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       printf("Auto-generating N-1 contingencies from network\n");
       printf("  FullBranchN1: %s\n", full_branch_n1 ? "YES" : "NO");
       printf("  FullGeneratorN1: %s\n", full_generator_n1 ? "YES" : "NO");
+      printf("  FullHVDCN1: %s\n", full_hvdc_n1 ? "YES" : "NO");
       printf("==================================================================\n\n");
     }
-    events = generateN1Contingencies(pf_app, full_branch_n1, full_generator_n1);
+    events = generateN1Contingencies(pf_app, full_branch_n1, full_generator_n1,
+        full_hvdc_n1);
     auto_generated_count = events.size();
   }
 
@@ -1652,9 +1733,9 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     std::string ctgFile = outputFile + "_contingencies.csv";
     std::ofstream cout_ctg(ctgFile.c_str(), std::ios::out | std::ios::trunc);
     cout_ctg << "event_idx,contingency,type,n_elements,"
-                "from_bus,to_bus,circuit_id,gen_bus,gen_id\n";
+                "from_bus,to_bus,circuit_id,gen_bus,gen_id,dc_line\n";
     size_t ctgRows = 0;
-    cout_ctg << "0,base_case,base,0,,,,,\n";
+    cout_ctg << "0,base_case,base,0,,,,,,\n";
     ctgRows++;
     // Trim clean2Char padding so ids join against the other CSVs.
     auto rtrim = [](const std::string &in) -> std::string {
@@ -1668,16 +1749,21 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       int event_idx = static_cast<int>(ei) + 1;
       std::string nm = rtrim(e.p_name);
       size_t n = 0;
-      const char *ty = "unknown";
-      if (e.p_type == Branch) { n = e.p_from.size(); ty = "branch"; }
-      else if (e.p_type == Generator) { n = e.p_busid.size(); ty = "generator"; }
-      std::ostringstream c_from, c_to, c_ckt, c_gbus, c_gid;
+      const char *ty = contingencyTypeName(e);
+      if (e.p_type == Branch) n = e.p_from.size();
+      else if (e.p_type == Generator) n = e.p_busid.size();
+      else if (e.p_type == gridpack::powerflow::DCLine) n = e.p_dclines.size();
+      std::ostringstream c_from, c_to, c_ckt, c_gbus, c_gid, c_dc;
       for (size_t j = 0; j < n; j++) {
         const char *sep = (j > 0) ? ";" : "";
         if (e.p_type == Branch) {
           c_from << sep << e.p_from[j];
           c_to   << sep << e.p_to[j];
           c_ckt  << sep << rtrim(e.p_ckt[j]);
+        } else if (e.p_type == gridpack::powerflow::DCLine) {
+          std::string dc = e.p_dclines[j];
+          std::replace(dc.begin(), dc.end(), ',', ' ');
+          c_dc << sep << dc;
         } else {
           c_gbus << sep << e.p_busid[j];
           c_gid  << sep << rtrim(e.p_genid[j]);
@@ -1686,7 +1772,8 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       // Empty events still get a row so every event_idx decodes.
       cout_ctg << event_idx << "," << nm << "," << ty << "," << n << ","
                << c_from.str() << "," << c_to.str() << "," << c_ckt.str() << ","
-               << c_gbus.str() << "," << c_gid.str() << "\n";
+               << c_gbus.str() << "," << c_gid.str() << "," << c_dc.str()
+               << "\n";
       ctgRows++;
     }
     cout_ctg.close();
@@ -1712,6 +1799,10 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         for (j=0; j<nbus; j++) {
           printf(" Generator: (bus) %d (generator ID) \'%s\'\n",
               events[idx].p_busid[j],events[idx].p_genid[j].c_str());
+        }
+      } else if (events[idx].p_type == gridpack::powerflow::DCLine) {
+        for (size_t j=0; j<events[idx].p_dclines.size(); j++) {
+          printf(" DC line: \'%s\'\n", events[idx].p_dclines[j].c_str());
         }
       }
     }
@@ -2061,7 +2152,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     ConvRow r;
     r.event_idx = task_id + 1;
     r.name      = events[task_id].p_name;
-    r.type      = (events[task_id].p_type == Branch) ? "branch" : "generator";
+    r.type      = contingencyTypeName(events[task_id]);
     r.cs        = pf_app.getConvergence();
     r.status    = status;
     localConvRows.push_back(r);
@@ -2108,6 +2199,15 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
             pf_network->communicator().rank(),
             events[task_id].p_busid[j],events[task_id].p_genid[j].c_str());
       }
+    } else if (events[task_id].p_type == gridpack::powerflow::DCLine) {
+      std::string lines;
+      for (size_t j=0; j<events[task_id].p_dclines.size(); j++) {
+        if (j > 0) lines += ", ";
+        lines += events[task_id].p_dclines[j];
+      }
+      snprintf(sbuf, sizeof(sbuf), " DC line: %s\n", lines.c_str());
+      if (print_calcs) printf("p[%d] DC line: %s\n",
+          pf_network->communicator().rank(), lines.c_str());
     }
     if (print_calcs) pf_app.writeHeader(sbuf);
     // Reset all voltages back to their original values
@@ -2160,7 +2260,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         if (outputFormat == "json" || outputFormat == "csv") {
           gridpack::utility::ContingencyResult ctResult;
           ctResult.name = events[task_id].p_name;
-          ctResult.type = (events[task_id].p_type == Branch) ? "branch" : "generator";
+          ctResult.type = contingencyTypeName(events[task_id]);
           ctResult.hasVoltageViolation = false;
           ctResult.hasBranchViolation = false;
           ctResult.solution.convergence = pf_app.getConvergence();
@@ -2185,7 +2285,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
             outputFormat == "text") {
           gridpack::utility::ContingencyResult ctResult;
           ctResult.name = events[task_id].p_name;
-          ctResult.type = (events[task_id].p_type == Branch) ? "branch" : "generator";
+          ctResult.type = contingencyTypeName(events[task_id]);
           ctResult.hasVoltageViolation = !ok1;
           ctResult.hasBranchViolation = !ok2;
           ctResult.solution = pf_app.collectResults();
@@ -2326,7 +2426,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       if (outputFormat == "json" || outputFormat == "csv") {
         gridpack::utility::ContingencyResult ctResult;
         ctResult.name = events[task_id].p_name;
-        ctResult.type = (events[task_id].p_type == Branch) ? "branch" : "generator";
+        ctResult.type = contingencyTypeName(events[task_id]);
         ctResult.hasVoltageViolation = false;
         ctResult.hasBranchViolation = false;
         ctResult.solution.convergence = pf_app.getConvergence();

@@ -38,6 +38,9 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <set>
+#include <algorithm>
+#include <cmath>
 #include "boost/smart_ptr/shared_ptr.hpp"
 #include "gridpack/parser/dictionary.hpp"
 #include "gridpack/parallel/global_vector.hpp"
@@ -65,6 +68,7 @@ PFFactoryModule::PFFactoryModule(PFFactoryModule::NetworkPtr network)
   p_originalSlackBusIdx = -1;
   p_currentSlackBusIdx = -1;
   p_slackTransferred = false;
+  p_hvdc_have_reference = false;
 }
 
 /**
@@ -1150,6 +1154,302 @@ void gridpack::powerflow::PFFactoryModule::setupIREGPointers()
       rbus->setVoltageForIREG(all_vs[s]);
     }
   }
+}
+
+/**
+ * Read the two-terminal dc lines from the network data and set the
+ * converter injections at the current bus voltages
+ */
+void gridpack::powerflow::PFFactoryModule::loadHVDC()
+{
+  p_hvdc_lines.clear();
+  p_hvdc_status.clear();
+  p_hvdc_solution.clear();
+  p_hvdc_buses.clear();
+  boost::shared_ptr<gridpack::component::DataCollection> data =
+    p_network->getNetworkData();
+  int nline = 0;
+  if (data) data->getValue(HVDC_LINE_TOTAL, &nline);
+  bool root = (p_network->communicator().rank() == 0);
+  std::set<int> buses;
+  for (int i = 0; i < nline; i++) {
+    HVDCLine l;
+    bool ok = data->getValue(HVDC_LINE_NAME, &l.name, i);
+    ok = ok && data->getValue(HVDC_LINE_MDC, &l.mdc, i);
+    ok = ok && data->getValue(HVDC_LINE_RDC, &l.rdc, i);
+    ok = ok && data->getValue(HVDC_LINE_SETVL, &l.setvl, i);
+    ok = ok && data->getValue(HVDC_LINE_VSCHD, &l.vschd, i);
+    ok = ok && data->getValue(HVDC_LINE_VCMOD, &l.vcmod, i);
+    ok = ok && data->getValue(HVDC_LINE_RCOMP, &l.rcomp, i);
+    ok = ok && data->getValue(HVDC_LINE_DELTI, &l.delti, i);
+    ok = ok && data->getValue(HVDC_RECT_BUS, &l.rect.bus, i);
+    ok = ok && data->getValue(HVDC_RECT_NB, &l.rect.nb, i);
+    ok = ok && data->getValue(HVDC_RECT_ANMX, &l.rect.anmx, i);
+    ok = ok && data->getValue(HVDC_RECT_ANMN, &l.rect.anmn, i);
+    ok = ok && data->getValue(HVDC_RECT_RC, &l.rect.rc, i);
+    ok = ok && data->getValue(HVDC_RECT_XC, &l.rect.xc, i);
+    ok = ok && data->getValue(HVDC_RECT_EBAS, &l.rect.ebas, i);
+    ok = ok && data->getValue(HVDC_RECT_TR, &l.rect.tr, i);
+    ok = ok && data->getValue(HVDC_RECT_TAP, &l.rect.tap, i);
+    ok = ok && data->getValue(HVDC_RECT_TMX, &l.rect.tmx, i);
+    ok = ok && data->getValue(HVDC_RECT_TMN, &l.rect.tmn, i);
+    ok = ok && data->getValue(HVDC_RECT_STP, &l.rect.stp, i);
+    ok = ok && data->getValue(HVDC_INV_BUS, &l.inv.bus, i);
+    ok = ok && data->getValue(HVDC_INV_NB, &l.inv.nb, i);
+    ok = ok && data->getValue(HVDC_INV_ANMX, &l.inv.anmx, i);
+    ok = ok && data->getValue(HVDC_INV_ANMN, &l.inv.anmn, i);
+    ok = ok && data->getValue(HVDC_INV_RC, &l.inv.rc, i);
+    ok = ok && data->getValue(HVDC_INV_XC, &l.inv.xc, i);
+    ok = ok && data->getValue(HVDC_INV_EBAS, &l.inv.ebas, i);
+    ok = ok && data->getValue(HVDC_INV_TR, &l.inv.tr, i);
+    ok = ok && data->getValue(HVDC_INV_TAP, &l.inv.tap, i);
+    ok = ok && data->getValue(HVDC_INV_TMX, &l.inv.tmx, i);
+    ok = ok && data->getValue(HVDC_INV_TMN, &l.inv.tmn, i);
+    ok = ok && data->getValue(HVDC_INV_STP, &l.inv.stp, i);
+    if (!ok) {
+      if (root) printf("HVDC: incomplete data for dc line %d; line ignored\n", i);
+      continue;
+    }
+    l.name = normalizeHVDCName(l.name);
+    if (root && (l.rect.anmn > l.rect.anmx || l.inv.anmn > l.inv.anmx)) {
+      printf("HVDC: dc line %s has a minimum converter angle above its"
+          " maximum; the limits are used in increasing order\n",
+          l.name.c_str());
+    }
+    p_hvdc_lines.push_back(l);
+    buses.insert(l.rect.bus);
+    buses.insert(l.inv.bus);
+  }
+  p_hvdc_buses.assign(buses.begin(), buses.end());
+  p_hvdc_status.assign(p_hvdc_lines.size(), true);
+  p_hvdc_solution.assign(p_hvdc_lines.size(), blockedHVDCSolution());
+  p_hvdc_reference.clear();
+  p_hvdc_have_reference = false;
+  updateHVDC(0.0);
+}
+
+/**
+ * Sequential ac/dc step: re-solve every dc line at the current ac voltages
+ * of its converter buses and update the converter injections. A line is
+ * blocked if it is out of service or a converter bus is isolated
+ * @param tol tolerance (pu) on the change in converter P and Q
+ * @param max_change largest change in converter P or Q (pu)
+ * @param notes messages for lines whose control mode changed
+ * @return true if no converter injection changed by more than tol
+ */
+bool gridpack::powerflow::PFFactoryModule::updateHVDC(double tol,
+    double *max_change, std::vector<std::string> *notes)
+{
+  if (max_change) *max_change = 0.0;
+  int nline = p_hvdc_lines.size();
+  if (nline == 0) return true;
+  std::vector<double> state;
+  gatherHVDCBusState(state);
+  std::map<int,int> bus_slot;
+  for (size_t k = 0; k < p_hvdc_buses.size(); k++) bus_slot[p_hvdc_buses[k]] = k;
+  double sbase = 0.0;
+  if (p_network->numBuses() > 0) {
+    sbase = dynamic_cast<gridpack::powerflow::PFBus*>(
+        p_network->getBus(0).get())->getSBase();
+  }
+  if (sbase <= 0.0) sbase = 100.0;
+
+  // Solve every line at the voltages of its converter buses
+  double change = 0.0;
+  for (int i = 0; i < nline; i++) {
+    const HVDCLine &l = p_hvdc_lines[i];
+    int kr = bus_slot[l.rect.bus];
+    int ki = bus_slot[l.inv.bus];
+    bool isolated = (state[2*kr+1] > 0.5 || state[2*ki+1] > 0.5);
+    HVDCSolution s = blockedHVDCSolution();
+    if (p_hvdc_status[i] && !isolated) {
+      s = solveTwoTerminalDC(l, state[2*kr], state[2*ki]);
+    }
+    const HVDCSolution &o = p_hvdc_solution[i];
+    double dl = std::max(std::max(fabs(s.rect.p - o.rect.p),
+          fabs(s.rect.q - o.rect.q)),
+        std::max(fabs(s.inv.p - o.inv.p), fabs(s.inv.q - o.inv.q)));
+    change = std::max(change, dl);
+    if (notes && (s.mode != o.mode || s.limited != o.limited) &&
+        (s.mode != HVDC_NORMAL || o.mode != HVDC_NORMAL || s.limited)) {
+      char buf[256];
+      snprintf(buf, sizeof(buf), "HVDC line %s: %s%s, Id=%.4f kA,"
+          " rectifier P=%.1f MW, inverter P=%.1f MW\n", l.name.c_str(),
+          hvdcModeName(s.mode),
+          s.limited ? " (no operating point inside the angle limits)" : "",
+          s.id, s.rect.p, s.inv.p);
+      notes->push_back(buf);
+    }
+    p_hvdc_solution[i] = s;
+  }
+  applyHVDCInjections();
+  change /= sbase;
+  if (max_change) *max_change = change;
+  return change <= tol;
+}
+
+/**
+ * Set the converter injections at the start of a solve. Lines that are out
+ * of service or have an isolated converter bus are blocked; the others start
+ * from the reference operating point if one has been set, otherwise they are
+ * solved at the current voltages
+ */
+void gridpack::powerflow::PFFactoryModule::startHVDC()
+{
+  if (p_hvdc_lines.empty()) return;
+  if (!p_hvdc_have_reference) {
+    updateHVDC(0.0);
+    return;
+  }
+  std::vector<double> state;
+  gatherHVDCBusState(state);
+  std::map<int,int> bus_slot;
+  for (size_t k = 0; k < p_hvdc_buses.size(); k++) bus_slot[p_hvdc_buses[k]] = k;
+  for (size_t i = 0; i < p_hvdc_lines.size(); i++) {
+    const HVDCLine &l = p_hvdc_lines[i];
+    bool isolated = (state[2*bus_slot[l.rect.bus]+1] > 0.5 ||
+        state[2*bus_slot[l.inv.bus]+1] > 0.5);
+    if (p_hvdc_status[i] && !isolated) {
+      p_hvdc_solution[i] = p_hvdc_reference[i];
+    } else {
+      p_hvdc_solution[i] = blockedHVDCSolution();
+    }
+  }
+  applyHVDCInjections();
+}
+
+/**
+ * Use the current dc operating point as the starting point of later solves
+ * (e.g. the base case for contingency calculations)
+ */
+void gridpack::powerflow::PFFactoryModule::setHVDCReference()
+{
+  p_hvdc_reference = p_hvdc_solution;
+  p_hvdc_have_reference = true;
+}
+
+/**
+ * Voltage magnitude and isolation flag (1 or 0) of each converter bus,
+ * contributed by the process that owns the bus
+ * @param state 2 entries per converter bus, in p_hvdc_buses order
+ */
+void gridpack::powerflow::PFFactoryModule::gatherHVDCBusState(
+    std::vector<double> &state)
+{
+  int nbus = p_hvdc_buses.size();
+  std::vector<double> local(2*nbus, 0.0);
+  state.assign(2*nbus, 0.0);
+  for (int k = 0; k < nbus; k++) {
+    std::vector<int> lids = p_network->getLocalBusIndices(p_hvdc_buses[k]);
+    for (size_t j = 0; j < lids.size(); j++) {
+      if (!p_network->getActiveBus(lids[j])) continue;
+      gridpack::powerflow::PFBus *bus =
+        dynamic_cast<gridpack::powerflow::PFBus*>(
+            p_network->getBus(lids[j]).get());
+      local[2*k] = bus->getVoltage();
+      local[2*k+1] = bus->isIsolated() ? 1.0 : 0.0;
+    }
+  }
+  MPI_Comm comm = static_cast<MPI_Comm>(p_network->communicator());
+  MPI_Allreduce(local.data(), state.data(), 2*nbus, MPI_DOUBLE, MPI_SUM,
+      comm);
+}
+
+/**
+ * Set the injections of the converter buses from the dc line operating
+ * points in p_hvdc_solution
+ */
+void gridpack::powerflow::PFFactoryModule::applyHVDCInjections()
+{
+  int nbus = p_hvdc_buses.size();
+  std::map<int,int> bus_slot;
+  for (int k = 0; k < nbus; k++) bus_slot[p_hvdc_buses[k]] = k;
+  std::vector<double> pinj(nbus, 0.0), qinj(nbus, 0.0);
+  for (size_t i = 0; i < p_hvdc_lines.size(); i++) {
+    const HVDCSolution &s = p_hvdc_solution[i];
+    int kr = bus_slot[p_hvdc_lines[i].rect.bus];
+    int ki = bus_slot[p_hvdc_lines[i].inv.bus];
+    pinj[kr] += s.rect.p;
+    qinj[kr] += s.rect.q;
+    pinj[ki] -= s.inv.p;
+    qinj[ki] += s.inv.q;
+  }
+  for (int k = 0; k < nbus; k++) {
+    std::vector<int> lids = p_network->getLocalBusIndices(p_hvdc_buses[k]);
+    for (size_t j = 0; j < lids.size(); j++) {
+      gridpack::powerflow::PFBus *bus =
+        dynamic_cast<gridpack::powerflow::PFBus*>(
+            p_network->getBus(lids[j]).get());
+      bus->setHVDCInjection(pinj[k], qinj[k]);
+    }
+  }
+}
+
+/**
+ * Number of two-terminal dc lines
+ * @return number of dc lines
+ */
+int gridpack::powerflow::PFFactoryModule::numHVDCLines() const
+{
+  return p_hvdc_lines.size();
+}
+
+/**
+ * Names of the dc lines
+ * @param active_only only lines scheduled to operate (MDC not 0)
+ * @return dc line names
+ */
+std::vector<std::string>
+gridpack::powerflow::PFFactoryModule::getHVDCLineNames(bool active_only) const
+{
+  std::vector<std::string> ret;
+  for (size_t i = 0; i < p_hvdc_lines.size(); i++) {
+    if (active_only && p_hvdc_lines[i].mdc == 0) continue;
+    ret.push_back(p_hvdc_lines[i].name);
+  }
+  return ret;
+}
+
+/**
+ * Set the status of a dc line; false takes it out of service
+ * @param name dc line name
+ * @param status new status
+ * @param old previous status
+ * @return false if no line has this name
+ */
+bool gridpack::powerflow::PFFactoryModule::setHVDCLineStatus(
+    const std::string &name, bool status, bool *old)
+{
+  std::string key = normalizeHVDCName(name);
+  bool found = false;
+  for (size_t i = 0; i < p_hvdc_lines.size(); i++) {
+    if (p_hvdc_lines[i].name != key) continue;
+    if (old && !found) *old = p_hvdc_status[i];
+    p_hvdc_status[i] = status;
+    found = true;
+  }
+  return found;
+}
+
+/**
+ * Dc line data, status and latest operating point, indexed by line
+ */
+const std::vector<gridpack::powerflow::HVDCLine>&
+gridpack::powerflow::PFFactoryModule::getHVDCLines() const
+{
+  return p_hvdc_lines;
+}
+
+const std::vector<bool>&
+gridpack::powerflow::PFFactoryModule::getHVDCLineStatus() const
+{
+  return p_hvdc_status;
+}
+
+const std::vector<gridpack::powerflow::HVDCSolution>&
+gridpack::powerflow::PFFactoryModule::getHVDCSolutions() const
+{
+  return p_hvdc_solution;
 }
 
 /**

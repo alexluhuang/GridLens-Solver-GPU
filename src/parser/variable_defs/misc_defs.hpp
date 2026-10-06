@@ -221,4 +221,103 @@
  */
 #define OWNER_NAME "OWNER_NAME"
 
+// TWO-TERMINAL DC LINE DATA (network level, indexed by dc line)
+/**
+ * Total number of two-terminal dc lines
+ * type: integer
+ */
+#define HVDC_LINE_TOTAL "HVDC_LINE_TOTAL"
+
+/**
+ * Dc line name
+ * type: string
+ * indexed
+ */
+#define HVDC_LINE_NAME "HVDC_LINE_NAME"
+
+/**
+ * Control mode: 0 blocked, 1 power, 2 current
+ * type: integer
+ * indexed
+ */
+#define HVDC_LINE_MDC "HVDC_LINE_MDC"
+
+/**
+ * Dc line resistance; entered in ohms
+ * type: real float
+ * indexed
+ */
+#define HVDC_LINE_RDC "HVDC_LINE_RDC"
+
+/**
+ * Power (MW) or current (amps) demand. For power control a positive value
+ * is desired rectifier power and a negative value desired inverter power
+ * type: real float
+ * indexed
+ */
+#define HVDC_LINE_SETVL "HVDC_LINE_SETVL"
+
+/**
+ * Scheduled compounded dc voltage; entered in kV
+ * type: real float
+ * indexed
+ */
+#define HVDC_LINE_VSCHD "HVDC_LINE_VSCHD"
+
+/**
+ * Mode switch dc voltage; entered in kV
+ * type: real float
+ * indexed
+ */
+#define HVDC_LINE_VCMOD "HVDC_LINE_VCMOD"
+
+/**
+ * Compounding resistance; entered in ohms
+ * type: real float
+ * indexed
+ */
+#define HVDC_LINE_RCOMP "HVDC_LINE_RCOMP"
+
+/**
+ * Current margin, fraction of the order the inverter takes over when the
+ * rectifier is at its minimum firing angle
+ * type: real float
+ * indexed
+ */
+#define HVDC_LINE_DELTI "HVDC_LINE_DELTI"
+
+/**
+ * Converter data at the rectifier (RECT) and inverter (INV) ends: ac bus
+ * number, number of bridges, maximum and minimum firing (rectifier) or
+ * extinction (inverter) angle in degrees, commutating resistance and
+ * reactance per bridge in ohms, primary base ac voltage in kV, transformer
+ * ratio, tap setting and tap limits and step
+ * type: integer (BUS), real float (others)
+ * indexed
+ */
+#define HVDC_RECT_BUS "HVDC_RECT_BUS"
+#define HVDC_RECT_NB "HVDC_RECT_NB"
+#define HVDC_RECT_ANMX "HVDC_RECT_ANMX"
+#define HVDC_RECT_ANMN "HVDC_RECT_ANMN"
+#define HVDC_RECT_RC "HVDC_RECT_RC"
+#define HVDC_RECT_XC "HVDC_RECT_XC"
+#define HVDC_RECT_EBAS "HVDC_RECT_EBAS"
+#define HVDC_RECT_TR "HVDC_RECT_TR"
+#define HVDC_RECT_TAP "HVDC_RECT_TAP"
+#define HVDC_RECT_TMX "HVDC_RECT_TMX"
+#define HVDC_RECT_TMN "HVDC_RECT_TMN"
+#define HVDC_RECT_STP "HVDC_RECT_STP"
+#define HVDC_INV_BUS "HVDC_INV_BUS"
+#define HVDC_INV_NB "HVDC_INV_NB"
+#define HVDC_INV_ANMX "HVDC_INV_ANMX"
+#define HVDC_INV_ANMN "HVDC_INV_ANMN"
+#define HVDC_INV_RC "HVDC_INV_RC"
+#define HVDC_INV_XC "HVDC_INV_XC"
+#define HVDC_INV_EBAS "HVDC_INV_EBAS"
+#define HVDC_INV_TR "HVDC_INV_TR"
+#define HVDC_INV_TAP "HVDC_INV_TAP"
+#define HVDC_INV_TMX "HVDC_INV_TMX"
+#define HVDC_INV_TMN "HVDC_INV_TMN"
+#define HVDC_INV_STP "HVDC_INV_STP"
+
 #endif /* _MISC_VAR_HPP_ */

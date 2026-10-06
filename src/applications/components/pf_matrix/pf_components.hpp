@@ -595,6 +595,44 @@ class PFBus
         std::vector<double> &ql, std::vector<int> &status);
 
     /**
+     * Constant-power demand the bus places on the network: in-service loads
+     * less their in-service distributed generation plus the power drawn by
+     * dc converters
+     * @param pl real power demand (MW)
+     * @param ql reactive power demand (MVar)
+     */
+    void getFixedPowerDemand(double *pl, double *ql) const;
+
+    /**
+     * Get the in-service distributed generation on the loads of this bus
+     * @param p real power (MW)
+     * @param q reactive power (MVar)
+     */
+    void getDGPower(double *p, double *q) const;
+
+    /**
+     * Set status of the distributed generation attached to a load
+     * @param tag character ID for load
+     * @param status status of the distributed generation
+     * @return false if there is no load with this ID
+     */
+    bool setDGStatus(std::string tag, bool status);
+
+    /**
+     * Set the power drawn from the bus by dc converters
+     * @param p real power (MW), negative for an inverter
+     * @param q reactive power (MVar)
+     */
+    void setHVDCInjection(double p, double q);
+
+    /**
+     * Get the power drawn from the bus by dc converters
+     * @param p real power (MW), negative for an inverter
+     * @param q reactive power (MVar)
+     */
+    void getHVDCInjection(double *p, double *q) const;
+
+    /**
      * Label bus as a source for real time path rating
      * @param flag identify bus as source
      */
@@ -746,6 +784,9 @@ class PFBus
     std::vector<double> p_saveIp, p_saveIq, p_saveYp, p_saveYq;
     std::vector<int> p_lstatus;
     std::vector<std::string> p_lid;
+    std::vector<double> p_dgp, p_dgq;  // distributed generation on each load
+    std::vector<bool> p_dgstatus;
+    double p_hvdc_p, p_hvdc_q;         // power drawn by dc converters
     double p_sbase;
     double p_Pinj, p_Qinj;
     double p_vmin, p_vmax;
@@ -828,6 +869,8 @@ private:
       & p_savePl & p_saveQl
       & p_saveIp & p_saveIq & p_saveYp & p_saveYq
       & p_lstatus & p_lid
+      & p_dgp & p_dgq & p_dgstatus
+      & p_hvdc_p & p_hvdc_q
       & p_sbase
       & p_Pinj & p_Qinj
       & p_vmin & p_vmax

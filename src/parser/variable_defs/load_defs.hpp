@@ -148,6 +148,27 @@
 #define LOAD_INTRPT "LOAD_INTRPT"
 
 /**
+ * Distributed generation active power on the load (PSS/E v34+ DGENP); in MW
+ * type: real float
+ * indexed
+ */
+#define LOAD_DGENP "LOAD_DGENP"
+
+/**
+ * Distributed generation reactive power on the load (PSS/E v34+ DGENQ); in MVar
+ * type: real float
+ * indexed
+ */
+#define LOAD_DGENQ "LOAD_DGENQ"
+
+/**
+ * Distributed generation status flag (PSS/E v34+ DGENF); 1 = in service
+ * type: integer
+ * indexed
+ */
+#define LOAD_DGENF "LOAD_DGENF"
+
+/**
  * Alphanumeric string describing load model
  * type: string
  * indexed
