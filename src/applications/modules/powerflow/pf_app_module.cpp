@@ -36,6 +36,7 @@
 // -------------------------------------------------------------
 
 #include "pf_app_module.hpp"
+#include <array>
 #include "pf_factory_module.hpp"
 #include "gridpack/mapper/full_map.hpp"
 #include "gridpack/mapper/bus_vector_map.hpp"
@@ -63,7 +64,6 @@
 gridpack::powerflow::PFAppModule::PFAppModule(void)
 {
   p_no_print = false;
-  p_jacobianFormulation = JACOBIAN_STANDARD;
 }
 
 /**
@@ -229,10 +229,8 @@ void gridpack::powerflow::PFAppModule::readNetwork(
   } else if (jacForm == "large") {
     p_jacobianFormulation = JACOBIAN_LARGE;
   } else {
-    char ebuf[256];
-    sprintf(ebuf,"Powerflow/jacobianFormulation must be 'standard' or "
-        "'large', not '%s'\n",jacForm.c_str());
-    throw gridpack::Exception(ebuf);
+    throw gridpack::Exception("Powerflow/jacobianFormulation must be 'standard' or "
+        "'large', not '" + jacForm + "'\n");
   }
 
   int t_pti = timer->createCategory("Powerflow: Network Parser");
@@ -2106,7 +2104,7 @@ bool gridpack::powerflow::PFAppModule::getDataCollectionBranchParam(
 gridpack::powerflow::PFAppModule::SolverParameters
 gridpack::powerflow::PFAppModule::getSolverParameters() const
 {
-  SolverParameters prm;
+  SolverParameters prm{};
   prm.tolerance = p_tolerance;
   prm.max_iteration = p_max_iteration;
   prm.damping_factor = p_dampingFactor;
@@ -2173,8 +2171,8 @@ void gridpack::powerflow::PFAppModule::setExternalSolution(
     if (bus->getReferenceBus()) {
       bus->calculatePowerInjection();
     } else {
-      double rvals[2];
-      bus->rhsValues(rvals);
+      std::array<double, 2> rvals{};
+      bus->rhsValues(rvals.data());
     }
   }
   p_convergence = convergence;

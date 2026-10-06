@@ -633,7 +633,7 @@ class PFAppModule
   private:
 
     // Jacobian layout (standard unless Powerflow/jacobianFormulation=large)
-    JacobianFormulation p_jacobianFormulation;
+    JacobianFormulation p_jacobianFormulation = JACOBIAN_STANDARD;
 
     /**
      * Template function for modifying generator parameters in data collection

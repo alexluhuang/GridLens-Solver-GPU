@@ -53,7 +53,10 @@
 // -------------------------------------------------------------
 
 #include <vector>
+#include <cstddef>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <cstring>
 #include <stdio.h>
 
@@ -115,7 +118,6 @@ std::vector<std::string>& gridpack::powerflow::PFBus::getQlimWarnings()
  */
 gridpack::powerflow::PFBus::PFBus(void)
 {
-  p_largeMatrix = false;
   p_shunt_gs = 0.0;
   p_shunt_bs = 0.0;
   p_v = 0.0;
@@ -1971,10 +1973,8 @@ bool gridpack::powerflow::PFBus::serialWrite(char *string, const int bufsize,
       if (getReferenceBus() || isIsolated()) {
         std::vector<boost::shared_ptr<BaseComponent> > branches;
         getNeighborBranches(branches);
-        int size = branches.size();
-        double P, Q, p, q;
-        P = 0.0;
-        Q = 0.0;
+        const auto size = static_cast<std::ptrdiff_t>(branches.size());
+        double P = 0.0, Q = 0.0, p = 0.0, q = 0.0;
         for (i=0; i<size; i++) {
           gridpack::powerflow::PFBranch *branch
             = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
@@ -2194,10 +2194,8 @@ void gridpack::powerflow::PFBus::saveData(
     if (getReferenceBus() || isIsolated()) {
       std::vector<boost::shared_ptr<BaseComponent> > branches;
       getNeighborBranches(branches);
-      int size = branches.size();
-      double P, Q, p, q;
-      P = 0.0;
-      Q = 0.0;
+      const auto size = static_cast<std::ptrdiff_t>(branches.size());
+      double P = 0.0, Q = 0.0, p = 0.0, q = 0.0;
       for (i=0; i<size; i++) {
         gridpack::powerflow::PFBranch *branch
           = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
@@ -2323,10 +2321,8 @@ void gridpack::powerflow::PFBus::saveDataAlsotoOrg(
     if (getReferenceBus() || isIsolated()) {
       std::vector<boost::shared_ptr<BaseComponent> > branches;
       getNeighborBranches(branches);
-      int size = branches.size();
-      double P, Q, p, q;
-      P = 0.0;
-      Q = 0.0;
+      const auto size = static_cast<std::ptrdiff_t>(branches.size());
+      double P = 0.0, Q = 0.0, p = 0.0, q = 0.0;
       for (i=0; i<size; i++) {
         gridpack::powerflow::PFBranch *branch
           = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
@@ -2692,11 +2688,9 @@ int gridpack::powerflow::PFBus::rhsValues(double *rvals)
       if (p_largeMatrix) {
         std::vector<boost::shared_ptr<BaseComponent> > branches;
         getNeighborBranches(branches);
-        int size = branches.size();
-        int i;
-        double P, Q, p, q;
-        P = 0.0;
-        Q = 0.0;
+        const auto size = static_cast<std::ptrdiff_t>(branches.size());
+        int i = 0;
+        double P = 0.0, Q = 0.0, p = 0.0, q = 0.0;
         for (i=0; i<size; i++) {
           gridpack::powerflow::PFBranch *branch
             = dynamic_cast<gridpack::powerflow::PFBranch*>(branches[i].get());
@@ -3078,19 +3072,15 @@ void gridpack::powerflow::PFBus::applyQlimConversion(bool at_max,
   // chkQlim() leaves PV buses without generators alone, and clearQlim()
   // would not restore one (it only restores buses with online generators)
   if (!p_isPV || p_gstatus.empty()) return;
-  double qmax_tot, qmin_tot;
+  double qmax_tot = 0.0, qmin_tot = 0.0;
   getOnlineGenQLimits(&qmax_tot, &qmin_tot);
-  char warnBuf[256];
-  if (at_max) {
-    snprintf(warnBuf, sizeof(warnBuf),
-             "\nWarning: Bus %d Q requirement (%8.3f) exceeds total QMAX (%8.3f), converting to PQ\n",
-             getOriginalIndex(), q_required, qmax_tot);
-  } else {
-    snprintf(warnBuf, sizeof(warnBuf),
-             "\nWarning: Bus %d Q requirement (%8.3f) below total QMIN (%8.3f), converting to PQ\n",
-             getOriginalIndex(), q_required, qmin_tot);
-  }
-  p_qlimWarnings.push_back(std::string(warnBuf));
+  std::ostringstream warning;
+  warning << "\nWarning: Bus " << getOriginalIndex() << " Q requirement ("
+          << std::fixed << std::setprecision(3) << std::setw(8) << q_required
+          << (at_max ? ") exceeds total QMAX (" : ") below total QMIN (")
+          << std::setw(8) << (at_max ? qmax_tot : qmin_tot)
+          << "), converting to PQ\n";
+  p_qlimWarnings.push_back(warning.str());
   p_save2isPV = p_isPV;
   for (size_t i = 0; i < p_gstatus.size(); i++) {
     if (p_gstatus[i] == 1) {
@@ -3107,7 +3097,6 @@ void gridpack::powerflow::PFBus::applyQlimConversion(bool at_max,
  */
 gridpack::powerflow::PFBranch::PFBranch(void)
 {
-  p_largeMatrix = false;
   p_reactance.clear();
   p_resistance.clear();
   p_tap_ratio.clear();

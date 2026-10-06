@@ -38,6 +38,7 @@
 
 #include <boost/scoped_ptr.hpp>
 #include <sstream>
+#include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <algorithm>
@@ -3199,9 +3200,10 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         }
         if (!coverage.complete()) {
           std::sort(all.begin(), all.end());
-          printf("WARNING: study incomplete: %zu missing outcomes (status MISSING), "
-                 "%zu repeated cases, %zu unexpected indices\n",
-                 coverage.missing.size(), coverage.duplicates.size(), coverage.unexpected.size());
+          std::cout << "WARNING: study incomplete: " << coverage.missing.size()
+                    << " missing outcomes (status MISSING), " << coverage.duplicates.size()
+                    << " repeated cases, " << coverage.unexpected.size()
+                    << " unexpected indices\n";
         }
       }
       std::string convFile = outputFile + "_convergence.csv";

@@ -1702,7 +1702,7 @@ void PFFactoryModule::pairAdmittance(int k, int m, double *g, double *b)
   *b = 0.0;
   std::vector<int> nghbrs = p_network->getConnectedBranches(k);
   for (size_t j = 0; j < nghbrs.size(); j++) {
-    int idx1, idx2;
+    int idx1 = -1, idx2 = -1;
     p_network->getBranchEndpoints(nghbrs[j], &idx1, &idx2);
     PFBranch *branch =
       dynamic_cast<PFBranch*>(p_network->getBranch(nghbrs[j]).get());
@@ -1776,12 +1776,12 @@ void PFFactoryModule::exportSupersetModel(SupersetModel *model)
       PFBranch *branch =
         dynamic_cast<PFBranch*>(p_network->getBranch(nghbrs[j]).get());
       if (!branch->isActiveAtLoad()) continue;
-      int idx1, idx2;
+      int idx1 = -1, idx2 = -1;
       p_network->getBranchEndpoints(nghbrs[j], &idx1, &idx2);
       int m = (idx1 == k) ? idx2 : idx1;
       if (m == k || edge_of[k].count(m) > 0) continue;
       edge_of[k][m] = static_cast<int>(model->edge_col.size());
-      double g, b;
+      double g = 0.0, b = 0.0;
       pairAdmittance(k, m, &g, &b);
       model->edge_col.push_back(m);
       model->edge_g.push_back(g);
@@ -1799,7 +1799,7 @@ void PFFactoryModule::exportSupersetModel(SupersetModel *model)
   for (int i = 0; i < numBranch; i++) {
     PFBranch *branch = dynamic_cast<PFBranch*>(p_network->getBranch(i).get());
     if (!branch->isActiveAtLoad()) continue;
-    int idx1, idx2;
+    int idx1 = -1, idx2 = -1;
     p_network->getBranchEndpoints(i, &idx1, &idx2);
     if (idx1 == idx2) continue;
     model->branch_edge[i] = edge_of[idx1][idx2];
@@ -1819,7 +1819,7 @@ void PFFactoryModule::captureCaseState(const SupersetModel &model,
   for (size_t j = 0; j < branches.size(); j++) {
     int i = branches[j];
     dynamic_cast<PFBranch*>(p_network->getBranch(i).get())->setYBus();
-    int idx1, idx2;
+    int idx1 = -1, idx2 = -1;
     p_network->getBranchEndpoints(i, &idx1, &idx2);
     bus_list.push_back(idx1);
     bus_list.push_back(idx2);
@@ -1831,7 +1831,7 @@ void PFFactoryModule::captureCaseState(const SupersetModel &model,
     PFBus *bus = dynamic_cast<PFBus*>(p_network->getBus(bus_list[j]).get());
     bus->setYBus();
     bus->setSBus();
-    SupersetBusUpdate u;
+    SupersetBusUpdate u{};
     u.bus = bus_list[j];
     u.type = supersetType(bus);
     gridpack::ComplexType y = bus->getYBus();
@@ -1845,9 +1845,9 @@ void PFFactoryModule::captureCaseState(const SupersetModel &model,
   for (size_t j = 0; j < branches.size(); j++) {
     int e = model.branch_edge[branches[j]];
     if (e < 0) continue;
-    int idx1, idx2;
+    int idx1 = -1, idx2 = -1;
     p_network->getBranchEndpoints(branches[j], &idx1, &idx2);
-    SupersetEdgeUpdate f, r;
+    SupersetEdgeUpdate f{}, r{};
     f.edge = e;
     pairAdmittance(idx1, idx2, &f.g, &f.b);
     r.edge = model.edge_mate[e];

@@ -785,7 +785,7 @@ class PFBus
     void applyQlimConversion(bool at_max, double q_required);
 
   private:
-    bool p_largeMatrix;
+    bool p_largeMatrix = false;
     static std::vector<std::string> p_qlimWarnings;
     static InitStartMode p_initStartMode;
     static bool p_qlim;
@@ -1149,7 +1149,7 @@ class PFBranch
     bool isActiveAtLoad() const { return p_active; }
 
   private:
-    bool p_largeMatrix;
+    bool p_largeMatrix = false;
     std::vector<bool> p_ignore;
     std::vector<double> p_reactance;
     std::vector<double> p_resistance;
