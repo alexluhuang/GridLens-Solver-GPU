@@ -540,6 +540,15 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   const int t_list = timer->createCategory("CA: Case List and Output Setup");
   const int t_cases = timer->createCategory("CA: Solve and Report Cases");
   const int t_merge = timer->createCategory("CA: Merge Output Files");
+  // Inside the case loop: the work done for every case, summed per rank.
+  // On the GPU path the solve is replaced by injecting the GPU result, and
+  // the loop time not covered here is waiting for results and scheduling.
+  const int t_case_apply = timer->createCategory("CA case: Apply Outage");
+  const int t_case_solve = timer->createCategory("CA case: CPU Solve");
+  const int t_case_inject = timer->createCategory("CA case: Inject GPU Result");
+  const int t_case_report = timer->createCategory("CA case: Check and Report");
+  const int t_case_rows = timer->createCategory("CA case: Write Table Rows");
+  const int t_case_restore = timer->createCategory("CA case: Restore Network");
   timer->start(t_read);
   pf_app.readNetwork(pf_network,config);
   // Finish initializing the network
@@ -2140,6 +2149,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       }
     }
     if (print_calcs) pf_app.writeHeader(sbuf);
+    timer->start(t_case_apply);
     // Reset all voltages back to their original values
     pf_app.resetVoltages();
     // Sync ghost bus data after voltage reset to ensure branches connected to
@@ -2160,12 +2170,16 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     bool slackCapacityOk = true;  // Will be checked after solve
     bool solveOk = false;
     bool hasSolveRecord = false;
+    timer->stop(t_case_apply);
     if (gpu) {
+      timer->start(t_case_inject);
       pf_app.setExternalSolution(gpu->v, gpu->theta, gpu->qlim_conversion,
                                  gpu->q_required, gpu->convergence);
       solveOk = true;
       hasSolveRecord = true;
+      timer->stop(t_case_inject);
     } else if (contingencyFound && !islandDetected) {
+      timer->start(t_case_solve);
       try {
         solveOk = pf_app.solve();
         if (solveOk && check_Qlim && !pf_app.checkQlimViolations()) {
@@ -2180,7 +2194,9 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         printf("p[%d] hit unknown exception during solve\n", world.rank());
         solveOk = false;
       }
+      timer->stop(t_case_solve);
     }
+    timer->start(t_case_report);
     if (solveOk) {
       // Write PV->PQ conversion warnings to output file
       if (print_calcs && check_Qlim) {
@@ -2230,12 +2246,14 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
           populateViolations(ctResult, static_cast<int>(task_id) + 1);
           if (outputFormat != "text") localContingencies.push_back(ctResult);
         }
+        timer->start(t_case_rows);
         if (outputFormat == "csv_flat") {
           captureFlatRows(task_id + 1, events[task_id].p_name, true, false);
         }
         if (outputFormat == "csv_delta") {
           captureDeltaRows(task_id + 1, events[task_id], true);
         }
+        timer->stop(t_case_rows);
         recordConv(task_id, "OK", std::string());
       // Include results of violation checks in output
       if (ok) {
@@ -2415,6 +2433,8 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         else ++report.pq_buses;
       }
     }
+    timer->stop(t_case_report);
+    timer->start(t_case_restore);
     // Return network to its original base case state
     pf_app.unSetContingency(events[task_id]);
     // Clear Q limit violations AFTER unSetContingency so generators are restored first.
@@ -2431,6 +2451,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         bus->setVoltageMag(voltageResetReference[b]);
       }
     }
+    timer->stop(t_case_restore);
     // Close output file for this contingency
     if (print_calcs) pf_app.close();
     return report;
