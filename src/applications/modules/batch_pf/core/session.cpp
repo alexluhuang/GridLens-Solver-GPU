@@ -343,7 +343,7 @@ batchpf_diagnostics Session::diagnostics() const
 {
   std::lock_guard<std::mutex> lock(p_mutex);
   batchpf_diagnostics d{};
-  if (p_engine && p_queue.empty()) d = p_engine->diagnostics();
+  if (p_engine && p_queue.empty() && p_running == 0) d = p_engine->diagnostics();
   d.struct_size = sizeof(d);
   d.struct_version = 1;
   d.backend = p_backend;
@@ -366,30 +366,50 @@ void Session::setLastError(const std::string &msg)
 void Session::workerLoop()
 {
   while (true) {
-    Job job;
     {
       std::unique_lock<std::mutex> lock(p_mutex);
       p_cv.wait(lock, [&] { return p_stop || !p_queue.empty(); });
       if (p_stop && p_queue.empty()) return;
-      job = p_queue.front();
     }
-    Done done;
+    // Hand queued batches to the engine as it asks for them, so that a new
+    // batch fills the slots the previous one frees
+    std::map<EngineJob *, int64_t> running;
+    std::deque<EngineJob> jobs;   // stable addresses
+    auto next = [&]() -> EngineJob * {
+      std::lock_guard<std::mutex> lock(p_mutex);
+      if (p_queue.empty()) return nullptr;
+      const Job job = p_queue.front();
+      p_queue.pop_front();
+      jobs.emplace_back();
+      EngineJob *e = &jobs.back();
+      e->batch = job.batch;
+      e->results = job.results;
+      running[e] = job.ticket;
+      p_running++;
+      return e;
+    };
+    auto finish = [&](EngineJob *e, const Done &done) {
+      {
+        std::lock_guard<std::mutex> lock(p_mutex);
+        p_done[running.at(e)] = done;
+        running.erase(e);
+        p_running--;
+      }
+      p_cv.notify_all();
+    };
+    Done failed;
     try {
       if (p_on_device) cudaCheck(cudaSetDevice(p_settings.device), "worker cudaSetDevice");
-      p_engine->run(*job.batch, *job.results);
+      p_engine->runStream(next, [&](EngineJob *e) { finish(e, Done()); });
     } catch (const Error &e) {
-      done.status = e.code();
-      done.message = e.what();
+      failed.status = e.code();
+      failed.message = e.what();
     } catch (const std::exception &e) {
-      done.status = BATCHPF_ERR_INTERNAL;
-      done.message = e.what();
+      failed.status = BATCHPF_ERR_INTERNAL;
+      failed.message = e.what();
     }
-    {
-      std::lock_guard<std::mutex> lock(p_mutex);
-      p_queue.pop_front();
-      p_done[job.ticket] = done;
-    }
-    p_cv.notify_all();
+    // A failure ends every batch the engine had taken
+    while (!running.empty()) finish(running.begin()->first, failed);
   }
 }
 

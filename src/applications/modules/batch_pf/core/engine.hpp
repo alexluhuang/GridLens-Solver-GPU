@@ -37,6 +37,7 @@
 #include <cuda_runtime.h>
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -51,6 +52,13 @@ namespace gridpack {
 namespace batchpf {
 
 struct EngineBuffers;   // defined in engine.cu
+
+/// One submitted batch while the engine works on it (streaming execution)
+struct EngineJob {
+  const batchpf_batch *batch = nullptr;
+  batchpf_results *results = nullptr;
+  int remaining = 0;    // cases not finished yet
+};
 
 /// Host copy of the superset model (I-4)
 struct ModelHost {
@@ -129,6 +137,18 @@ class Engine {
   /// Solve every case of a batch, writing into the caller's buffers
   void run(const batchpf_batch &batch, batchpf_results &results);
 
+  /**
+   * Solve batches as they arrive. next() returns the next queued batch, or
+   * nullptr if none is queued now; done() is called when all cases of a
+   * batch are finished. Slots freed near the end of one batch are refilled
+   * from the next one, so the batch does not empty out between submissions
+   * while its slowest cases finish. Returns when no case is in a slot and
+   * next() has nothing. Each case is solved exactly as by run(): a case's
+   * results do not depend on its slot or on the other cases.
+   */
+  void runStream(const std::function<EngineJob *()> &next,
+                 const std::function<void(EngineJob *)> &done);
+
   /// Totals for telemetry
   const batchpf_diagnostics &diagnostics() const noexcept { return p_diag; }
 
@@ -136,12 +156,12 @@ class Engine {
   BackendCaps backendCaps() const;
 
  private:
-  void runImpl(const batchpf_batch &batch, batchpf_results &results);
-  void fillSlots(const batchpf_batch &batch, const std::vector<MemberIndex> &slots,
-                 const std::vector<CaseIndex> &cases);
-  void step();
-  void finishSlots(const batchpf_batch &batch, batchpf_results &results,
-                   const std::vector<MemberIndex> &slots);
+  using CaseRef = std::pair<EngineJob *, CaseIndex>;
+  void checkJob(const EngineJob &job) const;
+  void fillSlots(const std::vector<MemberIndex> &slots, const std::vector<CaseRef> &cases);
+  void step(bool light);
+  void finishSlots(const std::vector<MemberIndex> &slots,
+                   const std::function<void(EngineJob *)> &done);
   void referenceJacobian(std::vector<double> *values,
                          std::vector<double> *rhs);
   double elapsed(int phase) const;
@@ -159,6 +179,7 @@ class Engine {
   std::unique_ptr<SolverBackend> p_backend;
   ControlRules p_rules;
   std::vector<SlotState> p_slots;
+  std::vector<EngineJob *> p_slot_job;   // batch of the case in each slot
   std::vector<StepResult> p_results;
   batchpf_diagnostics p_diag{};
 };

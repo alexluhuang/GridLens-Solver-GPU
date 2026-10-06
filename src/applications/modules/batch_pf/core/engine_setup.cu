@@ -257,6 +257,7 @@ void Engine::allocate(int capacity)
   d.host_seconds.assign(PH_COUNT, 0.0);
   d.used.assign(PH_COUNT, false);
   p_slots.assign(B, SlotState());
+  p_slot_job.assign(B, nullptr);
   p_results.assign(B, StepResult());
 
   BackendSetup bs;

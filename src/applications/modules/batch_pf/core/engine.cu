@@ -46,9 +46,10 @@ BackendCaps Engine::backendCaps() const
 // Batch execution
 // -------------------------------------------------------------------------
 
-void Engine::run(const batchpf_batch &batch, batchpf_results &results)
+void Engine::checkJob(const EngineJob &job) const
 {
-  if (!p_backend) throw Error(BATCHPF_ERR_STATE, "engine used before plan/allocate");
+  const batchpf_batch &batch = *job.batch;
+  const batchpf_results &results = *job.results;
   if (batch.struct_size < sizeof(batchpf_batch) || batch.n_cases < 0 ||
       (batch.n_cases > 0 && batch.cases == nullptr)) {
     throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "invalid batch record");
@@ -59,51 +60,97 @@ void Engine::run(const batchpf_batch &batch, batchpf_results &results)
       results.theta == nullptr) {
     throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "invalid results record");
   }
-  const ProfilerRange range(p_config.profiler_ranges, "batchpf batch");
-  const auto t0 = std::chrono::steady_clock::now();
-  runImpl(batch, results);
-  const auto t1 = std::chrono::steady_clock::now();
-  p_diag.seconds_total += std::chrono::duration<double>(t1 - t0).count();
-  p_diag.batches++;
 }
 
-void Engine::runImpl(const batchpf_batch &batch, batchpf_results &results)
+void Engine::run(const batchpf_batch &batch, batchpf_results &results)
 {
-  std::deque<CaseIndex> queue;
-  for (int c = 0; c < batch.n_cases; c++) queue.emplace_back(c);
+  EngineJob job;
+  job.batch = &batch;
+  job.results = &results;
+  bool given = false;
+  runStream([&]() -> EngineJob * {
+              if (given) return nullptr;
+              given = true;
+              return &job;
+            },
+            [](EngineJob *) {});
+}
+
+void Engine::runStream(const std::function<EngineJob *()> &next,
+                       const std::function<void(EngineJob *)> &done)
+{
+  if (!p_backend) throw Error(BATCHPF_ERR_STATE, "engine used before plan/allocate");
+  const ProfilerRange range(p_config.profiler_ranges, "batchpf batch");
+  const auto t0 = std::chrono::steady_clock::now();
+  std::deque<CaseRef> queue;
+  auto pull = [&]() {
+    while (EngineJob *job = next()) {
+      checkJob(*job);
+      p_diag.batches++;
+      job->remaining = job->batch->n_cases;
+      if (job->remaining == 0) {
+        done(job);
+        continue;
+      }
+      for (int c = 0; c < job->batch->n_cases; c++) queue.emplace_back(job, CaseIndex(c));
+    }
+  };
+  auto busy = [](const SlotState &s) { return s.stage != SlotState::Stage::Free; };
   for (SlotState &s : p_slots) s = SlotState();
+  std::fill(p_slot_job.begin(), p_slot_job.end(), nullptr);
+  std::vector<MemberIndex> finished;
   while (true) {
+    if (queue.empty()) pull();
     // Fill free slots: always with backfill, else only between waves
-    bool any_busy = false;
-    for (const SlotState &s : p_slots) any_busy = any_busy || s.stage != SlotState::Stage::Free;
+    const bool any_busy = std::any_of(p_slots.begin(), p_slots.end(), busy);
     if (!queue.empty() && (p_config.backfill || !any_busy)) {
       std::vector<MemberIndex> slots;
-      std::vector<CaseIndex> cases;
+      std::vector<CaseRef> cases;
       for (int b = 0; b < p_B && !queue.empty(); b++) {
-        if (p_slots[b].stage == SlotState::Stage::Free) {
+        if (!busy(p_slots[b])) {
           slots.emplace_back(b);
           cases.push_back(queue.front());
           queue.pop_front();
         }
       }
-      if (!slots.empty()) fillSlots(batch, slots, cases);
-      any_busy = any_busy || !slots.empty();
+      if (!slots.empty()) fillSlots(slots, cases);
+    } else if (!any_busy) {
+      break;   // nothing in the slots and nothing queued
     }
-    if (!any_busy) break;
-    step();
-    std::vector<MemberIndex> done;
+    step(false);
+    finished.clear();
     for (int b = 0; b < p_B; b++) {
       SlotState &s = p_slots[b];
-      if (s.stage == SlotState::Stage::Free) continue;
+      if (!busy(s)) continue;
       advanceSlot(s, p_results[b], p_rules);
-      if (s.stage == SlotState::Stage::Done) done.emplace_back(b);
+      if (s.stage == SlotState::Stage::Done) finished.emplace_back(b);
     }
-    if (!done.empty()) finishSlots(batch, results, done);
+    if (!finished.empty()) finishSlots(finished, done);
+    // Reactive-limit checks and final updates need no factorization. Run
+    // them at once for the slots that need only those, so those cases
+    // finish, and their slots are refilled, before the next full step.
+    while (true) {
+      std::vector<MemberIndex> light;
+      for (int b = 0; b < p_B; b++) {
+        const SlotState &s = p_slots[b];
+        if (busy(s) && !s.act_eval && (s.act_apply || s.act_qcheck)) light.emplace_back(b);
+      }
+      if (light.empty()) break;
+      step(true);
+      finished.clear();
+      for (const MemberIndex b : light) {
+        SlotState &s = p_slots[b.value];
+        advanceSlot(s, p_results[b.value], p_rules);
+        if (s.stage == SlotState::Stage::Done) finished.push_back(b);
+      }
+      if (!finished.empty()) finishSlots(finished, done);
+    }
   }
+  const auto t1 = std::chrono::steady_clock::now();
+  p_diag.seconds_total += std::chrono::duration<double>(t1 - t0).count();
 }
 
-void Engine::fillSlots(const batchpf_batch &batch, const std::vector<MemberIndex> &slots,
-                       const std::vector<CaseIndex> &cases)
+void Engine::fillSlots(const std::vector<MemberIndex> &slots, const std::vector<CaseRef> &cases)
 {
   EngineBuffers &d = *p_buf;
   const bool dev = p_config.on_device;
@@ -111,7 +158,7 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<MemberIndex
   std::fill(d.h_fill.begin(), d.h_fill.end(), 0);
   std::size_t nb = 0, ne = 0;
   for (std::size_t i = 0; i < slots.size(); i++) {
-    const batchpf_case &c = batch.cases[cases[i].value];
+    const batchpf_case &c = cases[i].first->batch->cases[cases[i].second.value];
     if (c.n_bus_updates < 0 || c.n_edge_updates < 0 ||
         (c.n_bus_updates > 0 && c.bus_updates == nullptr) ||
         (c.n_edge_updates > 0 && c.edge_updates == nullptr) ||
@@ -128,7 +175,7 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<MemberIndex
   std::size_t ib = 0, ie = 0;
   for (std::size_t i = 0; i < slots.size(); i++) {
     const int b = slots[i].value;
-    const batchpf_case &c = batch.cases[cases[i].value];
+    const batchpf_case &c = cases[i].first->batch->cases[cases[i].second.value];
     d.h_fill[b] = 1;
     d.h_slack[b] = c.slack_bus;
     for (int k = 0; k < c.n_bus_updates; k++) {
@@ -147,7 +194,8 @@ void Engine::fillSlots(const batchpf_batch &batch, const std::vector<MemberIndex
       d.u_edge_member.host()[ie] = b;
       d.u_edge.host()[ie++] = r;
     }
-    startSlot(p_slots[b], cases[i]);
+    startSlot(p_slots[b], cases[i].second);
+    p_slot_job[b] = cases[i].first;
   }
   const Executor ex(dev, st, p_config.threads_per_block);
   if (dev) cudaCheck(cudaEventRecord(d.ev_start[PH_MATERIALIZE].get(), st), "event");
@@ -202,7 +250,7 @@ double Engine::elapsed(int phase) const
   return ms * 1.0e-3;
 }
 
-void Engine::step()
+void Engine::step(bool light)
 {
   EngineBuffers &d = *p_buf;
   const bool dev = p_config.on_device;
@@ -212,6 +260,11 @@ void Engine::step()
   bool any_apply = false, any_q = false, any_eval = false;
   for (int b = 0; b < B; b++) {
     const SlotState &s = p_slots[b];
+    // A light step runs only the slots that need no evaluation
+    if (light && s.act_eval) {
+      d.h_apply[b] = d.h_qcheck[b] = d.h_eval[b] = 0;
+      continue;
+    }
     d.h_apply[b] = s.act_apply ? 1 : 0;
     d.h_qcheck[b] = s.act_qcheck ? 1 : 0;
     d.h_eval[b] = s.act_eval ? 1 : 0;
@@ -345,8 +398,8 @@ void Engine::step()
   }
 }
 
-void Engine::finishSlots(const batchpf_batch &batch, batchpf_results &results,
-                         const std::vector<MemberIndex> &slots)
+void Engine::finishSlots(const std::vector<MemberIndex> &slots,
+                         const std::function<void(EngineJob *)> &done)
 {
   EngineBuffers &d = *p_buf;
   const bool dev = p_config.on_device;
@@ -372,6 +425,9 @@ void Engine::finishSlots(const batchpf_batch &batch, batchpf_results &results,
   if (dev) cudaCheck(cudaStreamSynchronize(st), "gather");
   for (int li = 0; li < cnt; li++) {
     SlotState &s = p_slots[slots[li].value];
+    EngineJob *job = p_slot_job[slots[li].value];
+    const batchpf_batch &batch = *job->batch;
+    batchpf_results &results = *job->results;
     const int c = s.case_idx.value;
     const std::size_t off = static_cast<std::size_t>(c) * n;
     const std::size_t src = static_cast<std::size_t>(li) * n;
@@ -417,6 +473,8 @@ void Engine::finishSlots(const batchpf_batch &batch, batchpf_results &results,
     if (s.status == BATCHPF_CASE_DIVERGED) p_diag.diverged++;
     if (s.status == BATCHPF_CASE_FLAGGED) p_diag.flagged++;
     s = SlotState();
+    p_slot_job[slots[li].value] = nullptr;
+    if (--job->remaining == 0) done(job);
   }
   p_diag.seconds_exchange += std::chrono::duration<double>(
       std::chrono::steady_clock::now() - t0).count();

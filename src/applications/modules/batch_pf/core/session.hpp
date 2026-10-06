@@ -83,7 +83,8 @@ class Session {
 
   mutable std::mutex p_mutex;
   std::condition_variable p_cv;
-  std::deque<Job> p_queue;
+  std::deque<Job> p_queue;     // submitted, not yet taken by the engine
+  int p_running = 0;           // taken by the engine, not finished
   std::map<int64_t, Done> p_done;
   int64_t p_next_ticket = 1;
   bool p_stop = false;
