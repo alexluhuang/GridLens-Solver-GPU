@@ -4,7 +4,11 @@ This records evidence for Chapter 10 of the supplied architecture guide.
 The implementation is not release-validated in its entirety. The live
 machine-readable status is `validation-status.json`; this document explains
 the limits behind those statuses. All commits are local and at most 1,000
-added plus deleted lines. The stock baseline is `b32969b0`.
+added plus deleted lines. The original stock baseline is `b32969b0`.
+On 2026-10-05 the user approved restoring saved voltage settings in both
+paths, accepting changed results caused by fixing the cleanup defect.
+New corrected-reference checks must be labeled separately from this original
+baseline. The broader checks below retain their actual source snapshots.
 
 ## Machine and tools actually used
 
@@ -101,6 +105,12 @@ Polish has 4,198 outcomes and 4,026 shadows; Memphis has 1,570 outcomes and
 for Polish and 1.789e-12 / 1.729e-12 pu for Memphis (Alg2/cuDSS). Exact sets,
 statuses, angle differences and all rounded output tables pass. The complete
 Texas Alg2 oracle also passes its full CSV and exact shadow comparisons.
+The ordered Texas cuDSS study has one strict count failure, event 7822
+`BR_210326_210331_1`: CPU zero rounds, GPU two. All other output and shadow
+checks pass. The case alone passes at two rounds in both paths. Its full CPU
+log checks a disconnected generator's limit and starts another calculation
+with zero rounds; this is an additional issue under investigation, not
+evidence that the voltage cleanup caused the mismatch.
 `study-evidence.jsonl` preserves these small summaries with RAW hashes,
 source snapshots and timing context. It includes the failed default-order
 studies as well as passes. Their shadow-heavy timings are not production

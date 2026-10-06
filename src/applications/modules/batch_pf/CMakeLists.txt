@@ -339,6 +339,12 @@ if (GRIDPACK_ENABLE_TESTS)
     set(raw14 ${batchpf_data}/IEEE14_ca.raw)
     set(work ${CMAKE_CURRENT_BINARY_DIR}/ca_tests)
     set(lu klu)   # KLU, as the plan uses for the CPU path (GridPACK builds PETSc with it)
+    batchpf_add_test(batchpf.parity.cpu_case_restoration ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_case_restoration.py
+      --cax $<TARGET_FILE:ca.x>
+      --raw ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.raw
+      --contingency-list ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.xml
+      --workdir ${work}/cpu_case_restoration --solver ${lu})
     foreach(mode no_block disabled no_device no_plugin invalid required)
       batchpf_add_test(batchpf.platform.${mode} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw14} --workdir ${work}/${mode}

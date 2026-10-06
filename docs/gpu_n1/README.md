@@ -25,13 +25,15 @@ the research papers. For software behavior, read the GridPACK implementation
 before vendor documentation. The two algorithm papers are D'Orto et al.
 (2021, KLU planning) and Zhou et al. (2017, batch factorization).
 
-The stock baseline is GridPACK commit `b32969b0`. Work continues on
+The original stock baseline is GridPACK commit `b32969b0`. The user approved
+correcting voltage cleanup in both CPU and GPU paths; comparisons with this
+original baseline retain the resulting known differences. Work continues on
 `feature/gpu-batch-n1`; commits are local and are not pushed.
 
 Implementation evidence is in [validation.md](validation.md) and the
 [structured status](validation-status.json). The
-[restoration diagnosis](restoration.md) explains the remaining stock-output
-compatibility problem. [standards.md](standards.md) records analysis scope,
+[restoration diagnosis](restoration.md) explains the approved correction and
+the remaining comparison failures. [standards.md](standards.md) records analysis scope,
 tool limitations and exceptions awaiting maintainer review.
 The repeated single-Spark timings and kernel-counter limits are documented
 in [performance.md](performance.md).

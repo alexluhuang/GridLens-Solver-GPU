@@ -8,6 +8,11 @@ loop. `input_118_gpu.xml` is a complete installed example. GridPACK continues
 to classify, check limits and report results; unsupported or unsuccessful
 GPU cases are solved by the CPU path.
 
+Both paths restore saved normal-grid voltage settings between outage checks.
+Older versions could retain an earlier outage's controller adjustment and
+change later results. The controller keeps its adjustments throughout the
+current check; cleanup restores them only after reporting.
+
 See [batch_pf/README.md](../modules/batch_pf/README.md) for building, all
 runtime settings, MPI placement, output sidecars and troubleshooting.
 The [guide and validation records](../../../docs/gpu_n1/README.md) explain

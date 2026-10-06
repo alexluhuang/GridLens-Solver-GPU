@@ -1,8 +1,9 @@
 # Case restoration and remote voltage regulation
 
-The guide requires each batch member to start from one prepared network
-(B8.2) and CPU fallbacks to restore it after reporting (B10.1). Full 10k
-and Texas7k validation exposed a violation of that assumption.
+The guide builds each batch member from a prepared network (B8.2) and
+describes restoration after CPU fallbacks (B10.1). The implementation treats
+these as separate outage checks. Full 10k and Texas7k validation exposed
+state carrying over between checks.
 
 A bus can have both a locally regulating generator and a remotely
 regulating generator. Tripping the local unit activates GridPACK's CPU
@@ -19,12 +20,12 @@ solves lost one PV bus and differed by about 0.022 pu. Both backends
 showed the problem, at different event indices because work assignment
 differs between runs.
 
-The optional batch driver now saves the voltage references once and
-restores references changed by a case after the existing cleanup. The
+Initially, the optional batch driver saved the voltage references once and
+restored references changed by a case after the existing cleanup. The
 controller retains its adjustments while solving and reporting that
 case. The saved reference agrees with the model used by all GPU members.
-Configurations without an active batch path keep their existing behavior
-(guide RT-4).
+That initial correction left the ordinary CPU path unchanged (guide RT-4).
+The approved correction below now applies to both paths.
 
 `test/data/IEEE14_remote.raw` gives bus 2 two generators: unit 1 regulates
 locally and unit 2 regulates bus 5. The two-case list reports a branch
@@ -47,10 +48,12 @@ iterations and pass all output comparisons against the batch path.
 
 The unchanged stock application can therefore retain controller state
 for later cases on the same rank. The batch model describes independent
-outages from the prepared network, as required by B8.2/B10.1. Reproducing
-the stock leak would violate that requirement; changing the stock path
-would violate RT-4. Default-order output parity for these grids remains
-an explicit compatibility limitation. Do not hide it with relaxed
+outages from the prepared network. Preserving this independence conflicts
+with FR-11's promise to match the original application and FR-14/RT-4's
+promise that configurations without acceleration behave exactly as before.
+These compatibility promises are explicit; interpreting B8.2/B10.1 as
+requiring independence is an architectural conclusion. Do not hide the
+original comparison failures with relaxed
 tolerances or an ignored iteration column. An additional oracle study
 may put the controller-activating outage last, using the same complete
 case list for both paths, but must report that ordering and retain the
@@ -65,3 +68,47 @@ separate unmodified `--stock-cax`. The three-case sequence is expected to
 fail strict stock comparison; the two independent cases are expected to
 pass. These lists support diagnosis, not a waived CI failure or a bundled
 copy of the external RAW model.
+
+## Approved correction to ordinary CPU behavior
+
+On 2026-10-05 the user chose: "Restore settings in both paths; accept the
+documented correction to existing behavior (recommended)." This overrides
+the guide's compatibility promises only for this cleanup defect. The guide
+itself remains unchanged. The driver now saves the prepared network's reset
+references and restores changed references after reporting every case,
+including when acceleration is absent or disabled.
+
+Kundur and Malik §6.4 distinguishes a specified generator voltage from a
+starting estimate for an unknown voltage. The retained value is not merely
+an estimate: GridPACK resets a bus to it and can hold it fixed after the
+local generator returns. A different fixed voltage can change the solved
+flows and whether a generator reaches its supply limit. Keep controller
+adjustments during the current outage; restore saved settings between the
+independent outages described by the guide. This excerpt does not itself
+define contingency cleanup; the study definition comes from guide 8.1.7.
+
+`batchpf.parity.cpu_case_restoration` runs the existing IEEE14 fixture with
+the controller outage first, then the branch outage, and runs that branch
+outage alone in another process. It compares the later case's convergence,
+delta, violations and identity tables. Before this correction it fails by
+eight calculation rounds and up to 31.7952 in the delta table. After the
+correction it passes in both CPU-only and CUDA-enabled builds. The three
+existing backend restoration tests and absent/disabled path checks pass.
+
+The CPU references are GridPACK's own ordinary calculation, run again after
+resetting the case, and a separate unmodified executable at `b32969b0`.
+Both use PETSc KLU. These are separate CPU executions, not a second modeling
+package; a modeling error common to GridPACK and the accelerator can escape
+them. The GPU's final state is not used as the CPU solve's starting state.
+
+## Additional ordered-study discrepancy
+
+The full Texas Alg2 CSV study with the controller outage last passes.
+The corresponding cuDSS study has one strict failure: event 7822,
+`BR_210326_210331_1`, reports zero CPU rounds and two GPU rounds. All other
+tables and shadows pass; that shadow differs by 1.266e-14 pu and 1.732e-14
+rad. Running the outage alone gives two rounds in both paths and passes
+every comparison, including final PV/PQ counts. The full CPU log records a
+limit check on disconnected generator bus 210331 followed by another
+calculation with zero rounds. This is separate from the voltage-reference
+defect. Its cause is being investigated; the full comparison remains failed.

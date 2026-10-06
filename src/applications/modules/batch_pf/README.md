@@ -69,6 +69,9 @@ Start with the shipped `input_118_gpu.xml` in the contingency example
 directory. An empty `<GPUBatch/>` under `<Contingency_analysis>` enables
 automatic detection. Without that block, or with `enabled=off`, the stock
 loop runs. These are separate from GridPACK's existing `Powerflow` settings.
+Both paths restore saved voltage references after each outage. This corrects
+controller settings leaking into later cases; the approved compatibility
+change and its checks are described in `docs/gpu_n1/restoration.md`.
 
 ```xml
 <GPUBatch>

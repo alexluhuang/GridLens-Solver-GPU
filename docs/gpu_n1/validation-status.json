@@ -1,6 +1,6 @@
 {
   "updated": "2026-10-05",
-  "source": "e49d0084; each saved study retains its actual snapshot",
+  "source": "e49d0084 plus approved CPU voltage cleanup; each saved study retains its actual snapshot",
   "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
   "completed": {
     "cpu_only_ctest": {
@@ -69,7 +69,7 @@
     "installed_binary_and_rebuilt_example": {
       "passed": true,
       "network": "IEEE118",
-      "final_refresh_required": false,
+      "final_refresh_required": true,
       "snapshot": "e49d0084",
       "gpu_path_confirmed": true,
       "ranks": 4,
@@ -206,7 +206,16 @@
       "gpu_independent_ieee118_parity": true,
       "python_imports": true,
       "serial_fallback": true,
-      "cuda_free_executable": true
+      "cuda_free_executable": true,
+      "final_refresh_required": true
+    },
+    "cpu_case_restoration": {
+      "passed": true,
+      "negative_control_failed": true,
+      "gpu_build_checks": 7,
+      "cpu_build_checks": 3,
+      "original_delta_difference": 31.7952,
+      "original_iteration_difference": 8
     }
   },
   "failed_or_open": {
@@ -223,7 +232,7 @@
     },
     "fid2_full_current_csv": {
       "passed": false,
-      "reason": "Ordered Texas Alg2 oracle passed; other ordered large-grid checks remain. Default-order controller limitation persists."
+      "reason": "Ordered Texas Alg2 passes; ordered Texas cuDSS has one count mismatch. Remaining 10k comparisons run against the original baseline. User approved voltage cleanup in both paths; corrected CPU reference checks remain."
     },
     "full_cuda_clang_tidy": {
       "passed": false,
@@ -238,14 +247,26 @@
     "physical_dram_bandwidth": {
       "passed": false,
       "reason": "GB10 Nsight metric query contains no DRAM counters; algorithm traffic estimates are separate."
+    },
+    "ordered_texas_cudss_full_csv": {
+      "passed": false,
+      "event_idx": 7822,
+      "contingency": "BR_210326_210331_1",
+      "stock_iterations": 0,
+      "gpu_iterations": 2,
+      "all_other_output_and_shadow_checks_passed": true,
+      "isolated_case_passed": true,
+      "cause": "Investigating a CPU limit check on a disconnected generator after the ordinary two-round solve."
     }
   },
   "in_progress": [
-    "ordered full Texas cuDSS and 10k comparisons"
+    "ordered full 10k comparisons against original baseline",
+    "diagnosis of ordered Texas cuDSS case 7822"
   ],
   "remaining": [
-    "final validation evidence and handoff",
-    "user decision on the original program cleanup defect; explanatory question pending"
+    "corrected independent CPU baseline and default-order fidelity checks",
+    "full checks, installation and image refresh after approved source change",
+    "final validation evidence and handoff"
   ],
   "external_gates": [
     "PORT-1 second Arm/NVIDIA profile",
@@ -258,6 +279,7 @@
     "Run stock tests sequentially: concurrent serial/parallel tests share files.",
     "Do not test grids larger than ACTIVSg10k.",
     "Original guide proposals are not measured results.",
-    "Keep strict failures; do not ignore raw-start iteration differences or loosen voltage tolerances."
+    "Keep strict failures; do not ignore raw-start iteration differences or loosen voltage tolerances.",
+    "User approved restoring voltage settings in both paths on 2026-10-05; keep the original baseline and its known failures as evidence."
   ]
 }

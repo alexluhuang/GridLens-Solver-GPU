@@ -1,7 +1,8 @@
 # Handoff: GPU N-1 implementation and remaining validation
 
 Updated 2026-10-05. Repository: `/home/alh360/Documents/GridLens-Solver-GPU`.
-Branch: `feature/gpu-batch-n1`. Implementation through `e49d0084`; commits
+Branch: `feature/gpu-batch-n1`. Implementation through `e49d0084` plus the
+approved CPU cleanup correction; commits
 are local. This is GridPACK C++/CUDA, not the Python GridLens repository.
 The implementation has not passed every release gate in the supplied plan.
 
@@ -84,10 +85,13 @@ Read `docs/gpu_n1/restoration.md` before troubleshooting parity.
 Tripping a bus's sole local regulator can activate another unit's remote
 regulation and leave that reference changed after stock cleanup.
 
-The batch driver restores references because B8.2/B10.1 require independent
-cases. The no-batch path is unchanged under RT-4. Default-order stock studies
-can consequently differ on later cases assigned to that reporting rank.
-Do not emulate the leak, relax the comparisons or claim FID-2 passed.
+The batch driver interprets B8.2/B10.1 as independent cases. Originally the
+no-batch path was unchanged under RT-4. On 2026-10-05 the user approved
+restoring settings in both paths and accepting the documented correction to
+existing behavior. That fix is now implemented and tested. Preserve the
+unmodified `b32969b0` baseline; build a separately corrected CPU reference
+for subsequent default-order comparisons. Do not relax comparisons or claim
+FID-2 passed against the original baseline.
 
 A one-rank Texas sequence `GN_240278_1`, `GN_250371_1`, `GN_270208_1` proves
 this: stock takes two iterations on the latter cases after the first outage,
@@ -146,8 +150,13 @@ Container process namespaces need `--pid=host` to inspect host jobs.
 
 1. Ordered large-grid queue: session 76389, host bash PID 73168, **running**.
    It was paused after Texas Alg2 passed to isolate performance, then resumed
-   after all 44 timing trials finished. Texas cuDSS is currently running.
-   Remaining: Texas cuDSS and both 10k full-CSV oracles. Inputs mounted from
+   after all 44 timing trials finished. Texas cuDSS finished with one strict
+   count failure: event 7822 `BR_210326_210331_1`, CPU zero versus GPU two.
+   Other output and shadow checks pass. The isolated case passes at two
+   rounds in both paths. The CPU log shows a limit check on disconnected
+   generator 210331 followed by a zero-round calculation; investigate this
+   separately from voltage cleanup. Evidence and one-case XML are saved.
+   10k Alg2 is now running; both 10k full-CSV oracles remain. Inputs mounted from
    `/tmp/{Texas7k_20210804,ACTIVSg10k}-remote-last.xml`; preserve them while
    mounted. Logs `/work/validation-ordered-<grid>-<backend>.log`; studies
    `/work/validation-ordered/<grid>_<backend>/{stock,parity}`.
@@ -172,7 +181,7 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    changing host driver policy. Report `/work/profiling-final/polish.ncu-rep`,
    exported `counters.csv`, `result.json`, `profile.log`; ten selected kernel
    launches, clock/cache control disabled, replay profiling (not production
-   elapsed time). Harvest measured DRAM traffic and occupancy.
+   elapsed time). Occupancy was harvested; this device exposes no DRAM counters.
 6. Commit `e49d0084` completes guide 8.11 with final status, iterations, mismatch
    and PV/PQ counts captured before cleanup, for CPU and GPU outcomes.
    Shadow checks now explicitly compare PQ membership too. Thirteen Python
@@ -188,21 +197,26 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    cuDSS, 65-case 10k sample and independent Texas cases all pass full CSV,
    exact PV/PQ shadows and final state checks. Outputs/logs are under
    `/work/validation-reported-state`; summaries are in `study-evidence.jsonl`.
+9. User-approved voltage cleanup now runs even without acceleration.
+   New `batchpf.parity.cpu_case_restoration` fails before the fix (eight
+   rounds and delta difference 31.7952) and passes afterward in both builds.
+   Seven targeted GPU-build checks and three CPU-build checks pass. The
+   broader suites, standards, installed artifacts and images need a refresh
+   after the final source changes. Leave `/work/build-analysis` unchanged
+   until its queue finishes; it still tests the earlier GPU-only correction.
 
 ## Finish in this order
 
-1. Harvest the finished tests, installation and image builds. Verify latest
-   GPU image IEEE118/cuDSS with four ranks and exact shadows, its no-GPU
-   fallback, Python binding import and CUDA-free `ldd ca.x`. CPU fallback
-   should use a serial byte comparison. Record image IDs/package versions.
-2. Complete the isolated performance measurements and review failures.
-   Record throughput and whole-study times, variation between the two runs,
-   the fastest solve placement, rank count and batch at 95% of measured peak.
-   If throughput still grows at the validated cap, report that saturation
-   remains unresolved; do not increase that cap without validation.
-   The initial counter attempt was denied; the approved container retry
-   succeeded. Estimated telemetry bandwidth remains distinct from measured
-   DRAM traffic. Do not claim ten replayed launches profile every kernel.
+1. Diagnose the additional isolated-generator count failure, following
+   guide 8.14/8.6.2, then actual GridPACK code. Do not attribute it to voltage
+   carryover. The one-case reproduction passes; a preceding case may be
+   needed to expose the disconnected bus's retained calculated injection.
+2. Build a CPU reference from original `b32969b0` with only the approved
+   voltage cleanup correction. Preserve the original build and label both
+   references clearly. Check the Texas sequence, then default-order studies.
+   Run broader suites/standards and refresh installation/images after the
+   final source checkpoint. Previous 44 production timings remain valid
+   evidence for their recorded snapshots; repeat only affected selected checks.
 3. Finish the resumed PID 73168 full CSV comparisons. Keep the
    default-order failure evidence separate. Full tables are tens of GB;
    sorting is bounded to 256 MB and Python processes one event at a time.
@@ -216,7 +230,8 @@ Container process namespaces need `--pid=host` to inspect host jobs.
 
 External gates remain: second Arm/NVIDIA profile (PORT-1), DGX OS 8
 (PORT-3), multiple Sparks (PERF-5), amd64 image build/runtime (DOCK-2),
-maintainer exception review and a decision on the stock parity conflict.
+maintainer exception review. The user has decided the voltage cleanup policy;
+implement that decision without asking again.
 One GB10 Spark/Arm64, 128 GB shared memory, driver 580.178.04 and CUDA 13.0.1
 cannot establish these other-platform results. Do not mark the entire plan
 release-validated or leave a paused queue undisclosed.
