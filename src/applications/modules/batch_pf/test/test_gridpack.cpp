@@ -247,6 +247,9 @@ void isolatedQlimCheck(gridpack::powerflow::PFAppModule &app,
                        boost::shared_ptr<gridpack::powerflow::PFNetwork> net, Checks &check)
 {
   const double deadband = app.getSolverParameters().qlim_deadband;
+  // Raising one bus's voltage by half drives its computed reactive output
+  // far past any generator limit, as a diverging case can leave it
+  constexpr double far_from_solution = 1.5;
   std::array<double, 4> r{};
   int tested = -1;
   bool converts_isolated = false, stays_pv = true;
@@ -257,7 +260,7 @@ void isolatedQlimCheck(gridpack::powerflow::PFAppModule &app,
       continue;
     }
     const double v = bus->getVoltage(), theta = bus->getPhase();
-    bus->setVoltageState(1.5 * v, theta);
+    bus->setVoltageState(far_from_solution * v, theta);
     bus->rhsValues(r.data());
     const bool converts_connected = bus->chkQlim(deadband);
     bus->clearQlim();
