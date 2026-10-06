@@ -630,7 +630,66 @@ class PFAppModule
         const std::vector<double> &q_required,
         const gridpack::utility::ConvergenceSummary &convergence);
 
+    // ---------------------------------------------------------------
+    // Shortcuts for reporting GPU batch cases whose topology is known.
+    // Usable when the batch classifier has shown that the case leaves one
+    // island, the unmodified network has no lone buses, no study
+    // controls are on, and the network is on one process. Each leaves the
+    // network as the regular routine named in its comment would.
+
+    /**
+     * setContingency() for such a case
+     */
+    bool setKnownContingency(Contingency &event);
+
+    /**
+     * setExternalSolution() for a case set with setKnownContingency()
+     */
+    void setKnownExternalSolution(Contingency &event,
+        const std::vector<double> &v,
+        const std::vector<double> &theta,
+        const std::vector<int> &qlim_conversion,
+        const std::vector<double> &q_required,
+        const gridpack::utility::ConvergenceSummary &convergence);
+
+    /**
+     * The state checkLineOverloadViolations() leaves, without the check
+     */
+    void touchLineCheckBuses();
+
+    /**
+     * unSetContingency() for a case set with setKnownContingency()
+     */
+    bool unSetKnownContingency(Contingency &event);
+
+    /**
+     * clearQlimViolations() after unSetKnownContingency()
+     * @param qlim_conversion the conversions passed to
+     *        setKnownExternalSolution()
+     */
+    void clearKnownQlimViolations(const Contingency &event,
+        const std::vector<int> &qlim_conversion);
+
   private:
+
+    /**
+     * Status changes of setContingency(), without the topology checks
+     */
+    bool applyContingencyStatus(Contingency &event);
+
+    /**
+     * Local buses and branches a contingency changes
+     */
+    void contingencyElements(const Contingency &event,
+        std::vector<int> *buses, std::vector<int> *branches);
+
+    // Whether every admittance is the unmodified network's, apart from
+    // those of the current known contingency's elements
+    bool p_ybusAtBase = false;
+
+    // Whether clearQlimViolations() ran since the last regular
+    // contingency or solve, so that untouched buses need no clearing
+    bool p_qlimSettled = false;
 
     // Jacobian layout (standard unless Powerflow/jacobianFormulation=large)
     JacobianFormulation p_jacobianFormulation = JACOBIAN_STANDARD;

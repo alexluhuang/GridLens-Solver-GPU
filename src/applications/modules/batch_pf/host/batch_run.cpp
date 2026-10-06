@@ -147,6 +147,8 @@ void BatchPath::Impl::processGpuCase(int event, const batchpf_outcome &o,
     r.theta.assign(theta, theta + n);
     r.qlim_conversion.assign(conv, conv + n);
     r.q_required.assign(qreq, qreq + n);
+    r.known_topology = classifier && classifier->fastPathEnabled() &&
+                       classes[event].island_count == 1;
     gridpack::utility::ConvergenceSummary &cs = r.convergence;
     cs.converged = true;
     cs.iterations = o.iterations;

@@ -393,6 +393,46 @@ class PFFactoryModule
      */
     void getContingencyEffects(ContingencyEffects *effects) const;
 
+    // ---------------------------------------------------------------
+    // Shortcuts for cases whose topology is already known (GPU batch
+    // path). Each leaves the network exactly as the full routine named
+    // in its comment would, for the cases it is used on.
+
+    /**
+     * checkLoneBus() limited to the listed local buses. Equivalent when no
+     * other bus can have lost its last in-service branch: the unmodified
+     * network has no lone buses and only these buses' branches changed.
+     */
+    bool checkLoneBusAt(std::vector<int> buses);
+
+    /**
+     * What detectIslands() records for a network known to be one island
+     */
+    void setSingleIsland();
+
+    /**
+     * setYBus() on the listed buses and branches only. A bus's values
+     * depend on its own data and its branches; a branch's on its own.
+     */
+    void setYBusAt(const std::vector<int> &buses,
+        const std::vector<int> &branches);
+
+    /**
+     * The state checkLineOverloadViolations() leaves behind, without the
+     * check: each flow it computes copies the exchanged voltage of the two
+     * end buses into their internal state. The circuits it considers
+     * (not ignored, positive rating) are found on the first call; ratings
+     * and ignore flags must not change afterwards.
+     */
+    void touchLineCheckBuses();
+
+    /**
+     * clearQlim() on the listed local buses only. Equivalent to
+     * clearQlimViolations() when every other bus is unchanged since the
+     * last full clear (clearQlim() leaves a cleared bus as it is).
+     */
+    void clearQlimAt(const std::vector<int> &buses);
+
     /**
      * Export the network as it stands now. Called after the base case is
      * solved and the Q-limit changes are cleared, so that it describes the
@@ -449,6 +489,15 @@ class PFFactoryModule
     bool p_slackTransferred;    // Whether slack was transferred during contingency
 
     std::vector<Violation> p_violations;
+
+    // Circuits checkLineOverloadViolations() computes a flow for: branch
+    // local index and the circuit whose status getComplexPower() checks
+    struct CheckedCircuit {
+      int branch;
+      int status_index;
+    };
+    std::vector<CheckedCircuit> p_checkedCircuits;
+    bool p_checkedCircuitsReady = false;
 
     bool p_rateB;
     std::string p_contingencyRating;  // "A" | "B" | "C" (default "A")

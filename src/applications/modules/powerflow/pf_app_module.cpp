@@ -440,6 +440,8 @@ bool gridpack::powerflow::PFAppModule::solve()
   int t_total = timer->createCategory("Powerflow: Total Application");
   timer->start(t_total);
   p_factory->clearViolations();
+  p_ybusAtBase = false;
+  p_qlimSettled = false;
   char ioBuf[128];
 
   // Determine max controller iterations based on configuration
@@ -958,6 +960,8 @@ bool gridpack::powerflow::PFAppModule::nl_solve()
   int t_total = timer->createCategory("Powerflow: Total Application");
   timer->start(t_total);
   p_factory->clearViolations();
+  p_ybusAtBase = false;
+  p_qlimSettled = false;
 
   int t_fact = timer->createCategory("Powerflow: Factory Operations");
   timer->start(t_fact);
@@ -1412,12 +1416,11 @@ bool gridpack::powerflow::PFAppModule::getPFSolutionSingleBus(
 }
 
 /**
- * Set a contingency
- * @param event data describing location and type of contingency
- * @return false if location of contingency is not found in
- * network
+ * Take the elements of a contingency out of service and record the
+ * contingency name (shared by setContingency and setKnownContingency)
+ * @return false if an element is not found
  */
-bool gridpack::powerflow::PFAppModule::setContingency(
+bool gridpack::powerflow::PFAppModule::applyContingencyStatus(
     gridpack::powerflow::Contingency &event)
 {
   bool ret = true;
@@ -1487,6 +1490,21 @@ bool gridpack::powerflow::PFAppModule::setContingency(
   } else {
     p_contingency_name.clear();
   }
+  return ret;
+}
+
+/**
+ * Set a contingency
+ * @param event data describing location and type of contingency
+ * @return false if location of contingency is not found in
+ * network
+ */
+bool gridpack::powerflow::PFAppModule::setContingency(
+    gridpack::powerflow::Contingency &event)
+{
+  p_ybusAtBase = false;
+  p_qlimSettled = false;
+  bool ret = applyContingencyStatus(event);
   p_factory->checkLoneBus();
   // Check if slack bus still has online generator, transfer if needed
   bool slackOk = p_factory->checkAndTransferSlack();
@@ -1686,6 +1704,7 @@ bool gridpack::powerflow::PFAppModule::checkQlimViolations(int area)
 void gridpack::powerflow::PFAppModule::clearQlimViolations()
 {
   p_factory->clearQlimViolations();
+  p_qlimSettled = true;
 }
 
 /**
@@ -2124,6 +2143,7 @@ gridpack::powerflow::PFAppModule::getSolverParameters() const
 void gridpack::powerflow::PFAppModule::exportSupersetModel(
     SupersetModel *model)
 {
+  p_ybusAtBase = false;
   p_factory->exportSupersetModel(model);
 }
 
@@ -2137,6 +2157,7 @@ void gridpack::powerflow::PFAppModule::captureCaseState(
     const SupersetModel &model, const std::vector<int> &buses,
     const std::vector<int> &branches, SupersetCaseState *state)
 {
+  p_ybusAtBase = false;
   p_factory->captureCaseState(model, buses, branches, state);
 }
 
@@ -2176,4 +2197,130 @@ void gridpack::powerflow::PFAppModule::setExternalSolution(
     }
   }
   p_convergence = convergence;
+}
+
+/**
+ * Local buses and branches a contingency changes: for a branch outage the
+ * branch objects joining the two buses and their end buses, for a
+ * generator outage the generator buses
+ */
+void gridpack::powerflow::PFAppModule::contingencyElements(
+    const Contingency &event, std::vector<int> *buses,
+    std::vector<int> *branches)
+{
+  buses->clear();
+  branches->clear();
+  if (event.p_type == Branch) {
+    for (size_t k = 0; k < event.p_to.size(); k++) {
+      for (int l : p_network->getLocalBranchIndices(event.p_from[k], event.p_to[k])) {
+        int a = 0, b = 0;
+        p_network->getBranchEndpoints(l, &a, &b);
+        branches->push_back(l);
+        buses->push_back(a);
+        buses->push_back(b);
+      }
+    }
+  } else if (event.p_type == Generator) {
+    for (int id : event.p_busid) {
+      for (int l : p_network->getLocalBusIndices(id)) buses->push_back(l);
+    }
+  }
+  std::sort(buses->begin(), buses->end());
+  buses->erase(std::unique(buses->begin(), buses->end()), buses->end());
+  std::sort(branches->begin(), branches->end());
+  branches->erase(std::unique(branches->begin(), branches->end()), branches->end());
+}
+
+/**
+ * setContingency() for a case known to leave one island, on a network
+ * without lone buses: only the outaged branches' end buses can become
+ * lone, and the island search is skipped. Admittances that a regular
+ * contingency left behind are recomputed first, at the unmodified state.
+ */
+bool gridpack::powerflow::PFAppModule::setKnownContingency(Contingency &event)
+{
+  if (!p_ybusAtBase) {
+    p_factory->setYBus();
+    p_ybusAtBase = true;
+  }
+  bool ret = applyContingencyStatus(event);
+  std::vector<int> buses, branches;
+  contingencyElements(event, &buses, &branches);
+  if (event.p_type != Branch) buses.clear();
+  p_factory->checkLoneBusAt(buses);
+  if (!p_factory->checkAndTransferSlack()) ret = false;
+  p_factory->setSingleIsland();
+  return ret;
+}
+
+/**
+ * setExternalSolution() for a case set with setKnownContingency(), loading
+ * only what the reports read: admittances are recomputed where the
+ * contingency changed them, and the scheduled injections and mismatches,
+ * which only the solver and the text reports use, are left alone (the
+ * slack check computes the reference bus's own injection).
+ */
+void gridpack::powerflow::PFAppModule::setKnownExternalSolution(
+    Contingency &event, const std::vector<double> &v,
+    const std::vector<double> &theta,
+    const std::vector<int> &qlim_conversion,
+    const std::vector<double> &q_required,
+    const gridpack::utility::ConvergenceSummary &convergence)
+{
+  std::vector<int> buses, branches;
+  contingencyElements(event, &buses, &branches);
+  if (event.p_type == Branch) p_factory->setYBusAt(buses, branches);
+  p_ybusAtBase = false;
+  int nbus = p_network->numBuses();
+  for (int i = 0; i < nbus; i++) {
+    PFBus *bus = dynamic_cast<PFBus*>(p_network->getBus(i).get());
+    if (qlim_conversion[i] != 0) {
+      bus->applyQlimConversion(qlim_conversion[i] > 0, q_required[i]);
+    }
+    bus->setVoltageState(v[i], theta[i]);
+  }
+  p_convergence = convergence;
+}
+
+/**
+ * See PFFactoryModule::touchLineCheckBuses()
+ */
+void gridpack::powerflow::PFAppModule::touchLineCheckBuses()
+{
+  p_factory->touchLineCheckBuses();
+}
+
+/**
+ * unSetContingency() followed by recomputing the admittances the
+ * contingency changed
+ */
+bool gridpack::powerflow::PFAppModule::unSetKnownContingency(Contingency &event)
+{
+  bool ret = unSetContingency(event);
+  std::vector<int> buses, branches;
+  contingencyElements(event, &buses, &branches);
+  if (event.p_type == Branch) p_factory->setYBusAt(buses, branches);
+  p_ybusAtBase = true;
+  return ret;
+}
+
+/**
+ * clearQlimViolations() after unSetKnownContingency(). When every bus has
+ * been cleared since the last regular contingency, only the converted
+ * buses and the generator buses of the contingency can differ.
+ */
+void gridpack::powerflow::PFAppModule::clearKnownQlimViolations(
+    const Contingency &event, const std::vector<int> &qlim_conversion)
+{
+  if (!p_qlimSettled) {
+    clearQlimViolations();
+    return;
+  }
+  std::vector<int> buses, branches;
+  contingencyElements(event, &buses, &branches);
+  if (event.p_type != Generator) buses.clear();
+  for (size_t i = 0; i < qlim_conversion.size(); i++) {
+    if (qlim_conversion[i] != 0) buses.push_back(static_cast<int>(i));
+  }
+  p_factory->clearQlimAt(buses);
 }

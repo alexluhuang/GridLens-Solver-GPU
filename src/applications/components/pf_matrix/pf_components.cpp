@@ -3077,6 +3077,21 @@ void gridpack::powerflow::PFBus::stateValues(double *angle_deg, double *vmag) co
   *vmag = p_v;
 }
 
+void gridpack::powerflow::PFBus::takeExchangedState()
+{
+  p_a = *p_vAng_ptr;
+  p_v = *p_vMag_ptr;
+}
+
+int gridpack::powerflow::PFBranch::circuitStatusIndex(const std::string &tag) const
+{
+  int bsize = p_branch_status.size();
+  for (int i=0; i<bsize; i++) {
+    if (tag == p_ckt[i]) return i;
+  }
+  return -1;
+}
+
 /**
  * Same values and expressions as the "flow_str" branch of serialWrite()
  */

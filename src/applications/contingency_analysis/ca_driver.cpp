@@ -2261,9 +2261,18 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // for GridPACK's own solve; otherwise it carries a solution computed by
   // the GPU batch path, which is loaded instead of solving so that the same
   // checks and writers report it.
+  // GPU cases whose topology the batch classifier already knows skip the
+  // GridPACK work that only the solver and the text reports read: the
+  // voltage reset, the full lone-bus and island searches, recomputing
+  // every admittance and injection, and the violation checks (whose
+  // results only the json, csv and text formats and printCalcFiles use).
+  // Every output stays byte-identical (P2).
+  const bool knownCaseReports = !print_calcs && !write_stats &&
+      task_comm.size() == 1 && (outputFormat == "csv_flat" || deltaRows);
   auto processCase = [&](int task_id,
                          const gridpack::batchpf::GpuCaseResult *gpu) {
     gridpack::batchpf::CaseReport report;
+    const bool known = gpu && gpu->known_topology && knownCaseReports;
     if (print_calcs) printf("Executing task %d on process %d\n",task_id,world.rank());
     // Trim trailing spaces from contingency name for filename
     std::string fname = events[task_id].p_name;
@@ -2302,13 +2311,19 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     }
     if (print_calcs) pf_app.writeHeader(sbuf);
     timer->start(t_case_apply);
-    // Reset all voltages back to their original values
-    pf_app.resetVoltages();
-    // Sync ghost bus data after voltage reset to ensure branches connected to
-    // ghost buses use the correct reset voltages in power flow calculation
-    pf_network->updateBuses();
-    // Set contingency
-    bool contingencyFound = pf_app.setContingency(events[task_id]);
+    bool contingencyFound;
+    if (known) {
+      // The GPU solution sets every voltage, so no reset is needed
+      contingencyFound = pf_app.setKnownContingency(events[task_id]);
+    } else {
+      // Reset all voltages back to their original values
+      pf_app.resetVoltages();
+      // Sync ghost bus data after voltage reset to ensure branches connected to
+      // ghost buses use the correct reset voltages in power flow calculation
+      pf_network->updateBuses();
+      // Set contingency
+      contingencyFound = pf_app.setContingency(events[task_id]);
+    }
     if (!contingencyFound) {
       printf("WARNING: Contingency '%s' - elements not found or no valid slack bus\n",
              events[task_id].p_name.c_str());
@@ -2325,8 +2340,14 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     timer->stop(t_case_apply);
     if (gpu) {
       timer->start(t_case_inject);
-      pf_app.setExternalSolution(gpu->v, gpu->theta, gpu->qlim_conversion,
-                                 gpu->q_required, gpu->convergence);
+      if (known) {
+        pf_app.setKnownExternalSolution(events[task_id], gpu->v, gpu->theta,
+                                        gpu->qlim_conversion, gpu->q_required,
+                                        gpu->convergence);
+      } else {
+        pf_app.setExternalSolution(gpu->v, gpu->theta, gpu->qlim_conversion,
+                                   gpu->q_required, gpu->convergence);
+      }
       solveOk = true;
       hasSolveRecord = true;
       timer->stop(t_case_inject);
@@ -2382,8 +2403,14 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         // If power flow solution is successful, write out voltages and currents
         if (print_calcs) pf_app.write();
         // Check for violations
-        bool ok1 = pf_app.checkVoltageViolations();
-        bool ok2 = pf_app.checkLineOverloadViolations();
+        bool ok1 = true;
+        bool ok2 = true;
+        if (known) {
+          pf_app.touchLineCheckBuses();
+        } else {
+          ok1 = pf_app.checkVoltageViolations();
+          ok2 = pf_app.checkLineOverloadViolations();
+        }
         bool ok = ok1 && ok2;
         // text mode runs the summary path but discards the per-ct struct.
         if (outputFormat == "json" || outputFormat == "csv" ||
@@ -2588,11 +2615,16 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     timer->stop(t_case_report);
     timer->start(t_case_restore);
     // Return network to its original base case state
-    pf_app.unSetContingency(events[task_id]);
     // Clear Q limit violations AFTER unSetContingency so generators are restored first.
     // This ensures clearQlim() sees the correct generator status when deciding
     // whether to restore p_isPV (PV bus status).
-    if (check_Qlim) pf_app.clearQlimViolations();
+    if (known) {
+      pf_app.unSetKnownContingency(events[task_id]);
+      if (check_Qlim) pf_app.clearKnownQlimViolations(events[task_id], gpu->qlim_conversion);
+    } else {
+      pf_app.unSetContingency(events[task_id]);
+      if (check_Qlim) pf_app.clearQlimViolations();
+    }
     // Clear Q limit warnings for next contingency
     gridpack::powerflow::PFBus::clearQlimWarnings();
     // Remote regulation can change resetVoltages()'s reference. Each outage

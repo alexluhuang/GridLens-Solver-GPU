@@ -771,6 +771,13 @@ class PFBus
      */
     void stateValues(double *angle_deg, double *vmag) const;
 
+    /**
+     * Copy the exchanged voltage into the internal state, as every call of
+     * getComplexVoltage() does (the angle becomes the wrapped copy). Lets a
+     * report that skips a flow calculation leave the bus as it would have.
+     */
+    void takeExchangedState();
+
     // ---------------------------------------------------------------
     // State injection used to report results solved outside GridPACK
     // (GPU batch path). They are only called by that path.
@@ -1172,6 +1179,18 @@ class PFBranch
      * out empty) where serialWrite writes nothing: an inactive branch.
      */
     bool flowValues(std::vector<CircuitFlow> *out);
+
+    /**
+     * The circuit whose status getComplexPower(tag) checks: the first one
+     * with this tag, or -1 if there is none (then it checks nothing)
+     */
+    int circuitStatusIndex(const std::string &tag) const;
+
+    /// Whether getComplexPower() for circuitStatusIndex() idx computes a flow
+    bool circuitInService(int idx) const
+    {
+      return idx < 0 || p_branch_status[idx];
+    }
 
   private:
     bool p_largeMatrix = false;

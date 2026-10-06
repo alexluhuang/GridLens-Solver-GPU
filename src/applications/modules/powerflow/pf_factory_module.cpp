@@ -1663,6 +1663,100 @@ void PFFactoryModule::getContingencyEffects(ContingencyEffects *effects) const
 }
 
 /**
+ * checkLoneBus() over the listed buses only, in local index order so that
+ * the messages and saved states come out in the same order
+ */
+bool PFFactoryModule::checkLoneBusAt(std::vector<int> buses)
+{
+  std::sort(buses.begin(), buses.end());
+  buses.erase(std::unique(buses.begin(), buses.end()), buses.end());
+  bool bus_ok = true;
+  char buf[128];
+  p_saveIsolatedStatus.clear();
+  p_loneBusIndices.clear();
+  for (int i : buses) {
+    if (!p_network->getActiveBus(i)) continue;
+    PFBus *bus = dynamic_cast<PFBus*>(p_network->getBus(i).get());
+    if (bus->isIsolated()) continue;
+    std::vector<boost::shared_ptr<gridpack::component::BaseComponent> > branches;
+    bus->getNeighborBranches(branches);
+    bool ok = false;
+    for (size_t j = 0; j < branches.size(); j++) {
+      std::vector<bool> status =
+        dynamic_cast<PFBranch*>(branches[j].get())->getLineStatus();
+      for (size_t k = 0; k < status.size(); k++) {
+        if (status[k]) ok = true;
+      }
+    }
+    if (!ok) {
+      sprintf(buf,"\nLone bus %d found\n",bus->getOriginalIndex());
+      p_saveIsolatedStatus.push_back(bus->isIsolated());
+      p_loneBusIndices.push_back(i);
+      bus->setIsolated(true);
+      printf("%s",buf);
+      bus_ok = false;
+    }
+  }
+  p_hasLoneBus = checkTrue(!bus_ok);
+  return p_hasLoneBus;
+}
+
+void PFFactoryModule::setSingleIsland()
+{
+  p_saveIslandIsolatedStatus.clear();
+  p_islandCount = 1;
+}
+
+void PFFactoryModule::setYBusAt(const std::vector<int> &buses,
+    const std::vector<int> &branches)
+{
+  for (int i : branches) {
+    dynamic_cast<PFBranch*>(p_network->getBranch(i).get())->setYBus();
+  }
+  for (int i : buses) {
+    dynamic_cast<PFBus*>(p_network->getBus(i).get())->setYBus();
+  }
+}
+
+void PFFactoryModule::touchLineCheckBuses()
+{
+  if (!p_checkedCircuitsReady) {
+    // The selection of checkLineOverloadViolations(), call for call
+    std::string savedRating = p_contingencyRating;
+    if (p_rateB) p_contingencyRating = "B";
+    int numBranch = p_network->numBranches();
+    for (int i = 0; i < numBranch; i++) {
+      if (!p_network->getActiveBranch(i)) continue;
+      PFBranch *branch = dynamic_cast<PFBranch*>(p_network->getBranch(i).get());
+      int nlines;
+      p_network->getBranchData(i)->getValue(BRANCH_NUM_ELEMENTS,&nlines);
+      std::vector<std::string> tags = branch->getLineTags();
+      for (int k = 0; k < nlines; k++) {
+        if (branch->getIgnore(tags[k])) continue;
+        if (pickBranchRating(i, k) <= 0.0) continue;
+        p_checkedCircuits.push_back({i, branch->circuitStatusIndex(tags[k])});
+      }
+    }
+    p_contingencyRating = savedRating;
+    p_checkedCircuitsReady = true;
+  }
+  for (const CheckedCircuit &c : p_checkedCircuits) {
+    PFBranch *branch = dynamic_cast<PFBranch*>(p_network->getBranch(c.branch).get());
+    if (!branch->circuitInService(c.status_index)) continue;
+    dynamic_cast<PFBus*>(branch->getBus1().get())->takeExchangedState();
+    dynamic_cast<PFBus*>(branch->getBus2().get())->takeExchangedState();
+  }
+}
+
+void PFFactoryModule::clearQlimAt(const std::vector<int> &buses)
+{
+  for (int i : buses) {
+    if (!p_network->getActiveBus(i)) continue;
+    dynamic_cast<PFBus*>(p_network->getBus(i).get())->clearQlim();
+  }
+}
+
+/**
  * Superset bus type of a bus in its current state. Isolation wins over the
  * reference role, which wins over voltage control.
  */

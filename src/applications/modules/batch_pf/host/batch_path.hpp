@@ -56,6 +56,10 @@ struct GpuCaseResult {
   std::vector<int> qlim_conversion;
   std::vector<double> q_required;
   gridpack::utility::ConvergenceSummary convergence;
+  // The classifier showed the case leaves one island and the unmodified
+  // network has no lone buses, islands or slack without a unit, so the
+  // reporter may use PFAppModule's known-topology shortcuts (P2)
+  bool known_topology = false;
 };
 
 enum class ReportStatus { Ok, Islanded, NoSlack, SlackOverload, Diverged,
