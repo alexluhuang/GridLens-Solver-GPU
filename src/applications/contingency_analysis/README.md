@@ -1,5 +1,24 @@
 ## Configuration Options
 
+## GPU batch path
+
+An optional `<GPUBatch>` block under `<Contingency_analysis>` enables the
+batch contingency solver. Without it, the application uses the stock CPU
+loop. `input_118_gpu.xml` is a complete installed example. GridPACK continues
+to classify, check limits and report results; unsupported or unsuccessful
+GPU cases are solved by the CPU path.
+
+See [batch_pf/README.md](../modules/batch_pf/README.md) for building, all
+runtime settings, MPI placement, output sidecars and troubleshooting.
+The [guide and validation records](../../../docs/gpu_n1/README.md) explain
+the design and distinguish measured results from release gates.
+
+The extra `_gpu_outcomes.csv` records the original GPU result and any CPU
+retry. Optional `_gpu_shadow.csv` compares GPU states with fresh GridPACK
+solves, including exact PV/PQ bus sets. Active batch runs sort final flat,
+delta and violation tables by event. Missing outcomes receive `MISSING`
+convergence rows and an incomplete-study warning.
+
 The contingency analysis application is configured via XML input files. Key options include:
 
 ### Contingency Specification
