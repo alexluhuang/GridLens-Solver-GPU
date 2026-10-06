@@ -33,6 +33,9 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cstdint>
+#include <initializer_list>
+#include <iterator>
 #include <deque>
 #include <fstream>
 #include <iomanip>
@@ -43,6 +46,10 @@
 #include <sstream>
 #include <thread>
 #include <type_traits>
+#include <string>
+#include <utility>
+#include <vector>
+#include <mpi.h>
 
 #include "batch_path_impl.hpp"
 #include "gridpack/parallel/task_manager.hpp"

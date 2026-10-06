@@ -21,6 +21,7 @@
 #define GRIDPACK_BATCHPF_CORE_SESSION_HPP
 
 #include <condition_variable>
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <memory>

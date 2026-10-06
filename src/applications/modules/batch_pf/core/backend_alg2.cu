@@ -289,6 +289,9 @@ class Alg2Backend : public SolverBackend {
   void refactorize(gsl::span<const double> values, gsl::span<const int> mask,
                    gsl::span<int> member_status) override
   {
+    Expects(values.size() == static_cast<std::size_t>(p_setup.pattern->nnz) * p_setup.capacity);
+    Expects(mask.size() == static_cast<std::size_t>(p_setup.capacity));
+    Expects(member_status.size() == mask.size());
     const Alg2Plan p = view();
     const Executor ex(true, p_setup.stream, p_setup.threads_per_block);
     const int64_t B = p_setup.capacity;
@@ -309,6 +312,10 @@ class Alg2Backend : public SolverBackend {
   void solve(gsl::span<const double> rhs, gsl::span<double> x,
              gsl::span<const int> mask, gsl::span<int> member_status) override
   {
+    Expects(rhs.size() == static_cast<std::size_t>(p_lu.n) * p_setup.capacity);
+    Expects(x.size() == rhs.size());
+    Expects(mask.size() == static_cast<std::size_t>(p_setup.capacity));
+    Expects(member_status.size() == mask.size());
     if (p_setup.host_solve) {
       solveOnHost(rhs.data(), x.data(), mask.data(), member_status.data());
       return;

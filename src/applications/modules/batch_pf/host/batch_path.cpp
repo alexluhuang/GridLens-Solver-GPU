@@ -18,10 +18,16 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <cstdint>
+#include <iterator>
 #include <memory>
 #include <iostream>
 #include <sstream>
 #include <type_traits>
+#include <string>
+#include <vector>
+#include <mpi.h>
 
 #include "gridpack/configuration/configuration.hpp"
 #include "gridpack/timer/coarse_timer.hpp"
@@ -352,10 +358,8 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   if (d.rank == 0) d.info("contingency classifier fast path: " + d.classifier->fastPathNote());
   const int n = static_cast<int>(events.size());
   std::vector<char> local;
-  int nlocal = 0;
   for (int e = d.rank; e < n; e += d.size) {
     pack(d.classifier->classify(CaseIndex{e}, events[e]), &local);
-    nlocal++;
   }
   // Q-limit warnings printed by GridPACK while applying cases are not
   // results; clear them as the stock loop does between cases

@@ -22,6 +22,7 @@
 #define GRIDPACK_BATCHPF_HOST_ACCELERATOR_HPP
 
 #include <memory>
+#include <cstdint>
 #include <mutex>
 #include <stdexcept>
 #include <string>

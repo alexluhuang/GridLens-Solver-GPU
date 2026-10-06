@@ -5,6 +5,10 @@
 #include "../core/engine.hpp"
 
 #include <array>
+#include <cstdint>
+#include <exception>
+#include "../core/common.hpp"
+#include "gridpack/batchpf/batchpf_plugin.h"
 #include <iostream>
 #include <stdexcept>
 

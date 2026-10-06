@@ -5,6 +5,11 @@
 #include "../host/reconcile.hpp"
 
 #include <chrono>
+#include <cstddef>
+#include <exception>
+#include <string>
+#include <system_error>
+#include <vector>
 #include <filesystem>
 #include <fstream>
 #include <iostream>

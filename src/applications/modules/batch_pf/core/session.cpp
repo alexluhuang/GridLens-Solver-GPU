@@ -17,6 +17,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <exception>
+#include <iterator>
+#include <vector>
+#include <cuda_runtime.h>
 #include <memory>
 #include <sstream>
 

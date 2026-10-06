@@ -25,10 +25,17 @@ namespace {
 int attribute(cudaDeviceAttr attr, int device)
 {
   int v = 0;
-  if (cudaDeviceGetAttribute(&v, attr, device) != cudaSuccess) {
-    cudaGetLastError();   // clear: an unknown attribute is not fatal
+  const auto status = cudaDeviceGetAttribute(&v, attr, device);
+  if (status == cudaErrorInvalidValue || status == cudaErrorNotSupported) {
+    // Older drivers can lack optional attributes. Clear only this
+    // expected failure; preserve unrelated asynchronous errors.
+    const auto previous = cudaGetLastError();
+    if (previous != cudaSuccess && previous != status) {
+      cudaCheck(previous, "optional device attribute");
+    }
     return -1;
   }
+  cudaCheck(status, "cudaDeviceGetAttribute");
   return v;
 }
 
@@ -87,7 +94,7 @@ batchpf_status probeDevice(int device, batchpf_device_info *info,
     return BATCHPF_ERR_INVALID_ARGUMENT;
   }
   info->device = device;
-  cudaDeviceProp prop;
+  cudaDeviceProp prop{};
   cudaCheck(cudaGetDeviceProperties(&prop, device), "cudaGetDeviceProperties");
   copyMessage(prop.name, info->name, sizeof(info->name));
   info->cc_major = attribute(cudaDevAttrComputeCapabilityMajor, device);
@@ -160,7 +167,7 @@ double memoryBudget(const batchpf_device_info &info, int profile,
 
 void verifyKernelsLoad()
 {
-  cudaFuncAttributes attr;
+  cudaFuncAttributes attr{};
   const cudaError_t err = cudaFuncGetAttributes(&attr, probeKernel);
   if (err != cudaSuccess) {
     cudaGetLastError();

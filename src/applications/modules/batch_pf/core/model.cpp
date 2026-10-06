@@ -15,8 +15,15 @@
  */
 
 #include <vector>
+#include <cstddef>
+#include <cstdint>
+#include <gsl/narrow>
+#include <gsl/span>
+#include <gsl/util>
 
 #include "engine.hpp"
+#include "common.hpp"
+#include "gridpack/batchpf/batchpf_plugin.h"
 
 namespace gridpack {
 namespace batchpf {

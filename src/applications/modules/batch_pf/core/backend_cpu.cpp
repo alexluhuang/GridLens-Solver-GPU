@@ -22,12 +22,20 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <gsl/span>
 #include <future>
 #include <memory>
 #include <thread>
+#include <string>
 #include <vector>
 
 #include "backend.hpp"
+#include "common.hpp"
+#include "planner.hpp"
+#include "gridpack/batchpf/batchpf_backend.h"
+#include "gridpack/batchpf/batchpf_plugin.h"
 
 namespace gridpack {
 namespace batchpf {
@@ -83,6 +91,9 @@ class CpuReferenceBackend : public SolverBackend {
   void refactorize(gsl::span<const double> values, gsl::span<const int> mask,
                    gsl::span<int> member_status) override
   {
+    Expects(values.size() == p_csc.row_idx.size() * p_B);
+    Expects(mask.size() == static_cast<std::size_t>(p_B));
+    Expects(member_status.size() == mask.size());
     forMembers(mask, [&](int b) {
       const int64_t nnz = static_cast<int64_t>(p_csc.row_idx.size());
       std::vector<double> ax(static_cast<std::size_t>(nnz));
@@ -100,6 +111,10 @@ class CpuReferenceBackend : public SolverBackend {
   void solve(gsl::span<const double> rhs, gsl::span<double> x,
              gsl::span<const int> mask, gsl::span<int> member_status) override
   {
+    Expects(rhs.size() == static_cast<std::size_t>(p_n) * p_B);
+    Expects(x.size() == rhs.size());
+    Expects(mask.size() == static_cast<std::size_t>(p_B));
+    Expects(member_status.size() == mask.size());
     forMembers(mask, [&](int b) {
       if (member_status[b] != BATCHPF_MEMBER_OK || !p_numeric[b]) return;
       std::vector<double> y(p_n);

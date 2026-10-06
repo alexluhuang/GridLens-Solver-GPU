@@ -20,10 +20,18 @@
 
 #include <cstring>
 #include <array>
+#include <gsl/span>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "backend.hpp"
+#include "common.hpp"
+#include "planner.hpp"
+#include "gridpack/batchpf/batchpf_backend.h"
+#include "gridpack/batchpf/batchpf_plugin.h"
 
 namespace gridpack {
 namespace batchpf {
@@ -103,7 +111,10 @@ class PluginBackend : public SolverBackend {
  public:
   PluginBackend(LibraryHandle lib, const batchpf_backend_api &api,
                 const BackendSetup &setup)
-      : p_lib(std::move(lib)), p_api(api)
+      : p_lib(std::move(lib)), p_api(api),
+        p_capacity(setup.capacity),
+        p_value_count(static_cast<std::size_t>(setup.pattern->nnz) * setup.capacity),
+        p_vector_count(static_cast<std::size_t>(setup.pattern->n_rows) * setup.capacity)
   {
     batchpf_backend_caps c;
     std::memset(&c, 0, sizeof(c));
@@ -142,6 +153,9 @@ class PluginBackend : public SolverBackend {
   void refactorize(gsl::span<const double> values, gsl::span<const int> mask,
                    gsl::span<int> member_status) override
   {
+    Expects(values.size() == p_value_count);
+    Expects(mask.size() == p_capacity);
+    Expects(member_status.size() == mask.size());
     check(p_api.refactorize(p_backend.get(), values.data(), mask.data(), member_status.data()),
           "refactorize");
   }
@@ -149,6 +163,10 @@ class PluginBackend : public SolverBackend {
   void solve(gsl::span<const double> rhs, gsl::span<double> x,
              gsl::span<const int> mask, gsl::span<int> member_status) override
   {
+    Expects(rhs.size() == p_vector_count);
+    Expects(x.size() == rhs.size());
+    Expects(mask.size() == p_capacity);
+    Expects(member_status.size() == mask.size());
     check(p_api.solve(p_backend.get(), rhs.data(), x.data(), mask.data(), member_status.data()), "solve");
   }
 
@@ -164,6 +182,9 @@ class PluginBackend : public SolverBackend {
   batchpf_backend_api p_api;
   BackendCaps p_caps;
   std::unique_ptr<batchpf_backend, Teardown> p_backend;
+  std::size_t p_capacity;
+  std::size_t p_value_count;
+  std::size_t p_vector_count;
 };
 
 }  // namespace

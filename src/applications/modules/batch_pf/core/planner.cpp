@@ -17,11 +17,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "common.hpp"
+#include "gridpack/batchpf/batchpf_plugin.h"
 
 namespace gridpack {
 namespace batchpf {

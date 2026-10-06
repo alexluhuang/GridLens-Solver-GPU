@@ -18,6 +18,8 @@
  */
 
 #include <iostream>
+#include <cstddef>
+#include "gridpack/batchpf/index.hpp"
 #include <string>
 #include <vector>
 

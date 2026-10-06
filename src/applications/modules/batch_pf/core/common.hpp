@@ -228,7 +228,7 @@ class Buffer {
                                 cudaMemcpyDeviceToHost, stream),
                 "cudaMemcpyAsync D2H");
     } else {
-      std::copy(p_ptr, p_ptr + count, dst);
+      std::copy_n(p_ptr, count, dst);
     }
   }
 
@@ -238,7 +238,7 @@ class Buffer {
     if (p_kind == MemoryKind::Device) {
       cudaCheck(cudaMemsetAsync(p_ptr, 0, bytes(), stream), "cudaMemsetAsync");
     } else {
-      std::fill(p_ptr, p_ptr + p_count, T());
+      std::fill_n(p_ptr, p_count, T());
     }
   }
 

@@ -18,6 +18,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <exception>
+#include <cuda_runtime.h>
 #include <cstring>
 #include <memory>
 #include <new>

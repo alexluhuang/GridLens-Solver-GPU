@@ -19,9 +19,11 @@
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <sstream>
+#include <utility>
 
 namespace gridpack {
 namespace batchpf {

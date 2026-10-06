@@ -19,6 +19,7 @@
 #include "classifier.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <set>
 #include <utility>
 
