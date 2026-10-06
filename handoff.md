@@ -52,12 +52,12 @@ in `docs/gpu_n1/validation.md` and `validation-status.json`.
 
 ## Confirmed evidence
 
-- Latest CPU-only build: 120/120 sequential CTest tests, 71.62 s.
+- Latest CPU-only build: 120/120 sequential CTest tests, 80.99 s at `e49d0084`.
   Legacy parallel tests share files; run the complete suite sequentially.
 - Latest GPU/standards CI: all supported real architectures plus PTX;
-  28/28 batch tests, 27.75 s. Nine quality-parser tests and seven comparator
-  regressions pass. Module cppcheck plus changed-adapter Clang analysis
-  retain 369 recorded findings and no new-code compiler warnings.
+  28/28 batch tests, 26.94 s. Nine quality-parser tests and thirteen comparator
+  regressions pass. Current analysis has 360 Clang and eight cppcheck findings,
+  below the unchanged recorded baseline, and no new-code compiler warnings.
   Maintainer exception approval is still pending; a baseline is not approval.
 - Final kernels passed Compute Sanitizer memcheck with zero errors.
   CPU/GPU mismatch 3.78e-16, Jacobian 1.49e-16, finite-difference 4.21e-09,
@@ -144,17 +144,19 @@ Check processes and actual log endings before repeating expensive work.
 Tool session IDs are conveniences, not durable proof that a job runs.
 Container process namespaces need `--pid=host` to inspect host jobs.
 
-1. Ordered large-grid queue: session 76389, host bash PID 73168, deliberately
-   **SIGSTOP-paused after Texas Alg2 passed**, to isolate performance.
-   Resume with `kill -CONT 73168` after the performance work finishes.
+1. Ordered large-grid queue: session 76389, host bash PID 73168, **running**.
+   It was paused after Texas Alg2 passed to isolate performance, then resumed
+   after all 44 timing trials finished. Texas cuDSS is currently running.
    Remaining: Texas cuDSS and both 10k full-CSV oracles. Inputs mounted from
    `/tmp/{Texas7k_20210804,ACTIVSg10k}-remote-last.xml`; preserve them while
    mounted. Logs `/work/validation-ordered-<grid>-<backend>.log`; studies
    `/work/validation-ordered/<grid>_<backend>/{stock,parity}`.
 2. Final Polish/Memphis checks finished; all four passed. Metrics are in
    `study-evidence.jsonl`. The cuDSS capped-budget check also passed.
-3. CPU/GPU images through `18f8e840` finished building. They need runtime
-   checks and another refresh after the reporting change below.
+3. CPU/GPU images through `18f8e840` finished building. Final reporting
+   refreshes are running: sessions 31398/90061, logs
+   `/tmp/gridpack-image-{cpu,gpu}-reported-state.log`. Keep version argument
+   `n1-validation` so dependency layers stay cached. Runtime checks remain.
 4. Isolated performance session 53554 finished all 34 trials successfully.
    Full Polish N-1, text output, zero shadows, two trials per setting;
    raw starts except explicitly tagged base-case trials. Results are in
@@ -169,12 +171,19 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    elapsed time). Harvest measured DRAM traffic and occupancy.
 6. Commit `e49d0084` completes guide 8.11 with final status, iterations, mismatch
    and PV/PQ counts captured before cleanup, for CPU and GPU outcomes.
-   Shadow checks now explicitly compare PQ membership too. Twelve Python
-   comparator regressions (now thirteen) pass. Standards CI and all 28 GPU
-   tests passed in 26.94 s; 120 CPU tests passed in 69.03 s. No findings
-   increase or new compiler warnings. Final selected production trials are
-   running in `/work/performance-reported-state`, source `e49d0084`; wait for
-   `complete.json` before resuming the large queue. Kernels are unchanged.
+   Shadow checks now explicitly compare PQ membership too. Thirteen Python
+   comparator regressions pass. Standards CI and all 28 GPU tests passed in
+   26.94 s; final-source 120 CPU tests passed in 80.99 s. No findings increase
+   or new compiler warnings. Ten final selected production trials all passed
+   in `/work/performance-reported-state`, source `e49d0084`; the completed
+   timings are preserved in `performance-reported-state.jsonl`.
+7. Installed executable and separately rebuilt installed example passed
+   cuDSS/four-rank full IEEE118 parity, exact PV/PQ sets and final state checks
+   at `e49d0084`. Logs `/work/{install,rebuilt}-reported-state-check.log`.
+8. Current reporting validation finished: full Polish Alg2, full Memphis
+   cuDSS, 65-case 10k sample and independent Texas cases all pass full CSV,
+   exact PV/PQ shadows and final state checks. Outputs/logs are under
+   `/work/validation-reported-state`; summaries are in `study-evidence.jsonl`.
 
 ## Finish in this order
 
@@ -190,7 +199,7 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    The initial counter attempt was denied; the approved container retry
    succeeded. Estimated telemetry bandwidth remains distinct from measured
    DRAM traffic. Do not claim ten replayed launches profile every kernel.
-3. Resume PID 73168 and finish remaining full CSV comparisons. Keep the
+3. Finish the resumed PID 73168 full CSV comparisons. Keep the
    default-order failure evidence separate. Full tables are tens of GB;
    sorting is bounded to 256 MB and Python processes one event at a time.
 4. Update validation.md, structured status and this handoff. Preserve small

@@ -86,6 +86,24 @@ This leaves the bandwidth part of PERF-3 open even though its batch sweep
 and occupancy sampling are complete. No kernel optimization is justified
 solely by these ten launches.
 
-The final outcome-reporting change follows these trials. A small repeated
-check of selected configurations must confirm its overhead before treating
-the older timings as representative of the final host adapter.
+## Final reporting check
+
+All ten selected repeat trials at `e49d0084` passed, including per-case
+reported-state checks. `performance-reported-state.jsonl` preserves them.
+Other builds and validation jobs began only after these trials finished.
+
+| Configuration | Stock median seconds | GPU median seconds | GPU cases/s |
+|---|---:|---:|---:|
+| Batch 512, eight ranks, raw start | 26.210 | 13.843 | 303.26 |
+| Batch 2048, eight ranks, raw start | 26.936 | 13.329 | 314.96 |
+| Batch 2048, sixteen ranks, raw start | 19.101 | 12.455 | 337.05 |
+| Automatic settings, eight ranks, raw start | 26.526 | 16.153 | 259.89 |
+| Batch 2048, sixteen ranks, base-case start | 18.997 | 12.385 | 338.95 |
+
+At eight ranks, batch-2048 time changed from 13.300 to 13.329 s; batch-512
+time changed from 13.729 to 13.843 s. The new reporting loop costs no
+material whole-study slowdown in these repeats. These are observed timing
+differences, not a separately isolated measurement of the loop itself.
+Batch 512 still exceeds 95% of the best eight-rank throughput. The final
+sixteen-rank raw-start comparison gives a 1.53 speedup over stock at the
+same rank count. Base-case starts may change iteration counts deliberately.

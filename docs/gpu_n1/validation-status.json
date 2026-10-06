@@ -6,8 +6,8 @@
     "cpu_only_ctest": {
       "passed": 120,
       "failed": 0,
-      "seconds": 71.62,
-      "snapshot": "92a5e689"
+      "seconds": 80.99,
+      "snapshot": "e49d0084"
     },
     "gpu_all_architectures_ctest": {
       "passed": 28,
@@ -51,8 +51,9 @@
       "max_dtheta_rad": 9.219e-13,
       "exact_sets_match": true,
       "ranks": 8,
-      "snapshot": "92a5e689",
-      "output_format": "csv_delta"
+      "snapshot": "e49d0084",
+      "output_format": "csv_delta",
+      "reported_state_checked": true
     },
     "full_n1_polish_cudss": {
       "passed": true,
@@ -69,8 +70,10 @@
       "passed": true,
       "network": "IEEE118",
       "final_refresh_required": false,
-      "snapshot": "92a5e689",
-      "gpu_path_confirmed": true
+      "snapshot": "e49d0084",
+      "gpu_path_confirmed": true,
+      "ranks": 4,
+      "exact_pv_pq_and_reported_state": true
     },
     "standards_ci": {
       "passed": true,
@@ -136,12 +139,13 @@
       "passed": true,
       "cases": 1570,
       "shadows": 1392,
-      "max_dv_pu": 1.729e-12,
-      "max_dtheta_rad": 8.029e-13,
+      "max_dv_pu": 2.146e-12,
+      "max_dtheta_rad": 1.013e-12,
       "exact_sets_match": true,
       "ranks": 8,
-      "snapshot": "92a5e689",
-      "output_format": "csv_delta"
+      "snapshot": "e49d0084",
+      "output_format": "csv_delta",
+      "reported_state_checked": true
     },
     "polish_cudss_budget_admission": {
       "passed": true,
@@ -169,7 +173,7 @@
       "best_swept_batch": 2048,
       "batch_at_95_percent": 512,
       "best_tested_rank_count": 16,
-      "final_reporting_overhead_check": "in progress"
+      "final_reporting_overhead_check": "10 selected repeated trials passed at e49d0084; batch-2048 median 13.329 s versus earlier 13.300 s at eight ranks"
     },
     "nsight_selected_launches": {
       "passed": true,
@@ -180,6 +184,20 @@
       "clock_control": "none",
       "cache_control": "none",
       "container_capability": "SYS_ADMIN"
+    },
+    "final_reported_state_trials": {
+      "passed": 10,
+      "failed": 0,
+      "snapshot": "e49d0084",
+      "reporting_fields_checked": true,
+      "best_tested_raw_ranks16_seconds": 12.454943526500301
+    },
+    "large_grid_reported_state_samples": {
+      "passed": true,
+      "snapshot": "e49d0084",
+      "activsg10k_cases": 65,
+      "texas_independent_cases": 2,
+      "full_csv_and_exact_pv_pq": true
     }
   },
   "failed_or_open": {
@@ -214,11 +232,11 @@
     }
   },
   "in_progress": [
-    "final selected production trials with reported-state checks"
+    "ordered full Texas cuDSS and 10k comparisons resumed",
+    "final CPU/GPU image builds"
   ],
   "remaining": [
-    "ordered Texas cuDSS and both 10k full CSV comparisons (queue paused until final isolated trials finish)",
-    "final-source CPU rebuild, installation and image runtime checks",
+    "image runtime checks",
     "final validation evidence and handoff"
   ],
   "external_gates": [

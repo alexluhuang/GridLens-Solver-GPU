@@ -25,7 +25,7 @@ remote-controller regression is included with the tests.
 
 | Check | Evidence and source snapshot |
 |---|---|
-| CPU-only build / stock regression | All 120 sequential CTest tests passed in 71.62 s through `92a5e689`. Parallel legacy tests share files, so the final full suite is sequential. |
+| CPU-only build / stock regression | All 120 sequential CTest tests passed in 80.99 s through `e49d0084`. Parallel legacy tests share files, so the final full suite is sequential. |
 | Fresh GPU build / standards CI | All supported real architectures plus PTX built. End-to-end standards CI passed all 28 batch tests in 26.94 s through `e49d0084`. Current analysis has 360 clang-tidy and eight cppcheck findings, below the recorded baseline; there are zero new-code compiler warnings and no increased findings. This does not grant maintainer approval of exceptions. |
 | Comparison tools | Nine quality-audit regressions and thirteen output-comparison regressions pass. Native NVCC warning syntax is counted; equal rows still undergo shape, key and duplicate checks. |
 | Final case records | `e49d0084` records CPU/GPU status, iterations, mismatch and final PV/PQ counts before cleanup. Unsolved cases do not inherit another case's history. All eligible IEEE118 cases and the remote-controller regression pass explicit PV/PQ membership and reporting checks on three backends. |
@@ -34,7 +34,7 @@ remote-controller regression is included with the tests.
 | Restoration regression | Three backends pass the included two-case remote-controller regression. The old code lost a PV bus and differed by 0.0181 pu. Corrected voltage/angle errors are below 1e-15. A 65-case 10k reproduction also passes. |
 | MPI / completeness | Two/four reporting ranks and two accelerator ranks on one visible GPU pass. Ordered output reconciliation detects missing, duplicate and unexpected event indices. Every generated case must have an outcome. |
 | Optional loading | Absent/disabled blocks, missing GPU/plugin, invalid settings and explicitly required acceleration are tested. `ca.x` itself has no CUDA/cuDSS dependency. |
-| Installation / images | The installed executable and separately rebuilt CA example both used cuDSS successfully through `92a5e689`, with 231 converged GPU cases and zero swap pages. The rebuilt example outside the installation prefix uses `GRIDPACK_BATCHPF_PLUGIN_PATH`. A refreshed CPU image imported its Python bindings and passed serial no-plugin fallback with unchanged output. Images are being refreshed for `92a5e689`; the earlier GPU image passed IEEE118/cuDSS with four ranks and exact sets. |
+| Installation / images | The installed executable and separately rebuilt CA example both pass four-rank IEEE118/cuDSS CSV parity, exact PV/PQ sets and final-state reporting through `e49d0084`. The rebuilt example outside the installation prefix uses `GRIDPACK_BATCHPF_PLUGIN_PATH`. Earlier CPU/GPU image runtime checks passed; both images are being refreshed for the final reporting code. |
 | Memory checking | Final GPU kernels through `18f15bca` passed Compute Sanitizer memcheck with zero errors. Subsequent changes affect host telemetry and the Python comparator, not kernels. |
 
 ## Full-study evidence and the fidelity problem
@@ -95,6 +95,19 @@ Texas Alg2 oracle also passes its full CSV and exact shadow comparisons.
 source snapshots and timing context. It includes the failed default-order
 studies as well as passes. Their shadow-heavy timings are not production
 throughput figures.
+
+Final reporting checks at `e49d0084` also pass full Polish/Alg2 and
+Memphis/cuDSS CSV studies, all eligible shadows and explicit PV/PQ sets.
+They cover all 4,198 and 1,570 case records, including CPU-only and retry
+paths. Polish's 4,026 converged numerical solutions are labeled
+`SLACK_OVERLOAD` by both stock and batch; a parity pass does not mean the
+grid has sufficient slack capacity. Memphis has 1,387 `OK`, five
+`SLACK_OVERLOAD`, 177 `DIVERGED` and one `ISLANDED` outcomes on both paths.
+Maximum shadow differences are 2.028e-12 / 9.219e-13 pu/rad for Polish
+and 2.146e-12 / 1.013e-12 for Memphis. A 65-case 10k sample and the two
+independent Texas cases also pass new reported-state and exact PQ checks.
+Their small summaries are appended to `study-evidence.jsonl`. These samples
+do not replace the full large-grid CSV comparisons still running.
 
 ## Output comparison rules
 

@@ -98,5 +98,8 @@
       "occupancy_percent": 92.773492,
       "registers_per_thread": 40.0
     }
-  ]
+  ],
+  "profiler_version": "2025.3.0.0 build 36273991",
+  "available_dram_metric_count": 0,
+  "metric_query_command": "ncu --query-metrics on GB10 with the approved container capability"
 }
