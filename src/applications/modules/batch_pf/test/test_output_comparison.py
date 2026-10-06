@@ -7,7 +7,34 @@ import tempfile
 import unittest
 import sys
 
-from run_ca_test import equivalent_voltage_tie
+from run_ca_test import compare_table, equivalent_voltage_tie
+
+
+class TableComparisonTests(unittest.TestCase):
+    def compare(self, left, right):
+        with tempfile.TemporaryDirectory() as directory:
+            a, b = Path(directory) / "a", Path(directory) / "b"
+            for target, data in ((a, left), (b, right)):
+                target.mkdir()
+                with (target / "table.csv").open("w") as stream:
+                    csv.writer(stream).writerows([["event_idx", "bus", "voltage"], *data])
+            errors = []
+            compare_table(a, b, "table.csv", 2, 1e-3, errors)
+            return errors
+
+    def test_equal_rows_and_small_rounding_pass(self):
+        rows = [[1, 2, 1.0], [1, 3, 0.98]]
+        self.assertEqual(self.compare(rows, rows), [])
+        self.assertEqual(self.compare(rows, [[1, 2, 1.0001], [1, 3, 0.98]]), [])
+
+    def test_changed_voltage_or_element_fails(self):
+        self.assertTrue(self.compare([[1, 2, 1.0]], [[1, 2, 1.01]]))
+        self.assertTrue(self.compare([[1, 2, 1.0]], [[1, 3, 1.0]]))
+
+    def test_equal_malformed_or_duplicate_rows_fail(self):
+        self.assertTrue(self.compare([[1, 2]], [[1, 2]]))
+        rows = [[1, 2, 1.0], [1, 2, 1.0]]
+        self.assertTrue(self.compare(rows, rows))
 
 
 class VoltageTieTests(unittest.TestCase):

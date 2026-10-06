@@ -154,9 +154,12 @@ def compare_table(a, b, name, nkey, tol, errors):
                 errors.append("%s: different elements in event %s" % (name, left[0]))
                 continue
             for key in ka:
-                if len(ka[key]) != len(kb[key]) or len(ka[key]) != len(ha):
+                left_row, right_row = ka[key], kb[key]
+                if len(left_row) != len(right_row) or len(left_row) != len(ha):
                     errors.append(name + ": column count differs")
-                for x, y in zip(ka[key], kb[key]):
+                if left_row == right_row:
+                    continue
+                for x, y in zip(left_row, right_row):
                     if x == y:
                         continue
                     try:
