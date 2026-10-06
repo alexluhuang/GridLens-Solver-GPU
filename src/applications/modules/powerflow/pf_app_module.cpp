@@ -239,14 +239,16 @@ void gridpack::powerflow::PFAppModule::readNetwork(
 #else
     try {
       parser.parse(filename.c_str());
-    } catch (const gridpack::Exception e) {
+    } catch (const gridpack::Exception &e) {
       std::string w(e.what());
       if (!p_no_print) {
-        char ebuf[512];
-        sprintf(ebuf,"p[%d] unable to open network file: %s with error: %s\n",
-            filename.c_str(),w.c_str());
+        // The error text has no length limit, so do not format it into a
+        // fixed-size buffer
+        std::string msg = "p[" + std::to_string(p_comm.rank()) +
+          "] unable to open network file: " + filename +
+          " with error: " + w + "\n";
         if (p_comm.rank() == 0) {
-          printf("%s",ebuf);
+          printf("%s",msg.c_str());
         }
       }
       timer->stop(t_total);
@@ -583,13 +585,15 @@ bool gridpack::powerflow::PFAppModule::solve()
     timer->start(t_lsolv);
     try {
       solver.solve(*PQ, *X);
-    } catch (const gridpack::Exception e) {
+    } catch (const gridpack::Exception &e) {
       std::string w(e.what());
       if (!p_no_print) {
-        sprintf(ioBuf,"p[%d] hit exception: %s\n",
-            p_network->communicator().rank(),
-            w.c_str());
-        p_busIO->header(ioBuf);
+        // The solver error text (e.g. a PETSc traceback) is far longer
+        // than ioBuf, so build the message as a string
+        std::string msg = "p[" +
+          std::to_string(p_network->communicator().rank()) +
+          "] hit exception: " + w + "\n";
+        p_busIO->header(msg.c_str());
         p_busIO->header("Solver failure\n\n");
       }
       timer->stop(t_lsolv);
@@ -648,13 +652,15 @@ bool gridpack::powerflow::PFAppModule::solve()
       X->zero();
       try {
         solver.solve(*PQ, *X);
-      } catch (const gridpack::Exception e) {
+      } catch (const gridpack::Exception &e) {
         std::string w(e.what());
         if (!p_no_print) {
-          sprintf(ioBuf,"p[%d] hit exception: %s\n",
-              p_network->communicator().rank(),
-              w.c_str());
-          p_busIO->header(ioBuf);
+          // The solver error text (e.g. a PETSc traceback) is far longer
+          // than ioBuf, so build the message as a string
+          std::string msg = "p[" +
+            std::to_string(p_network->communicator().rank()) +
+            "] hit exception: " + w + "\n";
+          p_busIO->header(msg.c_str());
           p_busIO->header("Solver failure\n\n");
         }
         timer->stop(t_lsolv);
