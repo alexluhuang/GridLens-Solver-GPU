@@ -48,8 +48,7 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
   <Contingency_analysis>
     <printCalcFiles>false</printCalcFiles>
     <writeStats>false</writeStats>
-    <FullBranchN1>true</FullBranchN1>
-    <FullGeneratorN1>true</FullGeneratorN1>
+{contingencies}
     <qlim>true</qlim>
     <outputFormat>{output_format}</outputFormat>
 {gpu}  </Contingency_analysis>
@@ -71,7 +70,7 @@ FILES = ["ca_results_convergence.csv", "ca_results_delta.csv",
 
 
 def run(cax, workdir, raw, gpu_lines, solver, env=None, launcher=(),
-        execution=None, output_format="csv_delta"):
+        execution=None, output_format="csv_delta", contingency_list=None):
     os.makedirs(workdir, exist_ok=True)
     shutil.copy(raw, workdir)
     gpu = ""
@@ -82,8 +81,13 @@ def run(cax, workdir, raw, gpu_lines, solver, env=None, launcher=(),
             gpu += "    <Execution><acceleratorRanks>%s</acceleratorRanks>" \
                    "<cpuBinding>none</cpuBinding></Execution>\n" % execution
     with open(os.path.join(workdir, "input.xml"), "w") as f:
+        contingencies = "    <FullBranchN1>true</FullBranchN1>\n" \
+                        "    <FullGeneratorN1>true</FullGeneratorN1>"
+        if contingency_list:
+            shutil.copy(contingency_list, os.path.join(workdir, "contingencies.xml"))
+            contingencies = "    <contingencyList>contingencies.xml</contingencyList>"
         f.write(TEMPLATE.format(gpu=gpu, raw=os.path.basename(raw), solver=solver,
-                                output_format=output_format))
+                                output_format=output_format, contingencies=contingencies))
     e = dict(os.environ)
     if env:
         e.update(env)
@@ -105,10 +109,16 @@ def rows(path):
 
 
 @contextlib.contextmanager
-def event_rows(path):
+def event_rows(path, presorted=False):
     # Stock files arrive in rank order. External sorting bounds memory even
     # for a full study; Python holds only the rows of one event at a time.
-    process = subprocess.Popen(["sort", "--stable", "--field-separator=,", "--key=1,1n", path],
+    if presorted:
+        with open(path) as f:
+            reader = csv.reader(f)
+            yield next(reader), itertools.groupby(reader, lambda r: int(r[0]))
+        return
+    process = subprocess.Popen(["sort", "--stable", "--buffer-size=256M", "--parallel=1",
+                                "--field-separator=,", "--key=1,1n", path],
                                stdout=subprocess.PIPE, universal_newlines=True,
                                env=dict(os.environ, LC_ALL="C"))
     try:
@@ -126,7 +136,7 @@ def event_rows(path):
 
 def compare_table(a, b, name, nkey, tol, errors):
     with event_rows(os.path.join(a, name)) as (ha, ga), \
-            event_rows(os.path.join(b, name)) as (hb, gb):
+            event_rows(os.path.join(b, name), presorted=True) as (hb, gb):
         if ha != hb:
             errors.append(name + ": header differs")
             return
@@ -161,7 +171,8 @@ def compare_table(a, b, name, nkey, tol, errors):
             errors.append("%s: numbers differ by up to %g" % (name, worst))
 
 
-def compare(a, b, tol, errors, allow_unsolved=True):
+def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
+            allow_iteration_differences=False):
     """Compare the outputs of two run directories"""
     # convergence: status and iterations equal (except unsolved cases)
     ca = {r[0]: r for r in rows(os.path.join(a, FILES[0]))[1:]}
@@ -176,10 +187,13 @@ def compare(a, b, tol, errors, allow_unsolved=True):
             errors.append("case %s status %s vs %s" % (k, x[10], y[10]))
         elif x[10] in ("ISLANDED", "NO_SLACK") and allow_unsolved:
             continue
-        elif x[4] != y[4] and x[10] != "DIVERGED":
+        elif x[4] != y[4] and x[10] != "DIVERGED" and not allow_iteration_differences:
             errors.append("case %s iterations %s vs %s" % (k, x[4], y[4]))
     # tables: same rows, numbers within tol
-    for name, nkey in ((FILES[1], 6), (FILES[2], 4), (FILES[4], 1)):
+    tables = [(FILES[2], 4), (FILES[4], 1)]
+    if output_format == "csv_delta":
+        tables.append((FILES[1], 6))
+    for name, nkey in tables:
         compare_table(a, b, name, nkey, tol, errors)
     with open(os.path.join(a, FILES[3])) as f, open(os.path.join(b, FILES[3])) as g:
         def same(x, y):
@@ -190,7 +204,32 @@ def compare(a, b, tol, errors, allow_unsolved=True):
             if isinstance(x, (int, float)) and isinstance(y, (int, float)):
                 return abs(x - y) <= tol
             return x == y
-        if not same(json.load(f), json.load(g)):
+        left, right = json.load(f), json.load(g)
+        worst_a, worst_b = left.get("worst_loading") or {}, right.get("worst_loading") or {}
+        if (worst_a.get("contingency") != worst_b.get("contingency")
+                and same({k: v for k, v in worst_a.items() if k != "contingency"},
+                         {k: v for k, v in worst_b.items() if k != "contingency"})):
+            # GridPACK retains the first strict maximum in completion
+            # order. Accept a different name only if BOTH selected cases
+            # attain that same reported maximum in BOTH violation tables.
+            candidates = {worst_a["contingency"], worst_b["contingency"]}
+            element = "%s-%s-%s" % (worst_a["from_bus"], worst_a["to_bus"],
+                                     worst_a["circuit_id"])
+            tied = True
+            for directory in (a, b):
+                found = set()
+                with open(os.path.join(directory, FILES[2])) as table:
+                    for row in csv.DictReader(table):
+                        if (row["type"] == "branch" and row["element"] == element
+                                and row["contingency"] in candidates
+                                and abs(float(row["loading_percent"]) -
+                                        worst_a["loading_percent"]) <= tol):
+                            found.add(row["contingency"])
+                tied = tied and found == candidates
+            if tied:
+                print("Equivalent worst-loading tie:", sorted(candidates), element)
+                worst_b["contingency"] = worst_a["contingency"]
+        if not same(left, right):
             errors.append("summary JSON differs")
 
 
@@ -201,8 +240,10 @@ def identical(a, b, errors):
                 errors.append("%s differs from the stock run" % name)
 
 
-def ordered(workdir, errors):
+def ordered(workdir, errors, output_format="csv_delta"):
     for name in (FILES[0], FILES[1], FILES[2], FILES[4]):
+        if name == FILES[1] and output_format != "csv_delta":
+            continue
         previous = -1
         with open(os.path.join(workdir, name)) as f:
             reader = csv.reader(f)
@@ -255,12 +296,21 @@ def main():
     ap.add_argument("--stock-cax")
     ap.add_argument("--expect-batch-at-most", type=int)
     ap.add_argument("--require-shadow-sets", action="store_true")
+    ap.add_argument("--output-format", choices=("csv_delta", "text"), default="csv_delta")
+    ap.add_argument("--warm-start", choices=("raw", "base_case"))
+    ap.add_argument("--shadow-fraction", type=float)
+    ap.add_argument("--contingency-list", help="Optional existing XML list for a repeatable sample")
     args = ap.parse_args()
     errors = []
     if args.ranks < 1:
         ap.error("--ranks must be positive")
     launcher = [args.mpiexec, "--bind-to", "none", "-n", str(args.ranks)] if args.ranks > 1 else []
-    invoke = functools.partial(run, launcher=launcher, execution=args.accelerator_ranks)
+    if args.output_format != "csv_delta" and args.mode != "benchmark":
+        ap.error("--output-format=text is for benchmark mode; parity tests compare the full tables")
+    if args.shadow_fraction is not None and not 0 <= args.shadow_fraction <= 1:
+        ap.error("--shadow-fraction must be between zero and one")
+    invoke = functools.partial(run, launcher=launcher, execution=args.accelerator_ranks,
+                               output_format=args.output_format, contingency_list=args.contingency_list)
     stock = os.path.join(args.workdir, "stock")
     code, _ = invoke(args.stock_cax or args.cax, stock, args.raw, None, args.solver)
     if code != 0:
@@ -268,25 +318,46 @@ def main():
         print("failure detected")
         return 1
     test = os.path.join(args.workdir, args.mode)
-    if args.mode == "parity":
+    if args.mode in ("parity", "benchmark"):
+        # The same initial state makes stock iteration records comparable.
+        # A production warm start can be benchmarked explicitly.
+        warm_start = args.warm_start or "raw"
+        fraction = args.shadow_fraction if args.shadow_fraction is not None else \
+                   (1.0 if args.mode == "parity" else 0.0)
         code, out = invoke(args.cax, test, args.raw,
                         ["<enabled>on</enabled>", "<onUnavailable>error</onUnavailable>",
-                         "<backend>%s</backend>" % args.backend, "<warmStart>raw</warmStart>",
-                         "<shadowFraction>1.0</shadowFraction>"] + args.gpu_setting, args.solver)
+                         "<backend>%s</backend>" % args.backend,
+                         "<warmStart>%s</warmStart>" % warm_start,
+                         "<shadowFraction>%g</shadowFraction>" % fraction] + args.gpu_setting, args.solver)
         if code != 0:
             errors.append("GPU run failed with exit code %d" % code)
         else:
-            compare(stock, test, args.tol, errors)
-            ordered(test, errors)
+            compare(stock, test, args.tol, errors, output_format=args.output_format,
+                    allow_iteration_differences=warm_start == "base_case")
+            ordered(test, errors, args.output_format)
             expected = len(rows(os.path.join(stock, FILES[4]))) - 2
             complete(test, expected, errors)
-            shadow(test, errors, args.require_shadow_sets)
+            if fraction > 0:
+                shadow(test, errors, args.require_shadow_sets)
             if args.expect_batch_at_most is not None:
                 capacities = re.findall(r"backend \w+ \([^\n]+\), batch size (\d+)", out)
                 if not capacities or any(int(b) > args.expect_batch_at_most for b in capacities):
                     errors.append("effective batch exceeds the expected admission limit")
-            if "shadow validation" not in out:
+            if fraction > 0 and "shadow validation" not in out:
                 errors.append("no shadow validation summary in the log")
+            if args.mode == "benchmark":
+                with open(os.path.join(stock, "timing.json")) as f:
+                    cpu_seconds = json.load(f)["seconds"]
+                with open(os.path.join(test, "timing.json")) as f:
+                    gpu_seconds = json.load(f)["seconds"]
+                result = {"cases": expected, "ranks": args.ranks, "raw": os.path.basename(args.raw),
+                          "output_format": args.output_format, "warm_start": warm_start,
+                          "shadow_fraction": fraction, "cpu_seconds": cpu_seconds,
+                          "gpu_seconds": gpu_seconds, "cases_per_second": expected / gpu_seconds,
+                          "speedup": cpu_seconds / gpu_seconds, "fidelity_passed": not errors}
+                with open(os.path.join(args.workdir, "benchmark.json"), "w") as f:
+                    json.dump(result, f, indent=2)
+                print(json.dumps(result, sort_keys=True))
     elif args.mode in ("no_block", "disabled"):
         lines = None if args.mode == "no_block" else ["<enabled>off</enabled>"]
         code, out = invoke(args.cax, test, args.raw, lines, args.solver)

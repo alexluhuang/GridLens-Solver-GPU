@@ -400,6 +400,9 @@ if (GRIDPACK_ENABLE_TESTS)
           ${Python3_EXECUTABLE} ${runner} --cax $<TARGET_FILE:ca.x> --raw ${raw}
           --workdir ${work}/${case_name}_${b} --mode parity --require-shadow-sets --backend ${b}
           --solver ${lu} --ranks 8 --mpiexec ${MPIEXEC})
+        # Full csv_delta studies can write tens of GB. Allow comparison
+        # time as well as two solves; each solver still has its own timeout.
+        set_tests_properties(batchpf.parity.external_${case_name}_${b} PROPERTIES TIMEOUT 7200)
       endforeach()
     endforeach()
   endif()

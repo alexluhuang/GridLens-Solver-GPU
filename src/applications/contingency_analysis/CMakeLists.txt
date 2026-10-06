@@ -200,3 +200,18 @@ set(TIMEOUT 120.0)
 gridpack_add_run_test("contingency_analysis" ca.x input_14.xml)
 gridpack_add_run_test("contingency_analysis_auto_n1" ca.x input_14_auto_n1.xml)
 gridpack_add_run_test("contingency_analysis_qlim" ca.x input_14_qlim.xml)
+
+# Exercise the shipped example through GridPACK's normal run-test helper.
+# Separate working directories prevent concurrent runs sharing result files.
+gridpack_add_run_test("batchpf.platform.example" ca.x
+  "${CMAKE_CURRENT_BINARY_DIR}/input_118_gpu.xml")
+foreach(kind serial parallel)
+  if (TEST batchpf.platform.example_${kind})
+    set(example_work "${CMAKE_CURRENT_BINARY_DIR}/batchpf_example_${kind}")
+    file(MAKE_DIRECTORY "${example_work}")
+    configure_file("${GRIDPACK_DATA_DIR}/raw/IEEE118.raw"
+      "${example_work}/IEEE118.raw" COPYONLY)
+    set_tests_properties(batchpf.platform.example_${kind} PROPERTIES
+      WORKING_DIRECTORY "${example_work}")
+  endif()
+endforeach()
