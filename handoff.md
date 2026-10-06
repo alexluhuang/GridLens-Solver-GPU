@@ -153,10 +153,14 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    `/work/validation-ordered/<grid>_<backend>/{stock,parity}`.
 2. Final Polish/Memphis checks finished; all four passed. Metrics are in
    `study-evidence.jsonl`. The cuDSS capped-budget check also passed.
-3. CPU/GPU images through `18f8e840` finished building. Final reporting
-   refreshes are running: sessions 31398/90061, logs
-   `/tmp/gridpack-image-{cpu,gpu}-reported-state.log`. Keep version argument
-   `n1-validation` so dependency layers stay cached. Runtime checks remain.
+3. Final reporting images finished building and runtime checks passed.
+   IDs/packages are in `image-evidence.json`; both driver hashes match current
+   source. GPU: cuDSS/four ranks, independent baseline, exact PV/PQ and final
+   state; both: default Python imports and serial fallback. CPU comparison
+   uses its own inactive loop because the older tools baseline's MPI library
+   is absent. Build logs `/tmp/gridpack-image-{cpu,gpu}-reported-state.log`;
+   runtime logs `/work/image-reported-state-*.log`. Retain version argument
+   `n1-validation` for dependency-cache reuse. No image is pushed.
 4. Isolated performance session 53554 finished all 34 trials successfully.
    Full Polish N-1, text output, zero shadows, two trials per setting;
    raw starts except explicitly tagged base-case trials. Results are in

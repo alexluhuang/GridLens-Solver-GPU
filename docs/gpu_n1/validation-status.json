@@ -198,6 +198,15 @@
       "activsg10k_cases": 65,
       "texas_independent_cases": 2,
       "full_csv_and_exact_pv_pq": true
+    },
+    "final_arm64_image_checks": {
+      "passed": true,
+      "snapshot": "e49d0084",
+      "manifest": "image-evidence.json",
+      "gpu_independent_ieee118_parity": true,
+      "python_imports": true,
+      "serial_fallback": true,
+      "cuda_free_executable": true
     }
   },
   "failed_or_open": {
@@ -232,12 +241,11 @@
     }
   },
   "in_progress": [
-    "ordered full Texas cuDSS and 10k comparisons resumed",
-    "final CPU/GPU image builds"
+    "ordered full Texas cuDSS and 10k comparisons"
   ],
   "remaining": [
-    "image runtime checks",
-    "final validation evidence and handoff"
+    "final validation evidence and handoff",
+    "user decision on the original program cleanup defect; explanatory question pending"
   ],
   "external_gates": [
     "PORT-1 second Arm/NVIDIA profile",

@@ -1,0 +1,58 @@
+{
+  "platform": "arm64",
+  "amd64_runtime_tested": false,
+  "images": [
+    {
+      "tag": "alh360/gridpack-n1-validation:cpu",
+      "image_id": "sha256:073a5ddc7777068a679e9a216c5346331fff762893cbb2c2fefb0d62b5652015",
+      "architecture": "arm64",
+      "cmd": [
+        "/bin/bash"
+      ],
+      "entrypoint": null,
+      "source_driver_sha256": "21f3386888ca6aa3c83823618b773fa00471537ce16d281a28ed597c5b3954ff",
+      "solver_source": "e49d0084",
+      "build_passed": true,
+      "default_python_import_passed": true,
+      "cuda_free_ca_executable": true,
+      "runtime": {
+        "serial_no_plugin_fallback": true,
+        "comparison": "Same image's inactive GridPACK loop; tools baseline needs libmpi_cxx.so.40 absent from this image."
+      },
+      "packages": {
+        "gcc": "4:15.2.0-4ubuntu1",
+        "cmake": "3.31.6-2ubuntu6"
+      }
+    },
+    {
+      "tag": "alh360/gridpack-n1-validation:gpu",
+      "image_id": "sha256:9db3895c7cad9d6215cff9c8727416103d06eff0ee89d402ec8b74928abc177c",
+      "architecture": "arm64",
+      "cmd": [
+        "/bin/bash"
+      ],
+      "entrypoint": [
+        "/opt/nvidia/nvidia_entrypoint.sh"
+      ],
+      "source_driver_sha256": "21f3386888ca6aa3c83823618b773fa00471537ce16d281a28ed597c5b3954ff",
+      "solver_source": "e49d0084",
+      "build_passed": true,
+      "default_python_import_passed": true,
+      "cuda_free_ca_executable": true,
+      "runtime": {
+        "ieee118_cudss_ranks": 4,
+        "independent_stock_comparison": true,
+        "exact_pv_pq_sets": true,
+        "reported_state_checked": true,
+        "no_gpu_serial_fallback": true
+      },
+      "packages": {
+        "gcc": "4:13.2.0-7ubuntu1",
+        "cmake": "3.28.3-1build7",
+        "cudss": "0.8.0-1",
+        "libcudss": "0.8.0.10-1",
+        "gsl": "4.0.0-3"
+      }
+    }
+  ]
+}

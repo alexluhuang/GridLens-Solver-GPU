@@ -34,8 +34,18 @@ remote-controller regression is included with the tests.
 | Restoration regression | Three backends pass the included two-case remote-controller regression. The old code lost a PV bus and differed by 0.0181 pu. Corrected voltage/angle errors are below 1e-15. A 65-case 10k reproduction also passes. |
 | MPI / completeness | Two/four reporting ranks and two accelerator ranks on one visible GPU pass. Ordered output reconciliation detects missing, duplicate and unexpected event indices. Every generated case must have an outcome. |
 | Optional loading | Absent/disabled blocks, missing GPU/plugin, invalid settings and explicitly required acceleration are tested. `ca.x` itself has no CUDA/cuDSS dependency. |
-| Installation / images | The installed executable and separately rebuilt CA example both pass four-rank IEEE118/cuDSS CSV parity, exact PV/PQ sets and final-state reporting through `e49d0084`. The rebuilt example outside the installation prefix uses `GRIDPACK_BATCHPF_PLUGIN_PATH`. Earlier CPU/GPU image runtime checks passed; both images are being refreshed for the final reporting code. |
+| Installation / images | The installed executable, rebuilt installed example and final GPU image pass four-rank IEEE118/cuDSS CSV parity, exact PV/PQ sets and final-state reporting through `e49d0084`. Both final images import Python bindings and pass serial CPU fallback; `ca.x` has no CUDA/cuDSS dependency. IDs and package versions are in `image-evidence.json`. |
 | Memory checking | Final GPU kernels through `18f15bca` passed Compute Sanitizer memcheck with zero errors. Subsequent changes affect host telemetry and the Python comparator, not kernels. |
+
+The final CPU image's serial fallback is compared with its own unchanged
+CPU loop. The separately compiled tools baseline cannot load in that image
+because it requires the older `libmpi_cxx.so.40`; this is a library-version
+boundary, not a failed calculation. The GPU image uses the independent
+baseline for its four-rank comparison. The CUDA base retains NVIDIA's
+startup script, which forwards normal shell and application commands;
+the default CPU image has no entrypoint. No application wrapper is added.
+The rebuilt example outside the installation prefix requires
+`GRIDPACK_BATCHPF_PLUGIN_PATH` to locate the installed plugins.
 
 ## Full-study evidence and the fidelity problem
 
