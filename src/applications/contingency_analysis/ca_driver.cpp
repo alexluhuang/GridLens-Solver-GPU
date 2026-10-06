@@ -34,12 +34,14 @@
 #include "gridpack/utilities/results_exporter.hpp"
 #include "ca_driver.hpp"
 #include "ca_rows.hpp"
+#include "ca_parquet.hpp"
 #include "gridpack/applications/modules/batch_pf/host/batch_path.hpp"
 #include "gridpack/applications/modules/batch_pf/host/reconcile.hpp"
 
 #include <boost/scoped_ptr.hpp>
 #include <sstream>
 #include <iostream>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <algorithm>
@@ -48,6 +50,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <memory>
 #include <set>
 #include <vector>
 
@@ -430,15 +433,30 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // Check for Q limit violations (qlim: true=enabled, false=disabled)
   bool check_Qlim = cursor->get("qlim", true);
   double qlim_deadband = cursor->get("qlimDeadband", 0.1);
-  // Output format: "text" (default), "json", "csv", "csv_flat", "csv_delta".
+  // Output format: "text" (default), "json", "csv", "csv_flat", "csv_delta",
+  // "parquet" (csv_delta's branch table as two Parquet files, ca_parquet.hpp).
   std::string outputFormat = "text";
   cursor->get("outputFormat", &outputFormat);
+  if (outputFormat == "parquet" &&
+      !gridpack::contingency_analysis::ParquetFlows::available()) {
+    if (world.rank() == 0) {
+      printf("ERROR: outputFormat='parquet' needs Parquet support, which this "
+             "ca.x was built without (Apache Arrow's Parquet C++ library). "
+             "Aborting.\n");
+    }
+    world.barrier();
+    MPI_Abort(static_cast<MPI_Comm>(world), 1);
+  }
+  // parquet mode is csv_delta mode with another writer for the branch table
+  const bool parquetOut = (outputFormat == "parquet");
+  const bool deltaRows = (outputFormat == "csv_delta" || parquetOut);
   if (outputFormat != "text" && outputFormat != "json" &&
       outputFormat != "csv"  && outputFormat != "csv_flat" &&
-      outputFormat != "csv_delta") {
+      outputFormat != "csv_delta" && !parquetOut) {
     if (world.rank() == 0) {
       printf("ERROR: unrecognized outputFormat='%s'. "
-             "Must be one of: text, json, csv, csv_flat, csv_delta. Aborting.\n",
+             "Must be one of: text, json, csv, csv_flat, csv_delta, parquet. "
+             "Aborting.\n",
              outputFormat.c_str());
     }
     world.barrier();
@@ -596,8 +614,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // (long-form one row per branch per case) and csv_delta (wide-form one
   // row per branch per case joining base and cont state). Both share the
   // bus_meta load, the buses sidecar, and the per-rank .part-file gather.
-  bool wantBusSidecar = (outputFormat == "csv_flat" ||
-                         outputFormat == "csv_delta");
+  bool wantBusSidecar = (outputFormat == "csv_flat" || deltaRows);
   struct BusMeta {
     std::string name;
     double basekv;
@@ -871,7 +888,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     double rate_a, rate_b, rate_c;
   };
   std::map<BranchKey, BranchRates> branch_rates;
-  if (outputFormat == "csv_flat" || outputFormat == "csv_delta") {
+  if (outputFormat == "csv_flat" || deltaRows) {
     int nBranch = pf_network->numBranches();
     for (int i = 0; i < nBranch; i++) {
       boost::shared_ptr<gridpack::component::DataCollection> bd =
@@ -1111,6 +1128,16 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     deltaPartPath = oss.str();
   }
   std::ofstream deltaPart;
+  // parquet: this rank's part of <outputFile>_flows.parquet
+  std::string flowsPartPath;
+  std::unique_ptr<gridpack::contingency_analysis::ParquetFlows> flowsPart;
+  if (parquetOut) {
+    std::ostringstream oss;
+    oss << outputFile << "_flows." << world.rank() << ".parquet.part";
+    flowsPartPath = oss.str();
+    flowsPart = std::make_unique<gridpack::contingency_analysis::ParquetFlows>(
+        flowsPartPath, world.rank());
+  }
   size_t deltaRowCount = 0;
   size_t deltaSkipCount = 0;
 
@@ -1168,6 +1195,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   std::vector<RowBranch> rowBranches;
   std::vector<BaseFlow> rowBase;
   std::map<BranchKey, int> rowBaseIndex;
+  std::vector<BranchKey> rowBaseKey;   // key of each rowBase entry
   std::vector<CircuitFlow> rowCircuits;
   RowText rowText;
   bool rowsPrepared = false;
@@ -1408,6 +1436,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       if (it == rowBaseIndex.end()) {
         rowBaseIndex[k] = static_cast<int>(rowBase.size());
         rowBase.push_back(bf);
+        rowBaseKey.push_back(k);
       } else {
         rowBase[it->second] = bf;
       }
@@ -1431,7 +1460,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
                               const gridpack::powerflow::Contingency &evt,
                               bool emit) {
     if (!emit || task_comm.rank() != 0) return;
-    if (!deltaPart.is_open()) {
+    if (!parquetOut && !deltaPart.is_open()) {
       deltaPart.open(deltaPartPath.c_str(), std::ios::out | std::ios::trunc);
       deltaPart << std::fixed;
     }
@@ -1476,6 +1505,14 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       // Across-branch drop, same convention as the angle deltas above.
       double d_v_b    = bf.v_from_pu - bf.v_to_pu;
       double d_v_c    = v_from_c - v_to_c;
+      if (parquetOut) {
+        // The same values; the base-case columns are in _branches.parquet
+        // and the differences are differences of stored columns
+        flowsPart->add(event_idx, slot, p, q, cont_mva, cont_loading,
+                       v_from_c, v_to_c, a_from_c, a_to_c);
+        deltaRowCount++;
+        continue;
+      }
       rowText.add(event_idx).add(',').add(ct_name).add(',').add(type_str).add(',')
              .add(rb.from).add(',').add(rb.to).add(',').add(rb.ckt).add(',')
              .fixed(bf.base_kv_from, 2).add(',')
@@ -1506,7 +1543,11 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
              .add('\n');
       deltaRowCount++;
     }
-    deltaPart.write(rowText.str().data(), static_cast<std::streamsize>(rowText.str().size()));
+    if (parquetOut) {
+      flowsPart->endCase();
+    } else {
+      deltaPart.write(rowText.str().data(), static_cast<std::streamsize>(rowText.str().size()));
+    }
   };
 
   timer->start(t_base);
@@ -1627,9 +1668,45 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     // the base case isn't duplicated in the final file.
     captureFlatRows(0, std::string("base_case"), world.rank() == 0, true);
   }
-  if (outputFormat == "csv_delta") {
+  if (deltaRows) {
     // Cache base-case branch state on every rank for the contingency join.
     populateBaseCache();
+  }
+  if (parquetOut && world.rank() == 0) {
+    // The base-case columns of csv_delta, once per branch; flows rows refer
+    // to them by branch_id (the position in this table)
+    std::vector<gridpack::contingency_analysis::ParquetBranchRow> table;
+    for (size_t s = 0; s < rowBase.size(); s++) {
+      const BaseFlow &bf = rowBase[s];
+      gridpack::contingency_analysis::ParquetBranchRow r;
+      r.branch_id = static_cast<int32_t>(s);
+      r.from_bus = rowBaseKey[s].from;
+      r.to_bus = rowBaseKey[s].to;
+      r.ckt = rowBaseKey[s].ckt;
+      r.base_kv_from = bf.base_kv_from;
+      r.base_kv_to = bf.base_kv_to;
+      r.area_from = bf.area_from;
+      r.area_to = bf.area_to;
+      r.base_rate_mva = bf.base_rate;
+      r.cont_rate_mva = bf.cont_rate;
+      r.base_p_mw = bf.p_mw;
+      r.base_q_mvar = bf.q_mvar;
+      r.base_mva = bf.mva;
+      r.base_loading_pct = bf.loading_pct;
+      r.v_from_base = bf.v_from_pu;
+      r.v_to_base = bf.v_to_pu;
+      r.ang_from_base = bf.ang_from_deg;
+      r.ang_to_base = bf.ang_to_deg;
+      table.push_back(r);
+    }
+    const std::string path = outputFile + "_branches.parquet";
+    try {
+      gridpack::contingency_analysis::ParquetFlows::writeBranches(path, table);
+    } catch (const std::exception &e) {
+      printf("ERROR: %s\n", e.what());
+      MPI_Abort(static_cast<MPI_Comm>(world), 1);
+    }
+    printf("[parquet] wrote %zu rows to %s\n", table.size(), path.c_str());
   }
 
   timer->stop(t_base);
@@ -2325,7 +2402,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         if (outputFormat == "csv_flat") {
           captureFlatRows(task_id + 1, events[task_id].p_name, true, false);
         }
-        if (outputFormat == "csv_delta") {
+        if (deltaRows) {
           captureDeltaRows(task_id + 1, events[task_id], true);
         }
         timer->stop(t_case_rows);
@@ -2556,6 +2633,98 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   if (outputFormat == "csv_delta") {
     if (deltaPart.is_open()) deltaPart.close();
   }
+  if (parquetOut) {
+    // Every rank writes one consecutive range of events, taken from all
+    // ranks' part files, to <outputFile>_flows/part-<rank>.parquet. Reading
+    // the files in name order gives event order (guide R5), and the
+    // compression runs on all ranks at once.
+    using gridpack::contingency_analysis::ParquetFlows;
+    const MPI_Comm comm = static_cast<MPI_Comm>(world);
+    std::vector<long long> local;
+    try {
+      flowsPart->close();
+      for (const ParquetFlows::RowGroup &g : flowsPart->rowGroups()) {
+        local.push_back(g.event_idx);
+        local.push_back(g.part);
+        local.push_back(g.index);
+        local.push_back(g.rows);
+      }
+    } catch (const std::exception &e) {
+      printf("ERROR: %s\n", e.what());
+      MPI_Abort(comm, 1);
+    }
+    int nlocal = static_cast<int>(local.size());
+    std::vector<int> counts(world.size()), displs(world.size(), 0);
+    MPI_Allgather(&nlocal, 1, MPI_INT, counts.data(), 1, MPI_INT, comm);
+    for (int p = 1; p < world.size(); p++) displs[p] = displs[p - 1] + counts[p - 1];
+    std::vector<long long> all(displs.back() + counts.back());
+    MPI_Allgatherv(local.data(), nlocal, MPI_LONG_LONG, all.data(), counts.data(),
+                   displs.data(), MPI_LONG_LONG, comm);
+    std::vector<ParquetFlows::RowGroup> groups;
+    long long totalRows = 0;
+    for (size_t k = 0; k + 3 < all.size(); k += 4) {
+      ParquetFlows::RowGroup g;
+      g.event_idx = static_cast<int32_t>(all[k]);
+      g.part = static_cast<int32_t>(all[k + 1]);
+      g.index = static_cast<int32_t>(all[k + 2]);
+      g.rows = all[k + 3];
+      totalRows += g.rows;
+      groups.push_back(g);
+    }
+    // Rank order then row-group order for equal events, as gathered
+    std::stable_sort(groups.begin(), groups.end(),
+                     [](const ParquetFlows::RowGroup &a, const ParquetFlows::RowGroup &b) {
+                       return a.event_idx < b.event_idx;
+                     });
+    // Consecutive ranges of about equal rows; a case is never split
+    std::vector<ParquetFlows::RowGroup> mine;
+    const long long share = (totalRows + world.size() - 1) / std::max(1, world.size());
+    long long before = 0;
+    for (const ParquetFlows::RowGroup &g : groups) {
+      const int owner = (share > 0) ? static_cast<int>(std::min<long long>(
+                                          before / share, world.size() - 1)) : 0;
+      if (owner == world.rank()) mine.push_back(g);
+      before += g.rows;
+    }
+    std::vector<std::string> parts;
+    for (int p = 0; p < world.size(); p++) {
+      std::ostringstream oss;
+      oss << outputFile << "_flows." << p << ".parquet.part";
+      parts.push_back(oss.str());
+    }
+    const std::string flowsDir = outputFile + "_flows";
+    if (world.rank() == 0) {
+      // A fresh directory: remove part files of an earlier run
+      std::error_code ec;
+      std::filesystem::create_directories(flowsDir, ec);
+      for (const auto &entry : std::filesystem::directory_iterator(flowsDir, ec)) {
+        const std::string name = entry.path().filename().string();
+        if (name.rfind("part-", 0) == 0 && entry.path().extension() == ".parquet") {
+          std::filesystem::remove(entry.path(), ec);
+        }
+      }
+    }
+    world.sync();
+    long written = 0;
+    if (!mine.empty()) {
+      char name[32];
+      std::snprintf(name, sizeof(name), "/part-%05d.parquet", world.rank());
+      try {
+        written = ParquetFlows::writeRange(parts, mine, flowsDir + name);
+      } catch (const std::exception &e) {
+        printf("ERROR: %s\n", e.what());
+        MPI_Abort(comm, 1);
+      }
+    }
+    world.sync();
+    std::remove(flowsPartPath.c_str());
+    long files = mine.empty() ? 0 : 1;
+    world.sum(&written, 1);
+    world.sum(&files, 1);
+    if (world.rank() == 0) {
+      printf("[parquet] wrote %ld rows to %s/ (%ld files)\n", written, flowsDir.c_str(), files);
+    }
+  }
   if (wantBusSidecar) {
     world.sync();
     if (world.rank() == 0) {
@@ -2706,13 +2875,13 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   }
 
   // Aggregate skip count across ranks for diagnostics.
-  if (outputFormat == "csv_delta") {
+  if (deltaRows) {
     long localSkip = static_cast<long>(deltaSkipCount);
     long totalSkip = localSkip;
     world.sum(&totalSkip, 1);
     if (world.rank() == 0 && totalSkip > 0) {
-      printf("[csv_delta] %ld branch rows had no base-cache match\n",
-             totalSkip);
+      printf("[%s] %ld branch rows had no base-cache match\n",
+             outputFormat.c_str(), totalSkip);
     }
   }
 

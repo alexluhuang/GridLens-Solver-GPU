@@ -20,7 +20,12 @@ ARG petsc_version=3.24.2
 #   CUDA_ARCHITECTURES         GPU code targets; "all" = every supported GPU
 #                              plus PTX for newer ones
 #   CUDSS_APT_PACKAGE          cuDSS package from NVIDIA's repository
+#   GRIDPACK_ENABLE_PARQUET    OFF or ON: outputFormat=parquet, using Apache
+#                              Arrow's Parquet library from Apache's apt
+#                              repository (Ubuntu releases it publishes,
+#                              e.g. 24.04; not the default questing base)
 ARG GRIDPACK_ENABLE_GPU_BATCH=OFF
+ARG GRIDPACK_ENABLE_PARQUET=OFF
 ARG CUDA_ARCHITECTURES=all
 ARG CUDSS_APT_PACKAGE=cudss
 ARG GRIDPACK_BUILD_TYPE=Debug
@@ -68,6 +73,22 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ "${GRIDPACK_ENABLE_GPU_BATCH}" != "OFF" ]; then \
       apt-get update && \
       apt-get install -y --no-install-recommends ${CUDSS_APT_PACKAGE} libmsgsl-dev; \
+    fi
+
+# Apache Arrow's Parquet library for outputFormat=parquet, only if requested.
+# Apache's repository package adds its signed apt source for this release.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    if [ "${GRIDPACK_ENABLE_PARQUET}" = "ON" ]; then \
+      apt-get update && \
+      apt-get install -y --no-install-recommends ca-certificates lsb-release && \
+      release="$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb" && \
+      wget -q -O /tmp/apache-arrow.deb "https://packages.apache.org/artifactory/arrow/${release}" || \
+        { echo "Apache publishes no Arrow packages for this base image (${release})"; exit 1; } && \
+      apt-get install -y --no-install-recommends /tmp/apache-arrow.deb && \
+      rm /tmp/apache-arrow.deb && \
+      apt-get update && \
+      apt-get install -y --no-install-recommends libparquet-dev; \
     fi
 
 # Compile/Install Boost
@@ -142,6 +163,7 @@ RUN cmake -Wdev -D GA_DIR:STRING=${ga_gp_dir} \
     -D BUILD_SHARED_LIBS=true \
     -D CMAKE_CXX_FLAGS_DEBUG:STRING="-D_GLIBCXX_NO_ASSERTIONS" \
     -D GRIDPACK_ENABLE_GPU_BATCH:STRING=${GRIDPACK_ENABLE_GPU_BATCH} \
+    -D GRIDPACK_ENABLE_PARQUET:STRING=${GRIDPACK_ENABLE_PARQUET} \
     -D CMAKE_CUDA_ARCHITECTURES:STRING=${CUDA_ARCHITECTURES} \
     ..
 RUN make install

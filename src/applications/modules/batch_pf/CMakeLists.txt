@@ -353,6 +353,12 @@ if (GRIDPACK_ENABLE_TESTS)
         --cax $<TARGET_FILE:ca.x> --raw ${raw14} --workdir ${work}/${mode}
         --mode ${mode} --solver ${lu} --ranks 1)
     endforeach()
+    # outputFormat=parquet holds exactly csv_delta's rows (skipped without
+    # Parquet support in ca.x or without pyarrow)
+    batchpf_add_test(batchpf.platform.parquet_cpu ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_parquet_output.py --cax $<TARGET_FILE:ca.x>
+      --raw ${raw118} --workdir ${work}/parquet_cpu --solver ${lu})
+    set_tests_properties(batchpf.platform.parquet_cpu PROPERTIES SKIP_RETURN_CODE 77)
     foreach(fmt csv_delta text)
       batchpf_add_test(batchpf.platform.no_block_${fmt} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/no_block_${fmt}
@@ -381,6 +387,14 @@ if (GRIDPACK_ENABLE_TESTS)
         --contingency-list ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.xml
         --workdir ${work}/remote_fallback_${b} --ranks 1
         --mode parity --require-shadow-sets --require-reported-state --backend ${b} --solver ${lu})
+      # Two runs must agree to the last digit, which needs a repeatable backend
+      if (NOT b STREQUAL "cudss")
+        batchpf_add_test(batchpf.parity.parquet_${b} ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_parquet_output.py --cax $<TARGET_FILE:ca.x>
+          --raw ${raw118} --workdir ${work}/parquet_${b} --solver ${lu}
+          --gpu-setting "<enabled>on</enabled>" --gpu-setting "<backend>${b}</backend>")
+        set_tests_properties(batchpf.parity.parquet_${b} PROPERTIES SKIP_RETURN_CODE 77)
+      endif()
     endforeach()
     if (NOT GRIDPACK_BATCHPF_HAVE_CUDA)
       batchpf_add_test(batchpf.platform.cpu_only_ieee118 ${Python3_EXECUTABLE} ${runner}

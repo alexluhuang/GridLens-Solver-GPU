@@ -51,11 +51,32 @@ endif()
 add_executable(ca.x
    ca_driver.cpp
    ca_main.cpp
+   ca_parquet.cpp
 )
 
 # The keyword form (PRIVATE) is needed to add the batch path's host library;
 # CMake does not allow mixing it with the plain form on one target.
 target_link_libraries(ca.x PRIVATE ${target_libraries} gridpack::batchpf_host)
+
+# outputFormat=parquet needs Apache Arrow's Parquet C++ library. AUTO uses it
+# when its CMake package is found; without it ca.x is built as before and
+# rejects that format at start-up.
+set(GRIDPACK_ENABLE_PARQUET "AUTO" CACHE STRING
+  "Parquet output for contingency analysis: AUTO (if found), ON, OFF")
+set_property(CACHE GRIDPACK_ENABLE_PARQUET PROPERTY STRINGS AUTO ON OFF)
+if (NOT GRIDPACK_ENABLE_PARQUET STREQUAL "OFF")
+  find_package(Parquet CONFIG QUIET)
+  if (Parquet_FOUND)
+    message(STATUS "Contingency analysis: Parquet output enabled (Parquet ${Parquet_VERSION})")
+    target_compile_definitions(ca.x PRIVATE GRIDPACK_CA_HAVE_PARQUET=1)
+    target_link_libraries(ca.x PRIVATE Parquet::parquet_shared)
+  elseif (GRIDPACK_ENABLE_PARQUET STREQUAL "ON")
+    message(FATAL_ERROR "GRIDPACK_ENABLE_PARQUET=ON but Apache Arrow's Parquet "
+      "CMake package was not found (set Parquet_DIR or CMAKE_PREFIX_PATH)")
+  else()
+    message(STATUS "Contingency analysis: Parquet output disabled (Parquet not found)")
+  endif()
+endif()
 
 # Put some sample input in the binary directory so ca.x can run
 
@@ -187,6 +208,9 @@ install(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_driver.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_driver.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ca_parquet.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ca_parquet.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ca_rows.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/README.md
   DESTINATION share/gridpack/example/contingency_analysis
 )
