@@ -166,14 +166,14 @@ class Buffer {
     p_device.reset();
     p_pinned.reset();
     p_ptr = nullptr;
-    const std::size_t bytes = (count > 0 ? count : 1) * sizeof(T);
+    const std::size_t allocation_bytes = (count > 0 ? count : 1) * sizeof(T);
     if (kind == MemoryKind::Host) {
       p_host.assign(count > 0 ? count : 1, T());
       p_ptr = p_host.data();
     } else if (kind == MemoryKind::Device) {
       void *raw = nullptr;
       const bool pooled = memoryPoolsSupported();
-      cudaCheck(pooled ? cudaMallocAsync(&raw, bytes, stream) : cudaMalloc(&raw, bytes),
+      cudaCheck(pooled ? cudaMallocAsync(&raw, allocation_bytes, stream) : cudaMalloc(&raw, allocation_bytes),
                 "device allocation");
       p_device = std::unique_ptr<void, detail::DeviceFree>(raw, {stream, pooled});
       p_ptr = static_cast<T *>(raw);
@@ -184,7 +184,7 @@ class Buffer {
       }
     } else {
       void *raw = nullptr;
-      cudaCheck(cudaMallocHost(&raw, bytes), "cudaMallocHost");
+      cudaCheck(cudaMallocHost(&raw, allocation_bytes), "cudaMallocHost");
       p_pinned.reset(raw);
       p_ptr = static_cast<T *>(raw);
     }

@@ -80,8 +80,8 @@ bool openBackend(const std::string &dir, const std::string &name,
 BackendCaps toCaps(const batchpf_backend_caps &c)
 {
   BackendCaps b;
-  b.name = c.name;
-  b.version = c.version;
+  b.name = std::begin(c.name);
+  b.version = std::begin(c.version);
   b.max_batch = c.max_batch;
   b.validated_batch = c.validated_batch;
   b.member_masking = c.member_masking != 0;
@@ -110,8 +110,7 @@ class PluginBackend : public SolverBackend {
     c.struct_size = sizeof(c);
     check(p_api.capabilities(&c), "capabilities");
     p_caps = toCaps(c);
-    batchpf_backend_plan plan;
-    std::memset(&plan, 0, sizeof(plan));
+    batchpf_backend_plan plan{};
     plan.struct_size = sizeof(plan);
     plan.struct_version = 1;
     plan.n = setup.pattern->n_rows;

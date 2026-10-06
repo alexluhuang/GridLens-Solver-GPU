@@ -156,16 +156,16 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
     std::array<double, 4> r{};
     const int nr = bus->rhsValues(r.data());
     if (nr == 2 && !bus->getReferenceBus()) {
-      worst_f = std::max(worst_f, std::fabs(r[0] - F[2 * k]));
-      worst_f = std::max(worst_f, std::fabs(r[1] - F[2 * k + 1]));
+      worst_f = std::max(worst_f, std::fabs(r.at(0) - F[2 * k]));
+      worst_f = std::max(worst_f, std::fabs(r.at(1) - F[2 * k + 1]));
     }
     std::array<double, 4> jv{};
     const int nj = bus->diagonalJacobianValues(jv.data());
     check(nj == 4, "large layout gives 2x2 diagonal blocks");
     for (int q = 0; q < 4; q++) {
       const double mine = J[pat.diag_pos[4 * k + q]];
-      if (!close(jv[q], mine, 1e-10)) {
-        worst_d = std::max(worst_d, std::fabs(jv[q] - mine));
+      if (!close(jv.at(q), mine, 1e-10)) {
+        worst_d = std::max(worst_d, std::fabs(jv.at(q) - mine));
       }
     }
   }
@@ -182,8 +182,8 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
     sf.resize(4, 0.0);
     sr.resize(4, 0.0);
     for (int q = 0; q < 4; q++) {
-      if (nf == 4) sf[q] += f[q];
-      if (nrv == 4) sr[q] += r[q];
+      if (nf == 4) sf[q] += f.at(q);
+      if (nrv == 4) sr[q] += r.at(q);
     }
   }
   for (const auto &x : sum) {

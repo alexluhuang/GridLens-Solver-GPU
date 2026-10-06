@@ -99,8 +99,7 @@ std::size_t unpack(const char *p, CaseClass *c)
 
 batchpf_model ModelArrays::record() const
 {
-  batchpf_model m;
-  std::memset(&m, 0, sizeof(m));
+  batchpf_model m{};
   m.struct_size = sizeof(m);
   m.struct_version = 1;
   m.n_bus = static_cast<int32_t>(bus_type.size());
@@ -132,8 +131,7 @@ batchpf_model ModelArrays::record() const
 batchpf_settings BatchPath::Impl::pluginSettings() const
 {
   const GpuBatchSettings &g = settings.gpu;
-  batchpf_settings s;
-  std::memset(&s, 0, sizeof(s));
+  batchpf_settings s{};
   s.struct_size = sizeof(s);
   s.struct_version = 1;
   s.backend = g.backend.value;

@@ -156,7 +156,7 @@ void Classifier::findBridges()
         const Frame done = f;
         stack.pop_back();
         if (!stack.empty()) {
-          Frame &parent = stack.back();
+          const Frame &parent = stack.back();
           low[parent.bus] = std::min(low[parent.bus], low[done.bus]);
           if (low[done.bus] > disc[parent.bus]) p_bridge[done.via] = 1;
         }

@@ -56,7 +56,7 @@ bool loadTable(const std::string &dir, std::unique_ptr<void, DlClose> *handle,
 {
   *file = dir + "/" + kCoreLibrary;
   if (access(file->c_str(), R_OK) != 0) {
-    *why = file->c_str();
+    *why = *file;
     *why += " not found";
     return false;
   }
@@ -189,7 +189,6 @@ int Accelerator::countDevices(const std::vector<std::string> &dirs, std::string 
       continue;
     }
     batchpf_device_info info{};
-    std::memset(&info, 0, sizeof(info));
     info.struct_size = sizeof(info);
     std::array<char, kErrorBufferSize> err{};
     if (api.probe(0, &info, err.data(), err.size()) != BATCHPF_OK) {
@@ -210,8 +209,7 @@ void Accelerator::check(batchpf_status st, const char *what)
 
 batchpf_device_info Accelerator::deviceInfo()
 {
-  batchpf_device_info info;
-  std::memset(&info, 0, sizeof(info));
+  batchpf_device_info info{};
   info.struct_size = sizeof(info);
   check(p_api.get_device_info(p_session, &info), "device info");
   return info;
@@ -246,8 +244,7 @@ bool Accelerator::wait(int64_t ticket, int timeout_ms)
 
 batchpf_diagnostics Accelerator::diagnostics()
 {
-  batchpf_diagnostics d;
-  std::memset(&d, 0, sizeof(d));
+  batchpf_diagnostics d{};
   d.struct_size = sizeof(d);
   check(p_api.get_diagnostics(p_session, &d), "diagnostics");
   return d;

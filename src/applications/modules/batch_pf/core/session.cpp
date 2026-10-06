@@ -294,7 +294,7 @@ int Session::plan(const batchpf_solver_params &params, int64_t expected_cases)
     p_info.backend = p_backend;
     p_info.batch_size = p_capacity;
     p_info.threads_per_block = p_settings.threads_per_block;
-    copyMessage(caps.version, p_info.backend_version,
+    copyMessage(caps.version, std::begin(p_info.backend_version),
                 sizeof(p_info.backend_version));
   }
   const double secs = std::chrono::duration<double>(

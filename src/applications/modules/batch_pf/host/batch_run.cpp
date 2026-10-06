@@ -350,8 +350,8 @@ void BatchPath::run(const ProcessCase &process)
       std::array<int, 4> st{};
       std::array<int, 6> hb{};
       for (const batchpf_outcome &o : ch->outcomes) {
-        st[std::max(0, std::min(3, o.status))]++;
-        for (int bit = 0; bit < 6; bit++) hb[bit] += (o.health_events >> bit) & 1;
+        st.at(std::max(0, std::min(3, o.status)))++;
+        for (int bit = 0; bit < 6; bit++) hb.at(bit) += (o.health_events >> bit) & 1;
       }
       std::ostringstream os;
       os << "GPU chunk of " << m << " cases: " << st[0] << " converged, " << st[1]
@@ -596,8 +596,7 @@ void BatchPath::finish()
   gatherRows(d.shadows, &shadow);
 
   // Plugin telemetry from each accelerator rank
-  batchpf_diagnostics mine;
-  std::memset(&mine, 0, sizeof(mine));
+  batchpf_diagnostics mine{};
   int have = 0;
   if (d.acc && !d.my_gpu_events.empty()) {
     try {
