@@ -1,3 +1,25 @@
+## Running
+
+`ca_run.sh` (installed next to `ca.x`) starts `ca.x` under MPI with a rank
+count chosen from the cores the process may use. It leaves a few cores free
+for the operating system, MPI progress and the GPU worker thread of the batch
+path:
+
+| Cores | Ranks |
+|---|---|
+| 8 or more | cores − 4 (16 on a 20-core DGX Spark) |
+| 4 to 7 | cores − 2 |
+| 1 to 3 | cores − 2, at least 1 |
+
+```bash
+ca_run.sh input.xml                  # e.g. mpiexec --bind-to none -n 16 ca.x input.xml
+GRIDPACK_CA_RANKS=8 ca_run.sh input.xml   # fixed count
+GRIDPACK_MPIEXEC=mpirun ca_run.sh input.xml
+```
+
+Use the same rank count for a CPU-only comparison run as for the GPU run:
+the GPU path uses every rank to report results.
+
 ## Configuration Options
 
 ## GPU batch path
@@ -64,7 +86,7 @@ When combined, duplicates from the file are automatically skipped.
 | `minVoltage` | Minimum voltage threshold for violations (p.u.) | 0.9 |
 | `maxVoltage` | Maximum voltage threshold for violations (p.u.) | 1.1 |
 | `qlim` | Enable reactive power limit enforcement (PV to PQ bus conversion) | false |
-| `outputFormat` | `text` / `json` / `csv` / `csv_flat` / `csv_delta` | `text` |
+| `outputFormat` | `text` / `json` / `csv` / `csv_flat` / `csv_delta` / `parquet` (see [Parquet output](#parquet-output-outputformatparquet)) | `text` |
 | `outputFile` | Base name for output files | `ca_results` |
 | `writeStats` | Emit StatBlock summary files (vmag.txt etc.). Set false to skip and avoid the per-case StatBlock work | true |
 | `contingencyRating` | Loading% denominator across every CA output: `A`, `B`, or `C` with A→B→C fallback. Default `A` matches PW / PSS/E ACCC. `base_rate_mva` always uses rate-A | `A` |
@@ -259,6 +281,53 @@ they're omitted from `_delta.csv` / `_flat.csv`.
 
 When monitor filters are active, the data-row count of `_delta.csv` /
 `_flat.csv` equals `|monitored branches| × |converged contingencies|`.
+
+### Parquet output (`outputFormat=parquet`)
+
+`parquet` holds the rows of `csv_delta` in two columnar
+[Apache Parquet](https://parquet.apache.org/) tables instead of one wide text
+file. The base-case columns, which `csv_delta` repeats on every row, are
+stored once per branch, and numbers are stored as binary doubles. For the
+full N-1 study of Texas 7k the tables took 3.7 GB, against 18 GB for
+`csv_delta`, and the run took 160 s instead of 167 s (16 ranks, GB10).
+
+**`<outputFile>_branches.parquet`**: one row per monitored branch with
+`branch_id` (int32), `from_bus`, `to_bus`, `ckt`, `base_kv_from`,
+`base_kv_to`, `area_from`, `area_to`, `base_rate_mva`, `cont_rate_mva`,
+`base_p_mw`, `base_q_mvar`, `base_mva`, `base_loading_pct`, `v_from_base`,
+`v_to_base`, `ang_from_base`, `ang_to_base`.
+
+**`<outputFile>_flows/part-NNNNN.parquet`**: one row per (contingency,
+monitored branch) with `event_idx`, `branch_id`, `cont_p_mw`, `cont_q_mvar`,
+`cont_mva`, `cont_loading_pct`, `v_from_cont`, `v_to_cont`,
+`ang_from_cont`, `ang_to_cont`. The directory is one table split into files
+of consecutive events (each rank compresses one range at the end of the
+run), so reading the files in name order gives event order. pyarrow,
+Polars, DuckDB and Spark read the directory as one table.
+
+Joining the flows on `branch_id` with the branches, and on `event_idx` with
+`_contingencies.csv`, gives `csv_delta`'s rows. The values are the doubles
+`csv_delta` prints, so rounding them as `csv_delta` does gives the same
+text; the angle and voltage differences of `csv_delta` are differences of
+stored columns. The other outputs (`_buses.csv`, `_contingencies.csv`,
+`_convergence.csv`, `_violations.csv`, `_summary.json`) are the same as
+with `csv_delta`.
+
+```python
+import pyarrow.dataset as ds, pyarrow.parquet as pq
+branches = pq.read_table("ca_results_branches.parquet")
+flows = ds.dataset("ca_results_flows").to_table()
+rows = flows.join(branches, "branch_id")
+```
+
+Final files are compressed with zstd (snappy if the Arrow build lacks zstd).
+Parquet support is optional at build time: CMake option
+`GRIDPACK_ENABLE_PARQUET` = `AUTO` (default: used if Apache Arrow's Parquet
+C++ library is found), `ON` (required) or `OFF`. Point CMake at the library
+with `Parquet_DIR` or `CMAKE_PREFIX_PATH`; on Ubuntu 24.04 it is the
+`libparquet-dev` package from Apache's apt repository. The Docker image takes
+`--build-arg GRIDPACK_ENABLE_PARQUET=ON`. A `ca.x` built without it stops at
+start-up with a clear message when `outputFormat=parquet` is requested.
 
 ### `_contingencies.csv` sidecar (every `outputFormat`)
 

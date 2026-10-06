@@ -88,12 +88,14 @@ change and its checks are described in `docs/gpu_n1/restoration.md`.
 ```
 
 ```sh
-mpiexec --bind-to none -n 8 ca.x input_118_gpu.xml
+ca_run.sh input_118_gpu.xml     # mpiexec --bind-to none -n <cores - 4> ca.x ...
 ```
 
 The launcher option permits the module's CPU placement policy to choose
-cores. Use `cpuBinding=none` to retain launcher placement. The rank count
-is a measurement choice; eight is an example, not a universal optimum.
+cores. Use `cpuBinding=none` to retain launcher placement. `ca_run.sh`
+chooses the rank count from the available cores (cores − 4 with 8 or more
+cores, otherwise cores − 2; see the contingency analysis README); on the
+20-core DGX Spark that is 16. Use the same count for CPU-only comparisons.
 
 Automatic roles select one accelerator rank per visible GPU on each node.
 Other ranks solve CPU cases and report GPU results. Accelerator workers
@@ -121,7 +123,7 @@ are input limits; memory and backend admission can lower a batch further.
 | `device` | Integer 0..1023 | 0; index among visible devices |
 | `batchSize` | `auto`, integer 1..65536 | `auto`: reference factor/solve sweep, smallest size within 5% of the best |
 | `maxValidatedBatch` | Integer 1..65536 | Backend cap: Algorithm 2 2048; cuDSS 2048 |
-| `backfill` | Boolean | `true`: refill free slots; guide's `false` was a proposal |
+| `backfill` | Boolean | `true`: refill free slots as cases finish, also from the next queued submission; guide's `false` was a proposal |
 | `threadsPerBlock` | `auto`, multiples of 32 in 32..1024 | `auto`; kernel-specific selection |
 | `memoryProfile` | `auto`, `unified`, `coherent`, `discrete` | Capability detection |
 | `memoryHeadroomGB` | Nonnegative number | 10% of shared GPU memory for unified, 5% elsewhere |
@@ -164,6 +166,39 @@ GridPACK retains ownership of tolerance, iteration limits, damping,
 reactive limits and controls. Set `qlim` explicitly in both application
 blocks when comparing runs. Current code defaults to true; the older
 contingency README table's false value does not describe the implementation.
+
+## How the engine keeps the GPU busy
+
+- **Factorization.** Algorithm 2 factors one level of independent columns
+  per launch. The last levels hold a few long columns; one thread per case
+  would work through each alone. Such levels spread every column over up
+  to 32 warps per case (enough to give each multiprocessor about 16 warps),
+  each warp taking every n-th entry of an update, with a barrier between
+  updates. Every factor entry receives the same operations in the same
+  order, so the factors are bitwise identical to one thread per case
+  (`batchpf.unit.kernels` checks this). On GB10, one factorization of 512
+  ACTIVSg10k cases fell from 511 to 92 ms and of 512 Texas 7k cases from
+  1055 to 136 ms; it now moves about as many bytes per second as the memory
+  delivers.
+- **Launch overhead.** The hundreds of launches of a factorization and of
+  a solve are recorded once as CUDA graphs and replayed each Newton step
+  (2% faster factorization, 7% faster solve on 10k at batch 512).
+- **No draining between submissions.** The host submits cases in chunks
+  of four batches. Slots freed while a chunk's slowest cases finish are
+  refilled from the next queued chunk, so the batch empties only at the end
+  of the study. Steps that need no factorization (the reactive-limit check
+  and the final update of a converged case) run at once in a small extra
+  step, so the case ends and its slot is refilled before the next full
+  step. Slot occupancy on ACTIVSg10k rose from 40% to 72%.
+- **Host round trips.** Each step still waits once for its results. The
+  measured GPU phases add up to the engine's whole time, so the waits
+  leave no measurable idle time; device-side control was not needed.
+- **cuDSS.** The matrix is given to cuDSS in the planner's KLU + AMD order
+  with cuDSS's own reordering off (10-15% faster factorization), in
+  deterministic mode (repeated runs give identical files; about 5% slower).
+  Uniform batches up to 2048 matched Algorithm 2 on the Texas 7k and
+  ACTIVSg10k Jacobians. On GB10 Algorithm 2 remains faster: at batch 512
+  on 10k, 110 ms per factorization and solve against 186 ms for cuDSS.
 
 ## Outputs and numerical checks
 
