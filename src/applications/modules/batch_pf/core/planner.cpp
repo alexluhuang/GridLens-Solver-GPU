@@ -61,12 +61,12 @@ JacobianPattern buildPattern(int n_bus, const std::vector<int> &row_start,
       p.col_idx[base0 + 2 * idx + 1] = 2 * m + 1;
       p.col_idx[base1 + 2 * idx] = 2 * m;
       p.col_idx[base1 + 2 * idx + 1] = 2 * m + 1;
-      int *pos = (e < 0) ? &p.diag_pos[4 * static_cast<std::size_t>(k)]
-                         : &p.edge_pos[4 * static_cast<std::size_t>(e)];
-      pos[0] = base0 + 2 * idx;       // (P, theta)
-      pos[1] = base1 + 2 * idx;       // (Q, theta)
-      pos[2] = base0 + 2 * idx + 1;   // (P, V)
-      pos[3] = base1 + 2 * idx + 1;   // (Q, V)
+      auto &pos = (e < 0) ? p.diag_pos : p.edge_pos;
+      const auto block = 4 * static_cast<std::size_t>(e < 0 ? k : e);
+      pos[block] = base0 + 2 * idx;       // (P, theta)
+      pos[block + 1] = base1 + 2 * idx;   // (Q, theta)
+      pos[block + 2] = base0 + 2 * idx + 1;   // (P, V)
+      pos[block + 3] = base1 + 2 * idx + 1;   // (Q, V)
     }
   }
   return p;

@@ -296,13 +296,13 @@ double Engine::timeReferenceSolve(int repetitions)
   ex.run(nnzB, Broadcast{d.ref_values.data(), d.J.data(), p_B}, "Broadcast");
   ex.run(rowsB, Broadcast{d.ref_rhs.data(), d.F.data(), p_B}, "Broadcast");
   // warm-up, then timed repetitions
-  p_backend->refactorize(d.J.data(), d.m_eval.data(), d.m_status.data());
-  p_backend->solve(d.F.data(), d.X.data(), d.m_eval.data(), d.m_status.data());
+  p_backend->refactorize(d.J.span(), d.m_eval.span(), d.m_status.span());
+  p_backend->solve(d.F.span(), d.X.span(), d.m_eval.span(), d.m_status.span());
   if (p_config.on_device) cudaCheck(cudaStreamSynchronize(p_config.stream), "sweep");
   const auto t0 = std::chrono::steady_clock::now();
   for (int r = 0; r < repetitions; r++) {
-    p_backend->refactorize(d.J.data(), d.m_eval.data(), d.m_status.data());
-    p_backend->solve(d.F.data(), d.X.data(), d.m_eval.data(), d.m_status.data());
+    p_backend->refactorize(d.J.span(), d.m_eval.span(), d.m_status.span());
+    p_backend->solve(d.F.span(), d.X.span(), d.m_eval.span(), d.m_status.span());
   }
   if (p_config.on_device) cudaCheck(cudaStreamSynchronize(p_config.stream), "sweep");
   const auto t1 = std::chrono::steady_clock::now();

@@ -286,51 +286,51 @@ class Alg2Backend : public SolverBackend {
     return c;
   }
 
-  void refactorize(const double *values, const int *mask,
-                   int *member_status) override
+  void refactorize(gsl::span<const double> values, gsl::span<const int> mask,
+                   gsl::span<int> member_status) override
   {
     const Alg2Plan p = view();
     const Executor ex(true, p_setup.stream, p_setup.threads_per_block);
     const int64_t B = p_setup.capacity;
-    ex.run(p_lu.nnz * B, ZeroFactor{p, mask}, "ZeroFactor");
-    ex.run(p_setup.pattern->nnz * B, ScatterValues{p, values, mask}, "ScatterValues");
+    ex.run(p_lu.nnz * B, ZeroFactor{p, mask.data()}, "ZeroFactor");
+    ex.run(p_setup.pattern->nnz * B, ScatterValues{p, values.data(), mask.data()}, "ScatterValues");
     for (std::size_t l = 0; l + 1 < p_lu.lev_ptr.size(); l++) {
       const int beg = p_lu.lev_ptr[l];
       const int ncols = p_lu.lev_ptr[l + 1] - beg;
       const unsigned grid = static_cast<unsigned>(ncols) * p_chunks;
       factorLevelKernel<<<grid, p_threads, 0, p_setup.stream>>>(
-          p, p_lev_cols.data() + beg, ncols, p_chunks, mask);
+          p, p_lev_cols.data() + beg, ncols, p_chunks, mask.data());
       launchCheck("factorLevelKernel");
     }
     ex.run(static_cast<int64_t>(p_lu.n) * B,
-           PivotCheck{p, mask, member_status}, "PivotCheck");
+           PivotCheck{p, mask.data(), member_status.data()}, "PivotCheck");
   }
 
-  void solve(const double *rhs, double *x, const int *mask,
-             int *member_status) override
+  void solve(gsl::span<const double> rhs, gsl::span<double> x,
+             gsl::span<const int> mask, gsl::span<int> member_status) override
   {
     if (p_setup.host_solve) {
-      solveOnHost(rhs, x, mask, member_status);
+      solveOnHost(rhs.data(), x.data(), mask.data(), member_status.data());
       return;
     }
     const Alg2Plan p = view();
     const int64_t B = p_setup.capacity;
     const int64_t nB = static_cast<int64_t>(p_lu.n) * B;
     const Executor ex(true, p_setup.stream, p_setup.threads_per_block);
-    ex.run(nB, PermuteIn{p, rhs, mask}, "PermuteIn");
+    ex.run(nB, PermuteIn{p, rhs.data(), mask.data()}, "PermuteIn");
     for (std::size_t l = 0; l + 1 < p_lu.llev_ptr.size(); l++) {
       const int beg = p_lu.llev_ptr[l];
       const int cnt = p_lu.llev_ptr[l + 1] - beg;
       ex.run(static_cast<int64_t>(cnt) * B,
-             ForwardRows{p, p_llev_rows.data() + beg, mask}, "ForwardRows");
+             ForwardRows{p, p_llev_rows.data() + beg, mask.data()}, "ForwardRows");
     }
     for (std::size_t l = 0; l + 1 < p_lu.ulev_ptr.size(); l++) {
       const int beg = p_lu.ulev_ptr[l];
       const int cnt = p_lu.ulev_ptr[l + 1] - beg;
       ex.run(static_cast<int64_t>(cnt) * B,
-             BackwardRows{p, p_ulev_rows.data() + beg, mask}, "BackwardRows");
+             BackwardRows{p, p_ulev_rows.data() + beg, mask.data()}, "BackwardRows");
     }
-    ex.run(nB, PermuteOut{p, x, mask, member_status}, "PermuteOut");
+    ex.run(nB, PermuteOut{p, x.data(), mask.data(), member_status.data()}, "PermuteOut");
   }
 
  private:

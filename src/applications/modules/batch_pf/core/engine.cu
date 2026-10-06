@@ -273,10 +273,10 @@ void Engine::step()
       ex.run(eB, JacobianEdge{m, w, d.edge_row.data()}, "JacobianEdge");
     });
     phase(PH_FACTOR, [&] {
-      p_backend->refactorize(d.J.data(), d.m_eval.data(), d.m_status.data());
+      p_backend->refactorize(d.J.span(), d.m_eval.span(), d.m_status.span());
     });
     phase(PH_SOLVE, [&] {
-      p_backend->solve(d.F.data(), d.X.data(), d.m_eval.data(), d.m_status.data());
+      p_backend->solve(d.F.span(), d.X.span(), d.m_eval.span(), d.m_status.span());
       if (p_config.residual_limit > 0.0) {
         ex.run(static_cast<int64_t>(p_pattern.n_rows) * B,
                Residual{w, d.jrow_ptr.data(), d.jcol_idx.data(),

@@ -90,15 +90,15 @@ class SolverBackend {
    * @param mask capacity flags (device-accessible)
    * @param member_status capacity BATCHPF_MEMBER_* (device-accessible)
    */
-  virtual void refactorize(const double *values, const int *mask,
-                           int *member_status) = 0;
+  virtual void refactorize(gsl::span<const double> values, gsl::span<const int> mask,
+                           gsl::span<int> member_status) = 0;
 
   /**
    * Solve A x = rhs for the active members with the last factorization.
    * rhs and x hold n * capacity entries and must not alias.
    */
-  virtual void solve(const double *rhs, double *x, const int *mask,
-                     int *member_status) = 0;
+  virtual void solve(gsl::span<const double> rhs, gsl::span<double> x,
+                     gsl::span<const int> mask, gsl::span<int> member_status) = 0;
 };
 
 /// Create a built-in backend. Throws Error if it cannot be used.

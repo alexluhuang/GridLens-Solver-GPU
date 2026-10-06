@@ -139,17 +139,17 @@ class PluginBackend : public SolverBackend {
 
   BackendCaps caps() const override { return p_caps; }
 
-  void refactorize(const double *values, const int *mask,
-                   int *member_status) override
+  void refactorize(gsl::span<const double> values, gsl::span<const int> mask,
+                   gsl::span<int> member_status) override
   {
-    check(p_api.refactorize(p_backend.get(), values, mask, member_status),
+    check(p_api.refactorize(p_backend.get(), values.data(), mask.data(), member_status.data()),
           "refactorize");
   }
 
-  void solve(const double *rhs, double *x, const int *mask,
-             int *member_status) override
+  void solve(gsl::span<const double> rhs, gsl::span<double> x,
+             gsl::span<const int> mask, gsl::span<int> member_status) override
   {
-    check(p_api.solve(p_backend.get(), rhs, x, mask, member_status), "solve");
+    check(p_api.solve(p_backend.get(), rhs.data(), x.data(), mask.data(), member_status.data()), "solve");
   }
 
  private:

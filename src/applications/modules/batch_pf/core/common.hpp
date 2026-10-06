@@ -192,6 +192,8 @@ class Buffer {
 
   T *data() noexcept { return p_ptr; }
   const T *data() const noexcept { return p_ptr; }
+  gsl::span<T> span() noexcept { return {p_ptr, p_count}; }
+  gsl::span<const T> span() const noexcept { return {p_ptr, p_count}; }
   std::size_t size() const noexcept { return p_count; }
   std::size_t bytes() const noexcept { return p_count * sizeof(T); }
   MemoryKind kind() const noexcept { return p_kind; }
@@ -302,8 +304,9 @@ inline void copyMessage(const std::string &msg, char *dst, std::size_t size)
 {
   if (dst == nullptr || size == 0) return;
   const std::size_t n = (msg.size() < size - 1) ? msg.size() : size - 1;
-  std::copy(msg.begin(), msg.begin() + static_cast<std::ptrdiff_t>(n), dst);
-  dst[n] = '\0';
+  gsl::span<char> buffer(dst, size);
+  std::copy_n(msg.begin(), n, buffer.begin());
+  buffer[n] = '\0';
 }
 
 }  // namespace batchpf

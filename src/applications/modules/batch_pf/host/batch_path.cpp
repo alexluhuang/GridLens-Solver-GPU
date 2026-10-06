@@ -257,7 +257,7 @@ BatchPath::BatchPath(gridpack::utility::Configuration *config,
       d.info(os.str());
       if (d.acc->probeOk()) {
         std::ostringstream ds;
-        ds << "GPU " << p.device << " of " << p.device_count << ": " << p.name
+        ds << "GPU " << p.device << " of " << p.device_count << ": " << std::begin(p.name)
            << ", compute capability " << p.cc_major << "." << p.cc_minor
            << ", " << p.multiprocessors << " multiprocessors, integrated=" << p.integrated
            << ", concurrent managed access=" << p.concurrent_managed_access

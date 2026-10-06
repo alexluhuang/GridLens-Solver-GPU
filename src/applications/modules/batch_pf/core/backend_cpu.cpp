@@ -80,8 +80,8 @@ class CpuReferenceBackend : public SolverBackend {
     return c;
   }
 
-  void refactorize(const double *values, const int *mask,
-                   int *member_status) override
+  void refactorize(gsl::span<const double> values, gsl::span<const int> mask,
+                   gsl::span<int> member_status) override
   {
     forMembers(mask, [&](int b) {
       const int64_t nnz = static_cast<int64_t>(p_csc.row_idx.size());
@@ -97,8 +97,8 @@ class CpuReferenceBackend : public SolverBackend {
     });
   }
 
-  void solve(const double *rhs, double *x, const int *mask,
-             int *member_status) override
+  void solve(gsl::span<const double> rhs, gsl::span<double> x,
+             gsl::span<const int> mask, gsl::span<int> member_status) override
   {
     forMembers(mask, [&](int b) {
       if (member_status[b] != BATCHPF_MEMBER_OK || !p_numeric[b]) return;
@@ -120,7 +120,7 @@ class CpuReferenceBackend : public SolverBackend {
  private:
   /// Run f(b) for every active member, split across a few tasks
   template <class F>
-  void forMembers(const int *mask, const F &f)
+  void forMembers(gsl::span<const int> mask, const F &f)
   {
     std::vector<int> active;
     for (int b = 0; b < p_B; b++) {

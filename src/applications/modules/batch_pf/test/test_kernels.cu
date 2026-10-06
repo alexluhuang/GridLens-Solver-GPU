@@ -348,15 +348,15 @@ int main()
     for (double &r : rhs) r = u(rng);
     std::vector<int> mask(B, 1), sc(B, 0);
     std::vector<double> xc(rhs.size());
-    cpu->refactorize(Jh.data(), mask.data(), sc.data());
-    cpu->solve(rhs.data(), xc.data(), mask.data(), sc.data());
+    cpu->refactorize(Jh, mask, sc);
+    cpu->solve(rhs, xc, mask, sc);
     Buffer<double> drhs(MemoryKind::Device, rhs.size()), dx(MemoryKind::Device, rhs.size());
     drhs.upload(rhs.data(), rhs.size(), nullptr);
     Buffer<int> dmask(MemoryKind::Device, B), dst(MemoryKind::Device, B);
     dmask.upload(mask.data(), B, nullptr);
     dst.zero(nullptr);
-    gpu->refactorize(db.J.data(), dmask.data(), dst.data());
-    gpu->solve(drhs.data(), dx.data(), dmask.data(), dst.data());
+    gpu->refactorize(db.J.span(), dmask.span(), dst.span());
+    gpu->solve(drhs.span(), dx.span(), dmask.span(), dst.span());
     const std::vector<double> xg = host(dx);
     const std::vector<int> sg = host(dst);
     int bad = 0;
@@ -377,10 +377,10 @@ int main()
     db.J.upload(broken.data(), broken.size(), nullptr);
     dmask.upload(mask.data(), B, nullptr);
     dst.zero(nullptr);
-    gpu->refactorize(db.J.data(), dmask.data(), dst.data());
+    gpu->refactorize(db.J.span(), dmask.span(), dst.span());
     check(host(dst)[singular] != BATCHPF_MEMBER_OK,
           "singular member is flagged at factorization for CPU fallback");
-    gpu->solve(drhs.data(), dx.data(), dmask.data(), dst.data());
+    gpu->solve(drhs.span(), dx.span(), dmask.span(), dst.span());
     const auto isolated_status = host(dst);
     const auto isolated_x = host(dx);
     check(isolated_status[singular] == BATCHPF_MEMBER_NONFINITE,
