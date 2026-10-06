@@ -39,6 +39,7 @@
 #include "gridpack/network/base_network.hpp"
 #include "gridpack/factory/base_factory.hpp"
 #include "gridpack/applications/components/pf_matrix/pf_components.hpp"
+#include "gridpack/applications/modules/powerflow/pf_hvdc.hpp"
 #include "gridpack/applications/modules/powerflow/pf_superset_model.hpp"
 
 namespace gridpack {
@@ -205,6 +206,69 @@ class PFFactoryModule
      * Must be called after setExchange() and initBusUpdate().
      */
     void setupIREGPointers();
+
+    /**
+     * Read the two-terminal dc lines from the network data and set the
+     * converter injections at the current bus voltages
+     */
+    void loadHVDC();
+
+    /**
+     * Sequential ac/dc step: re-solve every dc line at the current ac
+     * voltages of its converter buses and update the converter injections.
+     * A line is blocked if it is out of service or a converter bus is
+     * isolated
+     * @param tol tolerance (pu) on the change in converter P and Q
+     * @param max_change largest change in converter P or Q (pu)
+     * @param notes messages for lines whose control mode changed
+     * @return true if no converter injection changed by more than tol
+     */
+    bool updateHVDC(double tol, double *max_change = NULL,
+        std::vector<std::string> *notes = NULL);
+
+    /**
+     * Set the converter injections at the start of a solve. Lines that are
+     * out of service or have an isolated converter bus are blocked; the
+     * others start from the reference operating point if one has been set,
+     * otherwise they are solved at the current voltages
+     */
+    void startHVDC();
+
+    /**
+     * Use the current dc operating point as the starting point of later
+     * solves (e.g. the base case for contingency calculations)
+     */
+    void setHVDCReference();
+
+    /**
+     * Number of two-terminal dc lines
+     * @return number of dc lines
+     */
+    int numHVDCLines() const;
+
+    /**
+     * Names of the dc lines
+     * @param active_only only lines scheduled to operate (MDC not 0)
+     * @return dc line names
+     */
+    std::vector<std::string> getHVDCLineNames(bool active_only) const;
+
+    /**
+     * Set the status of a dc line; false takes it out of service
+     * @param name dc line name
+     * @param status new status
+     * @param old previous status
+     * @return false if no line has this name
+     */
+    bool setHVDCLineStatus(const std::string &name, bool status,
+        bool *old = NULL);
+
+    /**
+     * Dc line data, status and latest operating point, indexed by line
+     */
+    const std::vector<HVDCLine>& getHVDCLines() const;
+    const std::vector<bool>& getHVDCLineStatus() const;
+    const std::vector<HVDCSolution>& getHVDCSolutions() const;
 
     /**
      * Clear changes that were made for Q limit violations and reset
@@ -502,6 +566,26 @@ class PFFactoryModule
     bool p_rateB;
     std::string p_contingencyRating;  // "A" | "B" | "C" (default "A")
     double p_qlim_deadband;  // Q deadband (Mvar) for PV->PQ switch
+
+    std::vector<HVDCLine> p_hvdc_lines;         // two-terminal dc lines
+    std::vector<bool> p_hvdc_status;            // false when out of service
+    std::vector<HVDCSolution> p_hvdc_solution;  // latest operating point
+    std::vector<HVDCSolution> p_hvdc_reference; // starting point of solves
+    bool p_hvdc_have_reference;
+    std::vector<int> p_hvdc_buses;              // converter ac buses
+
+    /**
+     * Voltage magnitude and isolation flag (1 or 0) of each converter bus,
+     * contributed by the process that owns the bus
+     * @param state 2 entries per converter bus, in p_hvdc_buses order
+     */
+    void gatherHVDCBusState(std::vector<double> &state);
+
+    /**
+     * Set the injections of the converter buses from the dc line
+     * operating points in p_hvdc_solution
+     */
+    void applyHVDCInjections();
 };
 
 } // powerflow

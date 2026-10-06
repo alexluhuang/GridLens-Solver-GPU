@@ -140,6 +140,8 @@ gridpack::powerflow::PFBus::PFBus(void)
   p_data = NULL;
   p_ignore = false;
   p_isStarBus = false;
+  p_hvdc_p = 0.0;
+  p_hvdc_q = 0.0;
   p_isIREG_PV = false;
   p_ireg_vs = 0.0;
   p_ireg_remote_bus = 0;
@@ -357,13 +359,10 @@ bool gridpack::powerflow::PFBus::chkQlim(double q_deadband)
     return false;
   }
 
-  // Calculate total load Q (constant-power part)
-  double ql = 0.0;
-  for (int i = 0; i < p_lstatus.size(); i++) {
-    if (p_lstatus[i] == 1) {
-      ql += p_ql[i];
-    }
-  }
+  // Constant-power Q demand: loads less distributed generation plus dc
+  // converters
+  double pfix, ql;
+  getFixedPowerDemand(&pfix, &ql);
   // Add voltage-dependent Q load (IQ*V - YQ*V^2)
   double pzip, qzip;
   getZIPLoadPower(p_v, pzip, qzip);
@@ -885,6 +884,9 @@ void gridpack::powerflow::PFBus::load(
   p_saveYq.clear();
   p_lstatus.clear();
   p_lid.clear();
+  p_dgp.clear();
+  p_dgq.clear();
+  p_dgstatus.clear();
 
   bool ok = data->getValue(CASE_SBASE, &p_sbase);
   data->getValue(BUS_VOLTAGE_ANG, &p_angle);
@@ -1149,6 +1151,17 @@ void gridpack::powerflow::PFBus::load(
       p_load = p_load && data->getValue(LOAD_YQ, &yq,i);
       p_load = p_load && data->getValue(LOAD_STATUS, &lstatus,i);
       if (p_load) {
+        // Distributed generation on the load (PSS/E v34+ DGENP, DGENQ,
+        // DGENF) is kept separate from the load itself
+        int dgenf = 0;
+        double dgenp = 0.0, dgenq = 0.0;
+        if (data->getValue(LOAD_DGENF, &dgenf, i)) {
+          data->getValue(LOAD_DGENP, &dgenp, i);
+          data->getValue(LOAD_DGENQ, &dgenq, i);
+        }
+        p_dgp.push_back(dgenp);
+        p_dgq.push_back(dgenq);
+        p_dgstatus.push_back(dgenf == 1);
 	/* Store constant-power load only; ZIP components stored separately */
         p_pl.push_back(pl);
         p_savePl.push_back(pl);
@@ -1453,12 +1466,10 @@ double gridpack::powerflow::PFBus::getTotalGenOutput()
     // For slack bus, calculate from power injection
     // First update p_Pinj if needed
     calculatePowerInjection();
-    double pl = 0.0;
-    for (int i = 0; i < p_pl.size(); i++) {
-      if (p_lstatus[i] == 1) {
-        pl += p_pl[i];
-      }
-    }
+    // Constant-power demand: loads less distributed generation plus dc
+    // converters
+    double pl, qfix;
+    getFixedPowerDemand(&pl, &qfix);
     // Add voltage-dependent P load (IP*V + YP*V^2)
     double pzip, qzip;
     getZIPLoadPower(p_v, pzip, qzip);
@@ -1746,12 +1757,8 @@ void gridpack::powerflow::PFBus::setSBus(void)
       usegen = true;
     }
   }
-  for (i=0; i<p_lstatus.size(); i++) {
-    if (p_lstatus[i] == 1) {
-      pl += p_pl[i];
-      ql += p_ql[i];
-    }
-  }
+  // Loads less distributed generation plus dc converters
+  getFixedPowerDemand(&pl, &ql);
   if (p_gstatus.size() > 0 && usegen) {
     gridpack::ComplexType sBus((pg - pl) / p_sbase, (qg - ql) / p_sbase);
     p_P0 = real(sBus);
@@ -1995,14 +2002,10 @@ bool gridpack::powerflow::PFBus::serialWrite(char *string, const int bufsize,
         p_Qinj = Q;
       }
     }
-    double pl =0.0;
-    double ql =0.0;
-    for (i=0; i<p_pl.size(); i++) {
-      if (p_lstatus[i] == 1) {
-        pl += p_pl[i];
-        ql += p_ql[i];
-      }
-    }
+    // Loads less distributed generation plus dc converters
+    double pl = 0.0;
+    double ql = 0.0;
+    getFixedPowerDemand(&pl, &ql);
     // Add voltage-dependent ZIP load at solved voltage
     {
       double pzip, qzip;
@@ -2216,14 +2219,10 @@ void gridpack::powerflow::PFBus::saveData(
       p_Qinj = Q;
     }
   }
-  double pl=0.0;
-  double ql=0.0;
-  for (i=0; i<p_pl.size(); i++) {
-    if (p_lstatus[i] == 1) {
-      pl += p_pl[i];
-      ql += p_ql[i];
-    }
-  }
+  // Loads less distributed generation plus dc converters
+  double pl = 0.0;
+  double ql = 0.0;
+  getFixedPowerDemand(&pl, &ql);
   // Add voltage-dependent ZIP load at solved voltage
   {
     double pzip, qzip;
@@ -2343,14 +2342,10 @@ void gridpack::powerflow::PFBus::saveDataAlsotoOrg(
       p_Qinj = Q;
     }
   }
-  double pl=0.0;
-  double ql=0.0;
-  for (i=0; i<p_pl.size(); i++) {
-    if (p_lstatus[i] == 1) {
-      pl += p_pl[i];
-      ql += p_ql[i];
-    }
-  }
+  // Loads less distributed generation plus dc converters
+  double pl = 0.0;
+  double ql = 0.0;
+  getFixedPowerDemand(&pl, &ql);
   // Add voltage-dependent ZIP load at solved voltage
   {
     double pzip, qzip;
@@ -2942,6 +2937,89 @@ void gridpack::powerflow::PFBus::getLoadPower(
     ql.push_back(p_saveQl[i]);
     status.push_back(p_lstatus[i]);
   }
+}
+
+/**
+ * Constant-power demand the bus places on the network: in-service loads
+ * less their in-service distributed generation plus the power drawn by
+ * dc converters
+ * @param pl real power demand (MW)
+ * @param ql reactive power demand (MVar)
+ */
+void gridpack::powerflow::PFBus::getFixedPowerDemand(double *pl,
+    double *ql) const
+{
+  double p = 0.0;
+  double q = 0.0;
+  for (size_t i=0; i<p_lstatus.size(); i++) {
+    if (p_lstatus[i] == 1) {
+      p += p_pl[i];
+      q += p_ql[i];
+      if (p_dgstatus[i]) {
+        p -= p_dgp[i];
+        q -= p_dgq[i];
+      }
+    }
+  }
+  *pl = p + p_hvdc_p;
+  *ql = q + p_hvdc_q;
+}
+
+/**
+ * Get the in-service distributed generation on the loads of this bus
+ * @param p real power (MW)
+ * @param q reactive power (MVar)
+ */
+void gridpack::powerflow::PFBus::getDGPower(double *p, double *q) const
+{
+  *p = 0.0;
+  *q = 0.0;
+  for (size_t i=0; i<p_lstatus.size(); i++) {
+    if (p_lstatus[i] == 1 && p_dgstatus[i]) {
+      *p += p_dgp[i];
+      *q += p_dgq[i];
+    }
+  }
+}
+
+/**
+ * Set status of the distributed generation attached to a load
+ * @param tag character ID for load
+ * @param status status of the distributed generation
+ * @return false if there is no load with this ID
+ */
+bool gridpack::powerflow::PFBus::setDGStatus(std::string tag, bool status)
+{
+  bool found = false;
+  for (size_t i=0; i<p_lid.size(); i++) {
+    if (p_lid[i] == tag) {
+      p_dgstatus[i] = status;
+      found = true;
+    }
+  }
+  return found;
+}
+
+/**
+ * Set the power drawn from the bus by dc converters
+ * @param p real power (MW), negative for an inverter
+ * @param q reactive power (MVar)
+ */
+void gridpack::powerflow::PFBus::setHVDCInjection(double p, double q)
+{
+  p_hvdc_p = p;
+  p_hvdc_q = q;
+}
+
+/**
+ * Get the power drawn from the bus by dc converters
+ * @param p real power (MW), negative for an inverter
+ * @param q reactive power (MVar)
+ */
+void gridpack::powerflow::PFBus::getHVDCInjection(double *p, double *q) const
+{
+  *p = p_hvdc_p;
+  *q = p_hvdc_q;
 }
 
 /**

@@ -64,7 +64,7 @@ struct pathStress{
 };
 
 // Contingency types
-enum ContingencyType{Generator, Branch};
+enum ContingencyType{Generator, Branch, DCLine};
 
 // Struct that is used to define a collection of contingencies
 
@@ -83,6 +83,10 @@ struct Contingency
   std::vector<std::string> p_genid;
   // Status of generator before contingency
   std::vector<bool> p_saveGenStatus;
+  // Two-terminal dc line contingencies (one name per pole)
+  std::vector<std::string> p_dclines;
+  // Status of dc line before contingency
+  std::vector<bool> p_saveDCLineStatus;
 };
 
 // Calling program for powerflow application
@@ -234,6 +238,24 @@ class PFAppModule
      * @return false if location of contingency is not found in network
      */
     bool unSetContingency(Contingency &event);
+
+    /**
+     * Names of the two-terminal dc lines
+     * @param active_only only lines scheduled to operate (MDC not 0)
+     * @return dc line names
+     */
+    std::vector<std::string> getHVDCLineNames(bool active_only = true);
+
+    /**
+     * Use the current dc line operating point as the starting point of
+     * later solves (e.g. the base case for contingency calculations)
+     */
+    void setHVDCReference();
+
+    /**
+     * Write the operating point of the two-terminal dc lines
+     */
+    void writeHVDCSummary();
 
     /**
      * Get the number of islands detected after setting a contingency
@@ -1090,6 +1112,7 @@ class PFAppModule
 
     // convergence tolerance
     double p_tolerance;
+    double p_hvdc_tolerance;  // tolerance (pu) on dc converter injection changes
 
     // Newton step damping factor (0 < omega <= 1.0; default 1.0 = no damping)
     double p_dampingFactor;

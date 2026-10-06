@@ -64,6 +64,8 @@
 gridpack::powerflow::PFAppModule::PFAppModule(void)
 {
   p_no_print = false;
+  p_tolerance = 1.0e-6;
+  p_hvdc_tolerance = 1.0e-6;
 }
 
 /**
@@ -208,6 +210,9 @@ void gridpack::powerflow::PFAppModule::readNetwork(
   }
   // Convergence and iteration parameters
   p_tolerance = cursor->get("tolerance",1.0e-6);
+  // Sequential ac/dc solution: largest change (pu) in the dc converter
+  // injections between controller iterations
+  p_hvdc_tolerance = cursor->get("hvdcTolerance",p_tolerance);
   p_qlim = cursor->get("qlim",true);
   p_max_iteration = cursor->get("maxIteration",50);
   p_max_qlim_iterations = cursor->get("maxQlimIterations",3);
@@ -411,6 +416,9 @@ void gridpack::powerflow::PFAppModule::initialize()
   // Sync PV status changes to ghost buses across processes
   p_network->updateBuses();
 
+  // Two-terminal dc lines: converter injections at the initial voltages
+  p_factory->loadHVDC();
+
   timer->stop(t_total);
 }
 
@@ -443,6 +451,12 @@ bool gridpack::powerflow::PFAppModule::solve()
   p_ybusAtBase = false;
   p_qlimSettled = false;
   char ioBuf[128];
+
+  // Starting two-terminal dc converter injections: the reference operating
+  // point if one is set (e.g. the base case), otherwise the dc lines solved
+  // at the starting voltages. The controller loop re-solves the dc lines
+  // after each converged ac solution (sequential ac/dc method)
+  p_factory->startHVDC();
 
   // Determine max controller iterations based on configuration
   int max_ctrl_iter = p_qlim ? p_max_qlim_iterations : 1;
@@ -866,6 +880,31 @@ bool gridpack::powerflow::PFAppModule::solve()
       }
     }
 
+    // 5. Sequential ac/dc solution: re-solve the two-terminal dc lines at
+    // the new ac voltages, including control mode changes, and update the
+    // converter injections
+    if (p_factory->numHVDCLines() > 0) {
+      double dc_change = 0.0;
+      std::vector<std::string> notes;
+      bool dc_ok = p_factory->updateHVDC(p_hvdc_tolerance, &dc_change, &notes);
+      if (!p_no_print) {
+        for (size_t k = 0; k < notes.size(); k++) {
+          p_busIO->header(notes[k].c_str());
+        }
+      }
+      if (!dc_ok) {
+        if (!p_no_print) {
+          snprintf(ioBuf, sizeof(ioBuf), "HVDC converter injections updated at"
+              " controller iter %d (largest change %.3e pu)\n", ctrl_iter,
+              dc_change);
+          p_busIO->header(ioBuf);
+        }
+        if (ctrl_iter < max_ctrl_iter) {
+          ctrl_repeat = true;
+        }
+      }
+    }
+
     } // end if (ret) — controller checks only run when NR converged
 
     // Check if max controller iterations reached
@@ -1039,6 +1078,7 @@ void gridpack::powerflow::PFAppModule::write()
   p_busIO->header("\n   Bus Number      Phase Angle      Voltage Magnitude            Pinj                 Qinj\n");
   p_busIO->write();
   //p_busIO->write("record");
+  writeHVDCSummary();
   timer->stop(t_write);
   timer->stop(t_total);
 }
@@ -1482,6 +1522,19 @@ bool gridpack::powerflow::PFAppModule::applyContingencyStatus(
         ret = false;
       }
     }
+  } else if (event.p_type == DCLine) {
+    // Block the listed dc lines (poles); the converter injections are
+    // removed when the power flow updates the dc lines
+    event.p_saveDCLineStatus.resize(event.p_dclines.size(), true);
+    for (size_t i=0; i<event.p_dclines.size(); i++) {
+      bool old = true;
+      if (p_factory->setHVDCLineStatus(event.p_dclines[i], false, &old)) {
+        event.p_saveDCLineStatus[i] = old;
+      } else {
+        printf("WARNING: DC line '%s' not found\n", event.p_dclines[i].c_str());
+        ret = false;
+      }
+    }
   } else {
     ret = false;
   }
@@ -1608,10 +1661,66 @@ bool gridpack::powerflow::PFAppModule::unSetContingency(
         branch->setBranchStatus(tag,event.p_saveLineStatus[i]);
       }
     }
+  } else if (event.p_type == DCLine) {
+    for (size_t i=0; i<event.p_dclines.size(); i++) {
+      bool status = (i < event.p_saveDCLineStatus.size()) ?
+        event.p_saveDCLineStatus[i] : true;
+      if (!p_factory->setHVDCLineStatus(event.p_dclines[i], status)) {
+        ret = false;
+      }
+    }
   } else {
     ret = false;
   }
   return ret;
+}
+
+/**
+ * Names of the two-terminal dc lines
+ * @param active_only only lines scheduled to operate (MDC not 0)
+ * @return dc line names
+ */
+std::vector<std::string> gridpack::powerflow::PFAppModule::getHVDCLineNames(
+    bool active_only)
+{
+  return p_factory->getHVDCLineNames(active_only);
+}
+
+/**
+ * Use the current dc line operating point as the starting point of later
+ * solves (e.g. the base case for contingency calculations)
+ */
+void gridpack::powerflow::PFAppModule::setHVDCReference()
+{
+  p_factory->setHVDCReference();
+}
+
+/**
+ * Write the operating point of the two-terminal dc lines
+ */
+void gridpack::powerflow::PFAppModule::writeHVDCSummary()
+{
+  const std::vector<HVDCLine> &lines = p_factory->getHVDCLines();
+  const std::vector<bool> &status = p_factory->getHVDCLineStatus();
+  const std::vector<HVDCSolution> &sol = p_factory->getHVDCSolutions();
+  if (lines.empty()) return;
+  char buf[512];
+  p_busIO->header("\n   Two-Terminal DC Lines\n\n");
+  snprintf(buf, sizeof(buf), "   %-14s %-48s %8s %8s %8s %8s %6s %8s %8s %6s\n",
+      "Name", "Mode", "Id(kA)", "Rect", "P(MW)", "Q(MVar)", "Alpha",
+      "Inv", "P(MW)", "Gamma");
+  p_busIO->header(buf);
+  for (size_t i = 0; i < lines.size(); i++) {
+    const HVDCSolution &s = sol[i];
+    std::string mode = hvdcModeName(s.mode);
+    if (!status[i]) mode = "out of service";
+    if (s.limited) mode += " (at limits)";
+    snprintf(buf, sizeof(buf), "   %-14s %-48s %8.4f %8d %8.1f %8.1f %6.2f"
+        " %8d %8.1f %6.2f   Qinv=%.1f MVar\n", lines[i].name.c_str(),
+        mode.c_str(), s.id, lines[i].rect.bus, s.rect.p, s.rect.q,
+        s.rect.angle, lines[i].inv.bus, s.inv.p, s.inv.angle, s.inv.q);
+    p_busIO->header(buf);
+  }
 }
 
 /**
