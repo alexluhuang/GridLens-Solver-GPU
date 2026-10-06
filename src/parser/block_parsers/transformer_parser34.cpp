@@ -459,6 +459,10 @@ void gridpack::parser::TransformerParser34::parse(
       // BRANCH_CKT          "CKT"                 character
       p_branchData[l_idx]->addValue(BRANCH_CKT, tag.c_str(), nelems);
 
+      // BRANCH_SWITCHED: the transformer's winding 1 bus is the branch's
+      // bus 2, so its tap and phase shift apply at that end
+      p_branchData[l_idx]->addValue(BRANCH_SWITCHED, switched, nelems);
+
       // Add remaining parameters from line 1
       /*
        * type: integer
