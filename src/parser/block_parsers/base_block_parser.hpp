@@ -86,9 +86,9 @@ class BaseBlockParser{
   void parseBusName(std::string &string, std::string &name, double &voltage);
 
   /**
-   * Remove comment from string (all text after a single '/' character)
-   * Check to see if '/' character occurs in a text string (delimited by
-   * either '' or "")
+   * Remove comment from string (all text after a single '/' character).
+   * A '/' inside any quoted field (delimited by either '' or "") is part
+   * of the field, not a comment
    * @param string line of text to be cleaned
    */
   void cleanComment(std::string &string);

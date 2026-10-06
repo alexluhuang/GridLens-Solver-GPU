@@ -156,35 +156,27 @@ void gridpack::parser::BaseBlockParser::parseBusName(
 }
 
 /**
- * Remove comment from string (all text after a single '/' character)
- * Check to see if '/' character occurs in a text string (delimited by
- * either '' or "")
+ * Remove comment from string (all text after a single '/' character).
+ * A '/' inside any quoted field (delimited by either '' or "") is part
+ * of the field, not a comment
  * @param string line of text to be cleaned
  */
 void gridpack::parser::BaseBlockParser::cleanComment(std::string &string)
 {
-  int idx = string.find_first_of('/',0);
-  if (idx != std::string::npos) {
-    // check to see if '/' character is between two quotes
-    bool squote = true;
-    int d1 = string.find_first_of('\'',0);
-    if (d1 == std::string::npos) {
-      d1 = string.find_first_of('\"',0);
-      if (d1 != std::string::npos) squote = false;
+  // Track quotes along the whole line: a record can have several quoted
+  // fields (e.g. a transformer circuit ID followed by its name) and a '/'
+  // in any of them is not a comment
+  char quote = 0;
+  for (size_t i = 0; i < string.size(); i++) {
+    char c = string[i];
+    if (quote) {
+      if (c == quote) quote = 0;
+    } else if (c == '\'' || c == '\"') {
+      quote = c;
+    } else if (c == '/') {
+      string.erase(i);
+      return;
     }
-    int d2 = d1;
-    if (d1 != std::string::npos) {
-      if (squote) {
-        if (string.length() > d1+1) d2 = string.find_first_of('\'',d1+1);
-      } else {
-        if (string.length() > d1+1) d2 = string.find_first_of('\"',d1+1);
-      }
-    }
-    // if '/' is between two quotes, return
-    if (d1 != std::string::npos && d2 != std::string::npos
-        && d1 < idx && idx < d2) return;
-    int len = string.length()-idx;
-    string.erase(idx,len);
   }
 }
 
