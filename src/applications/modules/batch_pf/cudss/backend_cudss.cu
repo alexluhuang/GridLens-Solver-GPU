@@ -28,8 +28,12 @@
  * member; cuDSS 0.8 does not provide it for uniform batches, so there the
  * finiteness check of each solution and the engine's linear residual check
  * (GPUBatch/health/residualLimit) do this job. cuDSS 0.8.0 had a reported defect above
- * about 160 members per uniform batch (risk R-2), so the validated batch
- * size reported to the core plugin is 128.
+ * about 160 members per uniform batch (risk R-2); with the planner's order
+ * and deterministic mode, batches of up to 2048 members matched Algorithm 2
+ * on the Texas 7k and ACTIVSg10k Jacobians, so that is the validated size.
+ *
+ * The matrix is handed over in the planner's row and column order with
+ * cuDSS's reordering off, and deterministic mode is on (see setup()).
  *
  * Every CUDA and cuDSS call is checked; errors are returned as status
  * codes with a message, never thrown across the C boundary.
@@ -52,7 +56,10 @@
 
 namespace {
 
-const int kValidatedBatch = 128;
+// Uniform batches of up to 2048 members were checked against Algorithm 2
+// and by residuals on the Texas 7k and ACTIVSg10k Jacobians (cuDSS 0.8.0
+// with the planner's order and deterministic mode)
+const int kValidatedBatch = 2048;
 
 /// Failure inside the plugin, carrying a status code
 class Failure : public std::runtime_error {
@@ -97,22 +104,24 @@ struct DeviceArray {
 
 // ---- layout conversion kernels ------------------------------------------
 
-/// interleaved [p * B + b] -> member-major [b * len + p]; inactive members
-/// get fill[p] (or 0 if fill is null)
+/// interleaved [src[p] * B + b] -> member-major [b * len + p]; inactive
+/// members get fill[src[p]] (or 0 if fill is null). src null = identity.
 __global__ void toMemberMajor(const double *in, double *out, const int *mask,
-                              const double *fill, int64_t len, int B)
+                              const double *fill, int64_t len, int B, const int *src)
 {
   const int64_t i = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i >= len * B) return;
   const int64_t p = i / B;
   const int b = static_cast<int>(i % B);
-  const double v = mask[b] ? in[i] : (fill ? fill[p] : 0.0);
+  const int64_t q = src ? src[p] : p;
+  const double v = mask[b] ? in[q * B + b] : (fill ? fill[q] : 0.0);
   out[static_cast<int64_t>(b) * len + p] = v;
 }
 
-/// member-major -> interleaved, active members only; flags non-finite
+/// member-major [b * len + p] -> interleaved [dst[p] * B + b], active members
+/// only; flags non-finite. dst null = identity.
 __global__ void toInterleaved(const double *in, double *out, const int *mask,
-                              int *status, int64_t len, int B)
+                              int *status, int64_t len, int B, const int *dst)
 {
   const int64_t i = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i >= len * B) return;
@@ -120,7 +129,7 @@ __global__ void toInterleaved(const double *in, double *out, const int *mask,
   const int b = static_cast<int>(i % B);
   if (!mask[b]) return;
   const double v = in[static_cast<int64_t>(b) * len + p];
-  out[i] = v;
+  out[(dst ? dst[p] : p) * B + b] = v;
   if (!isfinite(v)) atomicMax(status + b, BATCHPF_MEMBER_NONFINITE);
 }
 
@@ -163,6 +172,14 @@ struct batchpf_backend {
   cudssData_t data = nullptr;
   cudssMatrix_t A = nullptr, X = nullptr, Bv = nullptr;
   DeviceArray row_ptr, col_idx, values, ref, rhs, sol, diag, mask_dev;
+  // With the planner's order (KLU with AMD on the reference Jacobian, the
+  // order Algorithm 2 uses), the matrix is given to cuDSS as A(P, Q): entry
+  // k of its pattern is entry entry_src[k] of ours, row i of the
+  // right-hand side is row P[i], and unknown i is unknown Q[i]. cuDSS then
+  // skips its own reordering; on GB10 this made its factorization 10-15%
+  // faster on 7k- and 10k-bus grids with the same accuracy.
+  bool planner_order = false;
+  DeviceArray entry_src, rhs_src, sol_dst;
   std::vector<int> mask_host, mask_prev;
   std::string error;
 
@@ -203,9 +220,40 @@ struct batchpf_backend {
     diag = DeviceArray(static_cast<std::size_t>(n) * B * sizeof(double), stream);
     mask_dev = DeviceArray(B * sizeof(int), stream);
     mask_host.assign(B, 1);
-    cudaCall(cudaMemcpyAsync(row_ptr.ptr, p.row_ptr, (n + 1) * sizeof(int),
+    planner_order = p.row_perm && p.col_perm;
+    std::vector<int> rp(p.row_ptr, p.row_ptr + n + 1), ci(p.col_idx, p.col_idx + nnz);
+    if (planner_order) {
+      std::vector<int> qinv(n);
+      for (int i = 0; i < n; i++) qinv[p.col_perm[i]] = i;
+      std::vector<int> src(nnz);
+      std::vector<std::pair<int, int>> row;
+      rp[0] = 0;
+      int64_t k = 0;
+      for (int i = 0; i < n; i++) {
+        const int r = p.row_perm[i];
+        row.clear();
+        for (int q = p.row_ptr[r]; q < p.row_ptr[r + 1]; q++) row.emplace_back(qinv[p.col_idx[q]], q);
+        std::sort(row.begin(), row.end());
+        for (const auto &e : row) {
+          ci[k] = e.first;
+          src[k++] = e.second;
+        }
+        rp[i + 1] = static_cast<int>(k);
+      }
+      entry_src = DeviceArray(nnz * sizeof(int), stream);
+      rhs_src = DeviceArray(n * sizeof(int), stream);
+      sol_dst = DeviceArray(n * sizeof(int), stream);
+      cudaCall(cudaMemcpyAsync(entry_src.ptr, src.data(), nnz * sizeof(int),
+                               cudaMemcpyHostToDevice, stream), "copy order");
+      cudaCall(cudaMemcpyAsync(rhs_src.ptr, p.row_perm, n * sizeof(int),
+                               cudaMemcpyHostToDevice, stream), "copy order");
+      cudaCall(cudaMemcpyAsync(sol_dst.ptr, p.col_perm, n * sizeof(int),
+                               cudaMemcpyHostToDevice, stream), "copy order");
+      cudaCall(cudaStreamSynchronize(stream), "copy order");
+    }
+    cudaCall(cudaMemcpyAsync(row_ptr.ptr, rp.data(), (n + 1) * sizeof(int),
                              cudaMemcpyHostToDevice, stream), "copy pattern");
-    cudaCall(cudaMemcpyAsync(col_idx.ptr, p.col_idx, nnz * sizeof(int),
+    cudaCall(cudaMemcpyAsync(col_idx.ptr, ci.data(), nnz * sizeof(int),
                              cudaMemcpyHostToDevice, stream), "copy pattern");
     cudaCall(cudaMemcpyAsync(ref.ptr, p.reference_values, nnz * sizeof(double),
                              cudaMemcpyHostToDevice, stream), "copy reference");
@@ -217,7 +265,8 @@ struct batchpf_backend {
     cudaCall(cudaMemcpyAsync(mask_dev.ptr, zeros.data(), B * sizeof(int),
                              cudaMemcpyHostToDevice, stream), "copy mask");
     toMemberMajor<<<blocksFor(nnz * B, t), t, 0, stream>>>(
-        nullptr, values.as<double>(), mask_dev.as<int>(), ref.as<double>(), nnz, B);
+        nullptr, values.as<double>(), mask_dev.as<int>(), ref.as<double>(), nnz, B,
+        entry_src.as<int>());
     cudaCall(cudaGetLastError(), "fill reference");
     cudaCall(cudaMemsetAsync(rhs.ptr, 0, static_cast<std::size_t>(n) * B * sizeof(double),
                              stream), "memset");
@@ -230,6 +279,17 @@ struct batchpf_backend {
     int ub = B;
     cudssCall(cudssConfigSet(config, CUDSS_CONFIG_UBATCH_SIZE, &ub, sizeof(ub)),
               "set uniform batch size");
+    if (planner_order) {
+      // The matrix is already in the planner's order: no reordering
+      cudssReorderingAlg_t none = CUDSS_REORDERING_ALG_NONE;
+      cudssCall(cudssConfigSet(config, CUDSS_CONFIG_REORDERING_ALG, &none, sizeof(none)),
+                "set reordering");
+    }
+    // Same bits on every run, so repeated studies give identical files
+    // (FR-9); costs about 5% of the factorization time on GB10
+    int det = 1;
+    cudssCall(cudssConfigSet(config, CUDSS_CONFIG_DETERMINISTIC_MODE, &det, sizeof(det)),
+              "set deterministic mode");
     if (p.refinement_steps > 0) {
       int steps = p.refinement_steps;
       cudssCall(cudssConfigSet(config, CUDSS_CONFIG_IR_N_STEPS, &steps, sizeof(steps)),
@@ -265,7 +325,7 @@ struct batchpf_backend {
   {
     const int t = 256;
     toMemberMajor<<<blocksFor(nnz * B, t), t, 0, stream>>>(
-        vals, values.as<double>(), mask, ref.as<double>(), nnz, B);
+        vals, values.as<double>(), mask, ref.as<double>(), nnz, B, entry_src.as<int>());
     cudaCall(cudaGetLastError(), "toMemberMajor");
     setMask(mask);
     cudssCall(cudssExecute(handle, factored ? CUDSS_PHASE_REFACTORIZATION
@@ -296,11 +356,11 @@ struct batchpf_backend {
   {
     const int t = 256;
     toMemberMajor<<<blocksFor(static_cast<int64_t>(n) * B, t), t, 0, stream>>>(
-        in, rhs.as<double>(), mask, nullptr, n, B);
+        in, rhs.as<double>(), mask, nullptr, n, B, rhs_src.as<int>());
     cudaCall(cudaGetLastError(), "toMemberMajor");
     cudssCall(cudssExecute(handle, CUDSS_PHASE_SOLVE, config, data, A, X, Bv), "solve");
     toInterleaved<<<blocksFor(static_cast<int64_t>(n) * B, t), t, 0, stream>>>(
-        sol.as<double>(), out, mask, status, n, B);
+        sol.as<double>(), out, mask, status, n, B, sol_dst.as<int>());
     cudaCall(cudaGetLastError(), "toInterleaved");
   }
 };

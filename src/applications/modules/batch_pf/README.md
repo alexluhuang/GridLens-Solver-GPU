@@ -120,7 +120,7 @@ are input limits; memory and backend admission can lower a batch further.
 | `backend` | `auto`, `cudss`, `alg2`, `cpu_reference` | `auto`: benchmark available GPU backends during setup |
 | `device` | Integer 0..1023 | 0; index among visible devices |
 | `batchSize` | `auto`, integer 1..65536 | `auto`: reference factor/solve sweep, smallest size within 5% of the best |
-| `maxValidatedBatch` | Integer 1..65536 | Backend cap: Algorithm 2 2048; cuDSS 128 |
+| `maxValidatedBatch` | Integer 1..65536 | Backend cap: Algorithm 2 2048; cuDSS 2048 |
 | `backfill` | Boolean | `true`: refill free slots; guide's `false` was a proposal |
 | `threadsPerBlock` | `auto`, multiples of 32 in 32..1024 | `auto`; kernel-specific selection |
 | `memoryProfile` | `auto`, `unified`, `coherent`, `discrete` | Capability detection |
