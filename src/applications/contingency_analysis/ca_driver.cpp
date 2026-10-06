@@ -532,9 +532,19 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // Read in the network from an external file and partition it over the
   // processors in the task communicator. This will read in power flow
   // parameters from the Powerflow block in the input
+  // Study phases, reported by GridPACK's coarse timer at the end of the run
+  // alongside its power flow categories, so the CPU and GPU paths can be
+  // compared phase by phase (guide 8.12)
+  const int t_read = timer->createCategory("CA: Read Network");
+  const int t_base = timer->createCategory("CA: Base Case");
+  const int t_list = timer->createCategory("CA: Case List and Output Setup");
+  const int t_cases = timer->createCategory("CA: Solve and Report Cases");
+  const int t_merge = timer->createCategory("CA: Merge Output Files");
+  timer->start(t_read);
   pf_app.readNetwork(pf_network,config);
   // Finish initializing the network
   pf_app.initialize();
+  timer->stop(t_read);
 
   // Build (number -> name) lookup tables for area, zone, owner.
   // Keyed on the PSS/E-assigned number (not contiguous), used when
@@ -1415,6 +1425,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     }
   };
 
+  timer->start(t_base);
   //  Set minimum and maximum voltage limits on all buses
   pf_app.setVoltageLimits(Vmin, Vmax);
   // Route CA violation checks and loadingPercent through the same rating tier.
@@ -1537,6 +1548,8 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     populateBaseCache();
   }
 
+  timer->stop(t_base);
+  timer->start(t_list);
   // Check if auto-generation of N-1 contingencies is enabled
   // FullBranchN1: generate N-1 contingencies for all branches
   // FullGeneratorN1: generate N-1 contingencies for all generators
@@ -2422,9 +2435,11 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     if (print_calcs) pf_app.close();
     return report;
   };
+  timer->stop(t_list);
   if (gpuPath.active()) {
     gpuPath.prepare(pf_app, pf_network, events, check_Qlim, outputFile);
   }
+  timer->start(t_cases);
   if (gpuPath.active()) {
     gpuPath.run(processCase);
     gpuPath.finish();
@@ -2435,6 +2450,8 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       processCase(task_id, nullptr);
     }
   }
+  timer->stop(t_cases);
+  timer->start(t_merge);
   // csv_flat / csv_delta: each rank streamed rows to its .part file during
   // the loop. Close, sync, then world rank 0 writes header + concatenates.
   if (outputFormat == "csv_flat") {
@@ -3253,6 +3270,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     }
   }
 
+  timer->stop(t_merge);
   // Print out statistics on contingencies
   if (write_stats) {
     int t_stats = timer->createCategory("Write Statistics");
