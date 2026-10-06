@@ -89,6 +89,15 @@ class QualityAuditTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.run_audit()
 
+    def test_nvcc_warning_format_is_counted(self):
+        self.log.write_text("clang-tidy-18\n")
+        build = self.root / "build.log"
+        build.write_text('/src/src/applications/modules/batch_pf/core/engine.cu(20): '
+                         'warning #177-D: variable unused\n')
+        findings = audit.diagnostics([self.log], [self.xml], [], [build])
+        self.assertEqual([(x["tool"], x["check"], x["line"]) for x in findings],
+                         [("compiler", "nvcc-177", 20)])
+
     def test_changed_line_ranges_skip_deletions(self):
         diff = ("+++ b/src/applications/modules/powerflow/pf_app_module.cpp\n"
                 "@@ -1,2 +1,0 @@\n@@ -30 +28,3 @@\n@@ -50 +50 @@\n")

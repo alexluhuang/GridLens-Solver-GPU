@@ -57,6 +57,7 @@ def diagnostics(logs, xmls, scope, build_logs=()):
                 any(first <= row <= last for first, last in ranges.get(path, [])))
 
     pattern = re.compile(r"(.*?):(\d+):(\d+): (warning|error): (.*?) \[([^]]+)\]")
+    nvcc_pattern = re.compile(r"(.*?)\((\d+)\): (warning|error) #(\d+)(?:-D)?: (.*)")
     for log in [*logs, *build_logs]:
         with open(log) as stream:
             content = stream.read()
@@ -67,6 +68,14 @@ def diagnostics(logs, xmls, scope, build_logs=()):
                 raise RuntimeError("clang-tidy encountered a compiler error")
             match = pattern.search(line)
             if not match:
+                nvcc = nvcc_pattern.search(line) if log in build_logs else None
+                if nvcc:
+                    path, row, severity, code, message = nvcc.groups()
+                    path = relative(path.strip())
+                    if included(path, int(row)):
+                        item = dict(tool="compiler", file=path, line=int(row), column=0,
+                                    severity=severity, check="nvcc-" + code, message=message)
+                        found[json.dumps(item, sort_keys=True)] = item
                 continue
             path, row, col, severity, message, check = match.groups()
             if log in build_logs and not check.startswith("-W"):
