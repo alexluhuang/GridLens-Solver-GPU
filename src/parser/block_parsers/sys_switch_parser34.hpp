@@ -35,11 +35,16 @@ class SysSwitchParser34 : public BaseBlockParser {
   virtual ~SysSwitchParser34(void);
 
   /**
-   * parse SysSwitch block. Currently does not store data
+   * parse system switching device block. Each device (breaker or switch) is
+   * added as a branch element between its two buses: zero resistance, the
+   * device reactance, its ratings and its status. Devices between the same
+   * pair of buses as an existing branch become parallel elements of it
    * @param stream input stream that feeds lines from RAW file
+   * @param p_branchData vector of data collection objects for branches
    */
   void parse(
-      gridpack::stream::InputStream &stream);
+      gridpack::stream::InputStream &stream,
+      std::vector<boost::shared_ptr<gridpack::component::DataCollection> > &p_branchData);
 };
 
 } // parser
