@@ -150,3 +150,55 @@ writing about 8,400 (Texas7k) or 9,800 (10k) delta rows per case on the
 reporting ranks. The merge is about 40% slower on the GPU paths because
 they write the tables in event order (guide R5). Polish writes no delta
 rows: every solved case there is `SLACK_OVERLOAD`.
+
+## Solve versus reporting inside the case loop
+
+The driver also times each case's work with GridPACK's coarse timer:
+`CA case: Apply Outage` (reset voltages, apply the outage, find islands),
+`CA case: CPU Solve` (GridPACK's Newton solve and the driver's second solve
+after a reactive-limit change), `CA case: Inject GPU Result`,
+`CA case: Check and Report` (slack, voltage and branch checks, convergence
+record and table rows), `CA case: Write Table Rows` (the rows alone, a part of
+the previous category) and `CA case: Restore Network`. Times below are
+averages per rank over eight ranks, in seconds. "Waiting" is the case-loop
+time not covered by these categories: on the GPU paths, mostly waiting for
+GPU results. Every run in `performance-split.jsonl` used the same setup as
+the phase table above; repeated runs agree within about 2%.
+
+| Grid | Output | Path | Wall | Apply | Solve | Inject | Check and report | of which rows | Restore | Waiting | GPU busy |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Texas7k | delta | CPU | 252.3 | 7.3 | 127.8 | – | 98.9 | 92.1 | 4.7 | 5.2 | – |
+| Texas7k | delta | Alg2 512 | 194.3 | 7.5 | 0.4 | 12.6 | 103.0 | 94.7 | 4.2 | 55.9 | 158.4 |
+| Texas7k | delta | cuDSS 128 | 146.2 | 7.5 | 0.4 | 12.5 | 102.7 | 94.5 | 4.1 | 8.5 | 58.6 |
+| Texas7k | flat | CPU | 228.4 | 7.4 | 129.7 | – | 78.7 | 71.7 | 4.7 | 3.3 | – |
+| Texas7k | flat | Alg2 512 | 184.0 | 7.6 | 0.4 | 12.6 | 82.6 | 74.2 | 4.2 | 69.4 | 158.1 |
+| Texas7k | flat | cuDSS 128 | 121.8 | 7.6 | 0.4 | 12.6 | 82.5 | 74.1 | 4.1 | 7.6 | 58.7 |
+| 10k | delta | CPU | 565.4 | 19.3 | 302.9 | – | 203.6 | 189.5 | 11.9 | 13.9 | – |
+| 10k | delta | Alg2 512 | 322.0 | 20.0 | 1.1 | 32.2 | 211.9 | 194.7 | 10.6 | 27.4 | 123.8 |
+| 10k | delta | cuDSS 128 | 306.7 | 19.9 | 1.1 | 31.4 | 211.3 | 194.4 | 10.4 | 13.8 | 124.7 |
+| 10k | flat | CPU | 517.1 | 19.7 | 306.1 | – | 162.0 | 147.7 | 12.1 | 9.8 | – |
+| 10k | flat | Alg2 512 | 271.5 | 20.3 | 1.1 | 32.2 | 169.6 | 152.4 | 10.9 | 25.2 | 123.9 |
+| 10k | flat | cuDSS 128 | 257.0 | 20.3 | 1.1 | 32.6 | 169.6 | 152.2 | 10.6 | 10.8 | 123.1 |
+
+On the CPU path the solve is a little over half of the loop; the rest is
+reporting, and writing the per-branch rows is most of the reporting. The
+GPU paths remove the solve but keep all reporting work (plus a smaller
+injection step), so the loop cannot be shorter than that work divided over
+the reporting ranks. With cuDSS the ranks almost never wait, so this
+reporting work sets the time. With Alg2 they also wait for the GPU, most on
+Texas7k, whose deeper elimination (502 dependency levels) makes Alg2 slower.
+
+GridPACK's own power-flow timers split the CPU solve further. On 10k, of
+299 s per rank, building the Jacobian ("Map to Matrix") takes 89 s,
+recreating the matrix and vector mappers for each solve 83 s, filling the
+mismatch vector 29 s and the linear solve itself (PETSc KLU) 36 s.
+
+`csv_flat` writes the same rows as `csv_delta` (plus the base case) with 15
+columns instead of 32: half the bytes, and about 22% less row-writing time.
+It saves 24–48 s on the CPU path and 25–50 s on the cuDSS path, so the best
+speedup rises from 1.73 to 1.88 on Texas7k and from 1.84 to 2.01 on 10k.
+
+Results reach the reporting ranks one chunk at a time, and a chunk is four
+batches. At batch 2048 the first chunk holds 8,192 cases, so the other
+ranks wait for it before they can report anything; this is why batch 2048
+was not faster than 512 in the batch-size table.
