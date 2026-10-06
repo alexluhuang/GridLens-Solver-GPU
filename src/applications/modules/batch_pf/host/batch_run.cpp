@@ -28,6 +28,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -346,7 +347,8 @@ void BatchPath::run(const ProcessCase &process)
       inflight.pop_front();
       const int m = static_cast<int>(ch->events.size());
       // Outcome counts of the chunk, as soon as it is done (guide 8.12)
-      int st[4] = {0, 0, 0, 0}, hb[6] = {0, 0, 0, 0, 0, 0};
+      std::array<int, 4> st{};
+      std::array<int, 6> hb{};
       for (const batchpf_outcome &o : ch->outcomes) {
         st[std::max(0, std::min(3, o.status))]++;
         for (int bit = 0; bit < 6; bit++) hb[bit] += (o.health_events >> bit) & 1;
@@ -415,8 +417,8 @@ void BatchPath::run(const ProcessCase &process)
 
   auto serialize = [&](const Packet &p, std::vector<char> *buf) {
     const Chunk &c = *p.chunk;
-    const int32_t head[3] = {p.end - p.begin, n, d.history_capacity};
-    put(buf, head, 3);
+    const std::array<int32_t, 3> head = {p.end - p.begin, n, d.history_capacity};
+    put(buf, head.data(), head.size());
     for (int i = p.begin; i < p.end; i++) {
       const int32_t ev = c.events[i];
       put(buf, &ev, 1);
@@ -436,8 +438,8 @@ void BatchPath::run(const ProcessCase &process)
     if (p) {
       serialize(*p, &s.buf);
     } else {
-      const int32_t head[3] = {0, n, d.history_capacity};
-      put(&s.buf, head, 3);
+      const std::array<int32_t, 3> head = {0, n, d.history_capacity};
+      put(&s.buf, head.data(), head.size());
     }
     MPI_Isend(s.buf.data(), static_cast<int>(s.buf.size()), MPI_BYTE, dest,
               kTagPacket, comm, &s.req);
@@ -505,8 +507,8 @@ void BatchPath::run(const ProcessCase &process)
           std::vector<char> buf(bytes > 0 ? bytes : 1);
           MPI_Recv(buf.data(), bytes, MPI_BYTE, s, kTagPacket, comm, MPI_STATUS_IGNORE);
           request_out = false;
-          int32_t head[3];
-          const char *p = get(buf.data(), head, 3);
+          std::array<int32_t, 3> head{};
+          const char *p = get(buf.data(), head.data(), head.size());
           if (head[0] == 0) {
             servers.erase(servers.begin() +
                           static_cast<std::ptrdiff_t>(current % servers.size()));
@@ -619,17 +621,17 @@ void BatchPath::finish()
     while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
     return s;
   };
-  static const char *const paths[] = {"gpu", "cpu", "cpu_fallback"};
-  static const char *const statuses[] = {"converged", "diverged", "flagged", "not_run"};
+  static const std::array<const char *, 3> paths = {"gpu", "cpu", "cpu_fallback"};
+  static const std::array<const char *, 4> statuses = {"converged", "diverged", "flagged", "not_run"};
   {
     std::ofstream out((d.output_file + "_gpu_outcomes.csv").c_str());
     out << "event_idx,contingency,path,cpu_reason,classified_fast,gpu_status,"
            "health_events,iterations,total_iterations,controller_iterations,solves,"
            "pv_to_pq,final_tolerance\n";
     for (const OutcomeRow &r : rows) {
-      out << r.event + 1 << "," << rtrim(ev[r.event].p_name) << "," << paths[r.path] << ","
+      out << r.event + 1 << "," << rtrim(ev[r.event].p_name) << "," << paths.at(r.path) << ","
           << cpuReasonName(static_cast<CpuReason>(r.reason)) << "," << r.fast << ","
-          << (r.gpu_status >= 0 && r.gpu_status <= 3 ? statuses[r.gpu_status] : "") << ","
+          << (r.gpu_status >= 0 && r.gpu_status <= 3 ? statuses.at(r.gpu_status) : "") << ","
           << r.health << "," << r.iterations << "," << r.total_iterations << ","
           << r.controller_iterations << "," << r.solves << "," << r.pv_to_pq << ","
           << std::scientific << std::setprecision(6) << r.final_tolerance
@@ -676,7 +678,7 @@ void BatchPath::finish()
       reasons[cpuReasonName(static_cast<CpuReason>(r.reason))]++;
     } else {
       fb++;
-      reasons[std::string("gpu_") + statuses[std::max(0, std::min(3, r.gpu_status))]]++;
+      reasons[std::string("gpu_") + statuses.at(std::max(0, std::min(3, r.gpu_status)))]++;
     }
   }
   std::ostringstream os;
@@ -704,9 +706,9 @@ void BatchPath::finish()
   for (int r = 0; r < d.size; r++) {
     if (!haves[r]) continue;
     const batchpf_diagnostics &g = diags[r];
-    static const char *const names[] = {"auto", "cudss", "alg2", "cpu_reference"};
+    static const std::array<const char *, 4> names = {"auto", "cudss", "alg2", "cpu_reference"};
     std::ostringstream ds;
-    ds << "rank " << r << " GPU: backend " << names[std::max(0, std::min(3, g.backend))]
+    ds << "rank " << r << " GPU: backend " << names.at(std::max(0, std::min(3, g.backend)))
        << ", batch size " << g.batch_size << ", " << g.cases << " cases ("
        << g.converged << " converged, " << g.diverged << " diverged, " << g.flagged
        << " flagged) in " << g.batches << " submissions, "

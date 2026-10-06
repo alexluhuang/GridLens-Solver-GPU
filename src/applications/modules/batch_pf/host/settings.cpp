@@ -15,6 +15,7 @@
 #include "settings.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cerrno>
 #include <cstdlib>
@@ -317,10 +318,10 @@ std::vector<std::string> describeSettings(const ResolvedSettings &s)
     return os.str();
   };
   auto autoInt = [](int v) { return v == 0 ? std::string("auto") : std::to_string(v); };
-  static const char *const backends[] = {"auto", "cudss", "alg2", "cpu_reference"};
-  static const char *const profiles[] = {"auto", "unified", "coherent", "discrete"};
-  static const char *const tele[] = {"off", "summary", "detailed"};
-  static const char *const levels[] = {"error", "warn", "info", "debug"};
+  static const std::array<const char *, 4> backends = {"auto", "cudss", "alg2", "cpu_reference"};
+  static const std::array<const char *, 4> profiles = {"auto", "unified", "coherent", "discrete"};
+  static const std::array<const char *, 3> tele = {"off", "summary", "detailed"};
+  static const std::array<const char *, 4> levels = {"error", "warn", "info", "debug"};
   line("GPUBatch/enabled",
        g.enabled.value == Enabled::On ? "on" : g.enabled.value == Enabled::Auto ? "auto" : "off",
        g.enabled.source);
@@ -331,7 +332,7 @@ std::vector<std::string> describeSettings(const ResolvedSettings &s)
   line("GPUBatch/pluginPath",
        g.plugin_path.value.empty() ? "(next to ca.x)" : g.plugin_path.value,
        g.plugin_path.source);
-  line("GPUBatch/backend", backends[g.backend.value], g.backend.source);
+  line("GPUBatch/backend", backends.at(g.backend.value), g.backend.source);
   line("GPUBatch/device", std::to_string(g.device.value), g.device.source);
   line("GPUBatch/batchSize", autoInt(g.batch_size.value), g.batch_size.source);
   line("GPUBatch/maxValidatedBatch",
@@ -341,7 +342,7 @@ std::vector<std::string> describeSettings(const ResolvedSettings &s)
   line("GPUBatch/backfill", g.backfill.value ? "true" : "false", g.backfill.source);
   line("GPUBatch/threadsPerBlock", autoInt(g.threads_per_block.value),
        g.threads_per_block.source);
-  line("GPUBatch/memoryProfile", profiles[g.memory_profile.value], g.memory_profile.source);
+  line("GPUBatch/memoryProfile", profiles.at(g.memory_profile.value), g.memory_profile.source);
   line("GPUBatch/memoryHeadroomGB",
        g.memory_headroom_gb.value < 0.0 ? "by memory profile" : num(g.memory_headroom_gb.value),
        g.memory_headroom_gb.source);
@@ -366,7 +367,7 @@ std::vector<std::string> describeSettings(const ResolvedSettings &s)
   line("GPUBatch/health/checkNonFinite", g.check_nonfinite.value ? "true" : "false",
        g.check_nonfinite.source);
   line("GPUBatch/shadowFraction", num(g.shadow_fraction.value), g.shadow_fraction.source);
-  line("GPUBatch/telemetry", tele[g.telemetry.value], g.telemetry.source);
+  line("GPUBatch/telemetry", tele.at(g.telemetry.value), g.telemetry.source);
   line("GPUBatch/profilerRanges", g.profiler_ranges.value ? "true" : "false",
        g.profiler_ranges.source);
   std::string ranks;
@@ -378,7 +379,7 @@ std::vector<std::string> describeSettings(const ResolvedSettings &s)
            : e.cpu_binding.value == CpuBinding::PerformanceFirst ? "performance_first"
                                                                  : "auto",
        e.cpu_binding.source);
-  line("Execution/logLevel", levels[e.log_level.value], e.log_level.source);
+  line("Execution/logLevel", levels.at(e.log_level.value), e.log_level.source);
   line("CUDA_VISIBLE_DEVICES",
        s.cuda_visible_devices.empty() ? "(not set)" : s.cuda_visible_devices,
        s.cuda_visible_devices.empty() ? Source::Default : Source::Environment);

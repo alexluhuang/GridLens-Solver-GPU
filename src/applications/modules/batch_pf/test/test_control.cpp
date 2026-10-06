@@ -17,7 +17,7 @@
  * GridPACK's code does for the same numbers. No GPU is needed.
  */
 
-#include <cstdio>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -89,7 +89,7 @@ int main()
   int failures = 0;
   const auto check = [&](bool ok, const std::string &what) {
     if (!ok) {
-      std::printf("FAILED: %s\n", what.c_str());
+      std::cout << "FAILED: " << what << "\n";
       failures++;
     }
   };
@@ -170,9 +170,9 @@ int main()
     check((r.s.health & BATCHPF_HEALTH_SMALL_PIVOT) != 0, "pivot flag");
   }
   if (failures == 0) {
-    std::printf("No errors detected\n");
+    std::cout << "No errors detected\n";
     return 0;
   }
-  std::printf("%d failure detected\n", failures);
+  std::cout << failures << " failure detected\n";
   return 1;
 }

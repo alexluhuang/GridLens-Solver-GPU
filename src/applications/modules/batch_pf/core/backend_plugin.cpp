@@ -19,6 +19,7 @@
 #include <dlfcn.h>
 
 #include <cstring>
+#include <array>
 #include <memory>
 #include <string>
 
@@ -127,12 +128,12 @@ class PluginBackend : public SolverBackend {
     plan.refinement_steps = setup.refinement_steps;
     plan.threads_per_block = setup.threads_per_block;
     plan.pivot_limit = setup.pivot_limit;
-    char err[512] = {0};
+    std::array<char, 512> err{};
     batchpf_backend *raw = nullptr;
-    const batchpf_status st = p_api.setup(&plan, &raw, err, sizeof(err));
+    const batchpf_status st = p_api.setup(&plan, &raw, err.data(), err.size());
     if (st != BATCHPF_OK || raw == nullptr) {
       throw Error(st == BATCHPF_OK ? BATCHPF_ERR_BACKEND : st,
-                  std::string(p_caps.name) + " setup failed: " + err);
+                  std::string(p_caps.name) + " setup failed: " + err.data());
     }
     p_backend = std::unique_ptr<batchpf_backend, Teardown>(raw, Teardown{&p_api});
   }

@@ -14,10 +14,12 @@
 #include "batch_path_impl.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <iostream>
 #include <sstream>
 #include <type_traits>
 
@@ -40,8 +42,7 @@ double now()
                           const std::string &msg)
 {
   if (world.rank() == 0) {
-    std::printf("ERROR: %s\n", msg.c_str());
-    std::fflush(stdout);
+    std::cout << "ERROR: " << msg << std::endl;
   }
   world.barrier();
   MPI_Abort(static_cast<MPI_Comm>(world), 1);
@@ -61,21 +62,21 @@ void appendBytes(std::vector<char> *out, const T *src, std::size_t count)
 /// Serialize classification records for the all-gather
 void pack(const CaseClass &c, std::vector<char> *out)
 {
-  const int32_t head[10] = {c.event.value, static_cast<int32_t>(c.path),
+  const std::array<int32_t, 10> head = {c.event.value, static_cast<int32_t>(c.path),
                             static_cast<int32_t>(c.reason), c.fast ? 1 : 0,
                             c.island_count, c.lone_bus ? 1 : 0,
                             c.slack_transferred ? 1 : 0, c.slack_bus.value,
                             static_cast<int32_t>(c.bus_updates.size()),
                             static_cast<int32_t>(c.edge_updates.size())};
-  appendBytes(out, head, 10);
+  appendBytes(out, head.data(), head.size());
   appendBytes(out, c.bus_updates.data(), c.bus_updates.size());
   appendBytes(out, c.edge_updates.data(), c.edge_updates.size());
 }
 
 std::size_t unpack(const char *p, CaseClass *c)
 {
-  int32_t head[10];
-  std::memcpy(head, p, sizeof(head));
+  std::array<int32_t, 10> head{};
+  std::memcpy(head.data(), p, sizeof(head));
   c->event = CaseIndex{head[0]};
   c->path = static_cast<CasePath>(head[1]);
   c->reason = static_cast<CpuReason>(head[2]);
@@ -329,13 +330,13 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   const int nbus = static_cast<int>(d.model.buses.size());
   // Every rank holds the whole network; check the copies agree, since
   // results computed on one rank are reported on another
-  long sig[2] = {nbus, 0};
+  std::array<long, 2> sig = {nbus, 0};
   for (int k = 0; k < nbus; k++) {
     sig[1] = (sig[1] * 1000003L + d.model.buses[k].original_index) % 2147483647L;
   }
-  long lo[2], hi[2];
-  MPI_Allreduce(sig, lo, 2, MPI_LONG, MPI_MIN, static_cast<MPI_Comm>(d.world));
-  MPI_Allreduce(sig, hi, 2, MPI_LONG, MPI_MAX, static_cast<MPI_Comm>(d.world));
+  std::array<long, 2> lo{}, hi{};
+  MPI_Allreduce(sig.data(), lo.data(), 2, MPI_LONG, MPI_MIN, static_cast<MPI_Comm>(d.world));
+  MPI_Allreduce(sig.data(), hi.data(), 2, MPI_LONG, MPI_MAX, static_cast<MPI_Comm>(d.world));
   if (lo[0] != hi[0] || lo[1] != hi[1]) {
     d.active = false;
     if (d.rank == 0) {

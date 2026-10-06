@@ -30,7 +30,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
+#include <array>
+#include <iostream>
+#include <iomanip>
+#include <boost/make_shared.hpp>
 #include <map>
 #include <string>
 #include <vector>
@@ -52,7 +55,7 @@ struct Checks {
   int failures = 0;
   void operator()(bool ok, const std::string &what) {
     if (!ok) {
-      std::printf("FAILED: %s\n", what.c_str());
+      std::cout << "FAILED: " << what << "\n";
       failures++;
     }
   }
@@ -150,14 +153,14 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   for (int k = 0; k < n; k++) {
     PFBus *bus = dynamic_cast<PFBus *>(net->getBus(k).get());
     if (bus->isIsolated()) continue;
-    double r[4] = {0, 0, 0, 0};
-    const int nr = bus->rhsValues(r);
+    std::array<double, 4> r{};
+    const int nr = bus->rhsValues(r.data());
     if (nr == 2 && !bus->getReferenceBus()) {
       worst_f = std::max(worst_f, std::fabs(r[0] - F[2 * k]));
       worst_f = std::max(worst_f, std::fabs(r[1] - F[2 * k + 1]));
     }
-    double jv[4] = {0, 0, 0, 0};
-    const int nj = bus->diagonalJacobianValues(jv);
+    std::array<double, 4> jv{};
+    const int nj = bus->diagonalJacobianValues(jv.data());
     check(nj == 4, "large layout gives 2x2 diagonal blocks");
     for (int q = 0; q < 4; q++) {
       const double mine = J[pat.diag_pos[4 * k + q]];
@@ -172,9 +175,9 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
     const int e = model.branch_edge[i];
     if (e < 0) continue;
     PFBranch *br = dynamic_cast<PFBranch *>(net->getBranch(i).get());
-    double f[4] = {0, 0, 0, 0}, r[4] = {0, 0, 0, 0};
-    const int nf = br->forwardJacobianValues(f);
-    const int nrv = br->reverseJacobianValues(r);
+    std::array<double, 4> f{}, r{};
+    const int nf = br->forwardJacobianValues(f.data());
+    const int nrv = br->reverseJacobianValues(r.data());
     std::vector<double> &sf = sum[e], &sr = sum[model.edge_mate[e]];
     sf.resize(4, 0.0);
     sr.resize(4, 0.0);
@@ -191,8 +194,9 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
       }
     }
   }
-  std::printf("kernel parity: mismatch max |diff| %.2e, diagonal blocks %.2e, "
-              "branch blocks %.2e\n", worst_f, worst_d, worst_o);
+  std::cout << std::scientific << std::setprecision(2)
+            << "kernel parity: mismatch max |diff| " << worst_f
+            << ", diagonal blocks " << worst_d << ", branch blocks " << worst_o << "\n";
   check(worst_f < 1e-9, "mismatch equals GridPACK's rhsValues()");
   check(worst_d == 0.0, "diagonal blocks equal GridPACK's large layout");
   check(worst_o == 0.0, "branch blocks equal GridPACK's large layout");
@@ -223,8 +227,9 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   }
   app.clearQlimViolations();
   PFBus::clearQlimWarnings();
-  std::printf("Q-limit check: GridPACK converts %d buses, the GPU check differs at %d; "
-              "%d PV buses have no generators\n", converted, differ, no_gen_pv);
+  std::cout << "Q-limit check: GridPACK converts " << converted
+            << " buses, the GPU check differs at " << differ << "; " << no_gen_pv
+            << " PV buses have no generators\n";
   check(qv[0] == converted, "GPU check counts the same conversions");
   check(differ == 0, "GPU check converts the buses GridPACK converts");
 }
@@ -289,11 +294,11 @@ void classifierParity(gridpack::powerflow::PFAppModule &app,
     }
     if (!same) {
       mismatched++;
-      if (mismatched < 5) std::printf("classification differs for case %zu\n", e);
+      if (mismatched < 5) std::cout << "classification differs for case " << e << "\n";
     }
   }
-  std::printf("classifier parity: %zu cases, %d by the fast path, %d differ from "
-              "GridPACK's full routine\n", cases.size(), fast, mismatched);
+  std::cout << "classifier parity: " << cases.size() << " cases, " << fast
+            << " by the fast path, " << mismatched << " differ from GridPACK's full routine\n";
   check(mismatched == 0, "fast path equals GridPACK's contingency routine");
 }
 
@@ -311,8 +316,7 @@ int main(int argc, char **argv)
     gridpack::utility::Configuration *config =
         gridpack::utility::Configuration::configuration();
     config->open(argc > 1 ? argv[1] : "input.xml", world);
-    boost::shared_ptr<gridpack::powerflow::PFNetwork> net(
-        new gridpack::powerflow::PFNetwork(world));
+    auto net = boost::make_shared<gridpack::powerflow::PFNetwork>(world);
     gridpack::powerflow::PFAppModule app;
     app.suppressOutput(true);
     app.readNetwork(net, config);
@@ -327,9 +331,9 @@ int main(int argc, char **argv)
   gridpack::math::Finalize();
   GA_Terminate();
   if (check.failures == 0) {
-    std::printf("No errors detected\n");
+    std::cout << "No errors detected\n";
   } else {
-    std::printf("%d failure detected\n", check.failures);
+    std::cout << check.failures << " failure detected\n";
   }
   MPI_Finalize();
   return check.failures == 0 ? 0 : 1;

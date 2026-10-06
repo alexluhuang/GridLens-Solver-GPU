@@ -96,6 +96,11 @@ class Classifier {
   Classifier(gridpack::powerflow::PFAppModule &pf_app,
              boost::shared_ptr<gridpack::powerflow::PFNetwork> network,
              const gridpack::powerflow::SupersetModel &model, bool study_controls);
+  ~Classifier() = default;
+  Classifier(const Classifier &) = delete;
+  Classifier &operator=(const Classifier &) = delete;
+  Classifier(Classifier &&) = delete;
+  Classifier &operator=(Classifier &&) = delete;
 
   /// Classify one case; the network is restored before returning
   CaseClass classify(CaseIndex event, gridpack::powerflow::Contingency &c);
