@@ -78,11 +78,12 @@ class CADriver
      * @param pf_app power flow application module with loaded network
      * @param gen_branches generate branch contingencies
      * @param gen_generators generate generator contingencies
+     * @param gen_dclines generate two-terminal dc line (pole) contingencies
      * @return vector of auto-generated contingencies
      */
     std::vector<gridpack::powerflow::Contingency> generateN1Contingencies(
         gridpack::powerflow::PFAppModule &pf_app,
-        bool gen_branches, bool gen_generators);
+        bool gen_branches, bool gen_generators, bool gen_dclines = false);
 
     /**
      * Check if a contingency is a duplicate of any in the existing list

@@ -156,9 +156,33 @@ re-solves. This outer loop runs up to 10 iterations.
 
 The ``maxControllerIterations`` parameter (default 10) sets the maximum
 number of inner controller iterations. This limit is shared by all
-active controls (Q-limits, switched shunts, LTC, and IREG remote
-voltage regulation). When only Q-limits are active, the
-``maxQlimIterations`` parameter is used for backward compatibility.
+active controls (Q-limits, switched shunts, LTC, IREG remote
+voltage regulation and two-terminal dc lines). When only Q-limits are
+active, the ``maxQlimIterations`` parameter is used for backward
+compatibility.
+
+Distributed generation on PSS/E v34 and later load records (``DGENP``,
+``DGENQ``, ``DGENF``) is kept separate from the load and, when ``DGENF``
+is 1 and the load is in service, offsets its constant-power demand.
+Load scaling and load reporting act on the load only.
+
+Two-terminal dc lines are solved with the sequential ac/dc method. Each
+line is modeled as line-commutated converters (six-pulse bridges with
+commutating reactance and resistance) whose ac active and reactive power
+are injected at the converter buses. The rectifier holds the power or
+current order (``MDC``, ``SETVL``) and the inverter holds the
+compounded dc voltage (``VSCHD``, ``RCOMP``); converter taps move within
+their limits only when a firing or extinction angle would leave its
+range. If the inverter reaches its minimum extinction angle it sets the
+dc voltage, and a power order switches to a current order when the dc
+voltage falls below ``VCMOD``. If the rectifier reaches its minimum
+firing angle the inverter controls the current, reduced by the margin
+``DELTI``. After each converged ac solution the dc lines are re-solved
+at the new ac voltages and the controller loop repeats until no
+converter injection changes by more than ``hvdcTolerance`` (per unit,
+default equal to ``tolerance``). Lines with ``MDC=0``, lines taken out of
+service by a contingency and lines with an isolated converter bus are
+blocked.
 
 The ``dampingFactor`` parameter (default 1.0) scales each Newton-Raphson
 correction vector before it is applied to the bus voltages and angles.
