@@ -141,6 +141,18 @@
       "ranks": 8,
       "snapshot": "92a5e689",
       "output_format": "csv_delta"
+    },
+    "polish_cudss_budget_admission": {
+      "passed": true,
+      "requested_batch": 512,
+      "backend_cap": 128,
+      "admitted_batch": 74,
+      "budget_gb": 0.125,
+      "cases": 4198,
+      "full_csv_and_shadows_passed": true,
+      "swap_pages_in": 0,
+      "swap_pages_out": 0,
+      "snapshot": "92a5e689"
     }
   },
   "failed_or_open": {

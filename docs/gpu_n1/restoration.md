@@ -55,3 +55,13 @@ tolerances or an ignored iteration column. An additional oracle study
 may put the controller-activating outage last, using the same complete
 case list for both paths, but must report that ordering and retain the
 default-order failure evidence.
+
+The exact small lists are preserved as
+`reproductions/texas-controller-sequence.xml` and
+`reproductions/texas-independent-cases.xml`. Run the existing
+`batch_pf/test/run_ca_test.py` harness against `Texas7k_20210804.RAW` with
+`--mode parity --backend alg2 --ranks 1 --contingency-list <list>` and a
+separate unmodified `--stock-cax`. The three-case sequence is expected to
+fail strict stock comparison; the two independent cases are expected to
+pass. These lists support diagnosis, not a waived CI failure or a bundled
+copy of the external RAW model.

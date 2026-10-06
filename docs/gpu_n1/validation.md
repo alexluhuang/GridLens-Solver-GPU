@@ -90,6 +90,10 @@ Polish has 4,198 outcomes and 4,026 shadows; Memphis has 1,570 outcomes and
 for Polish and 1.789e-12 / 1.729e-12 pu for Memphis (Alg2/cuDSS). Exact sets,
 statuses, angle differences and all rounded output tables pass. The complete
 Texas Alg2 oracle also passes its full CSV and exact shadow comparisons.
+`study-evidence.jsonl` preserves these small summaries with RAW hashes,
+source snapshots and timing context. It includes the failed default-order
+studies as well as passes. Their shadow-heavy timings are not production
+throughput figures.
 
 ## Output comparison rules
 
@@ -127,6 +131,9 @@ existing branch and voltage checks rather than duplicate GPU formulas.
   sampler's maximum gap was 1.001 s, with no swap-in/out pages and at least
   120.95 GB node memory available. Other jobs were active; this tests a
   near-budget application, not a nearly exhausted host or production speed.
+  A second full Polish CSV/shadow check with cuDSS passed: its validated
+  cap first reduced 512 requested slots to 128, then a 0.125 GB budget
+  reduced admission to 74. The runtime recorded zero swap pages.
 - STD-1/4 passed end-to-end CI, including CMake analyzer properties,
   include-what-you-use, changed adapter coverage and both analyzer engines.
   Maintainer exception review remains pending.
