@@ -111,4 +111,17 @@ rad. Running the outage alone gives two rounds in both paths and passes
 every comparison, including final PV/PQ counts. The full CPU log records a
 limit check on disconnected generator bus 210331 followed by another
 calculation with zero rounds. This is separate from the voltage-reference
-defect. Its cause is being investigated; the full comparison remains failed.
+defect. A two-case reproduction at `f2b6cfa4` now proves the cause:
+`BR_210279_210278_1` diverges, leaving calculated injection data at bus
+210331. `BR_210326_210331_1` then disconnects that bus. `rhsValues` skips
+the disconnected bus, but `chkQlim` still checks its retained injection,
+converts it and repeats the controller calculation. That final repeat needs
+zero rounds; the connected grid's result is unchanged. The same latter
+outage alone takes two rounds. The CPU restoration test reports only a
+count discrepancy; its delta, violations and identity tables agree.
+
+The two-case list is `reproductions/texas-isolated-injection-sequence.xml`.
+The full comparison remains failed and this correction is not implemented.
+Work stopped at the user's request. The independently prepared original-source
+voltage-corrected reference patch is
+`reproductions/cpu-voltage-cleanup-reference.patch`; it is not yet built.

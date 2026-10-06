@@ -1,0 +1,40 @@
+--- a/src/applications/contingency_analysis/ca_driver.cpp
++++ b/src/applications/contingency_analysis/ca_driver.cpp
+@@ -2070,6 +2070,13 @@
+   // Evaluate contingencies using the task manager
+   int task_id;
+   char sbuf[512];
++  // Each outage starts from the same prepared grid.
++  std::vector<double> voltageResetReference;
++  voltageResetReference.reserve(pf_network->numBuses());
++  for (int b = 0; b < pf_network->numBuses(); ++b) {
++    const auto *bus = dynamic_cast<gridpack::powerflow::PFBus *>(pf_network->getBus(b).get());
++    voltageResetReference.push_back(bus->getInitialVoltage());
++  }
+   // nextTask returns the same task_id on all processors in task_comm. When the
+   // calculation runs out of task, nextTask will return false.
+   while (taskmgr.nextTask(task_comm, &task_id)) {
+@@ -2365,6 +2372,13 @@
+     if (check_Qlim) pf_app.clearQlimViolations();
+     // Clear Q limit warnings for next contingency
+     gridpack::powerflow::PFBus::clearQlimWarnings();
++    // Keep controller adjustments within this outage, then restore them.
++    for (int b = 0; b < static_cast<int>(voltageResetReference.size()); ++b) {
++      auto *bus = dynamic_cast<gridpack::powerflow::PFBus *>(pf_network->getBus(b).get());
++      if (bus->getInitialVoltage() != voltageResetReference[b]) {
++        bus->setVoltageMag(voltageResetReference[b]);
++      }
++    }
+     // Close output file for this contingency
+     if (print_calcs) pf_app.close();
+   }
+--- a/src/applications/components/pf_matrix/pf_components.hpp
++++ b/src/applications/components/pf_matrix/pf_components.hpp
+@@ -194,6 +194,7 @@
+      * @return voltage magnitude
+      */
+     double getVoltage(void);
++    double getInitialVoltage() const { return p_voltage; }
+ 
+     /**
+      * Return the complex voltage on this bus

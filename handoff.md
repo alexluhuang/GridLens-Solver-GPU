@@ -1,10 +1,17 @@
 # Handoff: GPU N-1 implementation and remaining validation
 
-Updated 2026-10-05. Repository: `/home/alh360/Documents/GridLens-Solver-GPU`.
-Branch: `feature/gpu-batch-n1`. Implementation through `e49d0084` plus the
-approved CPU cleanup correction; commits
+Updated 2026-10-05 (stopped 2026-10-06 06:51:41 UTC).
+Repository: `/home/alh360/Documents/GridLens-Solver-GPU`.
+Branch: `feature/gpu-batch-n1`. Implementation through `f2b6cfa4`; commits
 are local. This is GridPACK C++/CUDA, not the Python GridLens repository.
 The implementation has not passed every release gate in the supplied plan.
+
+**The user explicitly instructed "Stop now." All pending tasks are stopped.**
+Docker reported no running containers after queue container `a24b7d6aab8c`
+was stopped. The interrupted queue exited 137; that was a deliberate stop,
+not a solver failure. Do not automatically resume until the user asks.
+The earlier budget instruction was to stop with 15 minutes remaining in a
+five-hour allowance. Account usage was not visible; no budget timer is active.
 
 ## Instructions
 
@@ -47,6 +54,8 @@ Recent corrections after the older handoff:
 - `92a5e689`: report local-node swap activity, including unavailable counters.
 - `18f8e840`: skip per-column work for identical CSV rows after shape checks;
   seven regressions preserve mismatch, malformed-row and duplicate checks.
+- `f2b6cfa4`: apply approved voltage cleanup to ordinary CPU cases and add
+  a meaningful CPU sequence-versus-separate-case regression.
 
 All new commits meet the size limit. Full evidence and limitations belong
 in `docs/gpu_n1/validation.md` and `validation-status.json`.
@@ -132,8 +141,8 @@ current builds. Request escalation if Docker/sandbox access fails.
   prefix `/work/quality-install`.
 - `/work/build-cpu`: latest CPU-only source.
 - `/work/build-analysis`: solver through `18f15bca`, used by the ordered
-  full-CSV studies; numerical code matches current. **Do not rebuild its
-  plugins while those studies are running.**
+  full-CSV studies; numerical code matches current. Preserve these binaries
+  until their saved comparisons are finished; the queue is stopped.
 - `/work/build-stock`: separate unmodified baseline `b32969b0`. Its full
   test tree was not built; use its `applications/contingency_analysis/ca.x`.
 - `build-dev`, `build-standards`, `analysis-install` are older snapshots.
@@ -142,34 +151,43 @@ RAW files are `/work/runs/grids/IEEE118.raw`, `Polish_model_v33.raw`,
 `ACTIVSg10k.RAW`, `Texas7k_20210804.RAW`; Memphis is
 `/demo/MemphisCase2026_Mar7.RAW`. Do not redistribute external RAW inputs.
 
-## Live work at this checkpoint
+## Stopped work at this checkpoint
 
-Check processes and actual log endings before repeating expensive work.
-Tool session IDs are conveniences, not durable proof that a job runs.
-Container process namespaces need `--pid=host` to inspect host jobs.
+No implementation, build, profiler or validation task remains running.
+Check actual log endings before repeating expensive work. Old PIDs and
+session IDs below identify evidence; do not signal reused PIDs.
 
-1. Ordered large-grid queue: session 76389, host bash PID 73168, **running**.
+1. Ordered large-grid queue: former session 76389/PID 73168, **stopped**.
    It was paused after Texas Alg2 passed to isolate performance, then resumed
    after all 44 timing trials finished. Texas cuDSS finished with one strict
    count failure: event 7822 `BR_210326_210331_1`, CPU zero versus GPU two.
    Other output and shadow checks pass. The isolated case passes at two
    rounds in both paths. The CPU log shows a limit check on disconnected
    generator 210331 followed by a zero-round calculation; investigate this
-   separately from voltage cleanup. Evidence and one-case XML are saved.
-   10k Alg2 is now running; both 10k full-CSV oracles remain. Inputs mounted from
+   separately from voltage cleanup. A two-case reproduction now proves this
+   survives the voltage fix: `BR_210279_210278_1` diverges, then
+   `BR_210326_210331_1` reports zero rounds; the latter alone reports two.
+   Delta, violations and identity tables agree; only the count differs.
+   Its stale calculated injection triggers a limit check on disconnected
+   bus 210331. Both XMLs are saved under `docs/gpu_n1/reproductions`.
+   10k Alg2 finished both solver runs (stock 567.588 s, GPU 700.910 s, both
+   exit zero), but full table comparison was interrupted. Compare saved
+   outputs before rerunning calculations. 10k cuDSS never started.
+   Inputs were mounted from
    `/tmp/{Texas7k_20210804,ACTIVSg10k}-remote-last.xml`; preserve them while
    mounted. Logs `/work/validation-ordered-<grid>-<backend>.log`; studies
    `/work/validation-ordered/<grid>_<backend>/{stock,parity}`.
 2. Final Polish/Memphis checks finished; all four passed. Metrics are in
    `study-evidence.jsonl`. The cuDSS capped-budget check also passed.
 3. Final reporting images finished building and runtime checks passed.
-   IDs/packages are in `image-evidence.json`; both driver hashes match current
-   source. GPU: cuDSS/four ranks, independent baseline, exact PV/PQ and final
+   IDs/packages are in `image-evidence.json`; both driver hashes match
+   `e49d0084`. GPU: cuDSS/four ranks, independent baseline, exact PV/PQ and final
    state; both: default Python imports and serial fallback. CPU comparison
    uses its own inactive loop because the older tools baseline's MPI library
    is absent. Build logs `/tmp/gridpack-image-{cpu,gpu}-reported-state.log`;
    runtime logs `/work/image-reported-state-*.log`. Retain version argument
-   `n1-validation` for dependency-cache reuse. No image is pushed.
+   `n1-validation` for dependency-cache reuse. No image is pushed. Images need
+   another refresh for the approved CPU correction.
 4. Isolated performance session 53554 finished all 34 trials successfully.
    Full Polish N-1, text output, zero shadows, two trials per setting;
    raw starts except explicitly tagged base-case trials. Results are in
@@ -202,24 +220,46 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    rounds and delta difference 31.7952) and passes afterward in both builds.
    Seven targeted GPU-build checks and three CPU-build checks pass. The
    broader suites, standards, installed artifacts and images need a refresh
-   after the final source changes. Leave `/work/build-analysis` unchanged
-   until its queue finishes; it still tests the earlier GPU-only correction.
+   after the final source changes. `/work/build-analysis` still tests the
+   earlier GPU-only correction; its queue is stopped.
+10. Prepared a separate original-source CPU reference under
+    `/tmp/gridpack-corrected-reference`, extracted from `b32969b0` with only
+    voltage cleanup and a read-only reference getter added. **It has not been
+    configured or built.** The complete patch is saved as
+    `docs/gpu_n1/reproductions/cpu-voltage-cleanup-reference.patch`.
+    If temporary files disappear, use `git archive b32969b0`, extract into a
+    fresh directory and apply the patch. Preserve `/work/build-stock`.
 
 ## Finish in this order
 
-1. Diagnose the additional isolated-generator count failure, following
-   guide 8.14/8.6.2, then actual GridPACK code. Do not attribute it to voltage
-   carryover. The one-case reproduction passes; a preceding case may be
-   needed to expose the disconnected bus's retained calculated injection.
+1. Finish the disconnected-generator count correction, following guide
+   8.14/8.6.2, then actual GridPACK code. `PFBus::rhsValues` skips an isolated
+   bus, leaving its previous calculated `p_Qinj`; `chkQlim` still checks it.
+   A previous failed case can trigger a needless extra controller solve.
+   Consider ignoring disconnected buses in that check, verify the physical
+   model first, and document any additional compatibility change separately
+   from the user's voltage-cleanup decision. Reproduce with
+   `test_case_restoration.py`, Texas RAW and the saved two-case list
+   `reproductions/texas-isolated-injection-sequence.xml`. Current `f2b6cfa4`
+   fails only on the count. Logs are
+   `/work/repro-cpu-isolated-injection/{sequence,single}`. Add a small included
+   regression if needed; do not bundle Texas RAW.
 2. Build a CPU reference from original `b32969b0` with only the approved
    voltage cleanup correction. Preserve the original build and label both
    references clearly. Check the Texas sequence, then default-order studies.
    Run broader suites/standards and refresh installation/images after the
    final source checkpoint. Previous 44 production timings remain valid
    evidence for their recorded snapshots; repeat only affected selected checks.
-3. Finish the resumed PID 73168 full CSV comparisons. Keep the
+3. Finish the interrupted large-grid comparisons, including saved 10k Alg2
+   output. Do not reuse old PIDs or restart the whole queue blindly. Keep the
    default-order failure evidence separate. Full tables are tens of GB;
    sorting is bounded to 256 MB and Python processes one event at a time.
+   For saved outputs, import `compare`, `ordered`, `complete` and `shadow`
+   from `batch_pf/test/run_ca_test.py` and call them on the existing stock
+   and parity directories. Retain tolerance 1e-3 for rounded tables, exact
+   iteration checks, 15,191 expected outcomes and exact shadow sets. This
+   old snapshot has no final-state columns; do not call the newer
+   `reported_state` check on it. Record every result explicitly.
 4. Update validation.md, structured status and this handoff. Preserve small
    benchmark/pressure/shadow summaries with input/source hashes, not GB
    outputs. Commit logically within the line limit, then check all commit

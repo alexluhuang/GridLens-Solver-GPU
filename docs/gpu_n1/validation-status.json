@@ -1,6 +1,6 @@
 {
   "updated": "2026-10-05",
-  "source": "e49d0084 plus approved CPU voltage cleanup; each saved study retains its actual snapshot",
+  "source": "f2b6cfa4; each saved study retains its actual snapshot",
   "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
   "completed": {
     "cpu_only_ctest": {
@@ -215,7 +215,8 @@
       "gpu_build_checks": 7,
       "cpu_build_checks": 3,
       "original_delta_difference": 31.7952,
-      "original_iteration_difference": 8
+      "original_iteration_difference": 8,
+      "snapshot": "f2b6cfa4"
     }
   },
   "failed_or_open": {
@@ -232,7 +233,7 @@
     },
     "fid2_full_current_csv": {
       "passed": false,
-      "reason": "Ordered Texas Alg2 passes; ordered Texas cuDSS has one count mismatch. Remaining 10k comparisons run against the original baseline. User approved voltage cleanup in both paths; corrected CPU reference checks remain."
+      "reason": "Texas Alg2 passes; Texas cuDSS has a reproduced disconnected-generator count discrepancy. The 10k Alg2 solver runs finished but comparison was interrupted by the user; 10k cuDSS did not start. Corrected-reference studies remain."
     },
     "full_cuda_clang_tidy": {
       "passed": false,
@@ -256,15 +257,16 @@
       "gpu_iterations": 2,
       "all_other_output_and_shadow_checks_passed": true,
       "isolated_case_passed": true,
-      "cause": "Investigating a CPU limit check on a disconnected generator after the ordinary two-round solve."
+      "cause": "A prior divergent outage leaves a calculated generator injection behind. The next outage disconnects bus 210331, whose injection is not refreshed, but the CPU still checks its limit and reports a needless zero-round controller solve.",
+      "two_case_reproduction": "reproductions/texas-isolated-injection-sequence.xml",
+      "reproduction_snapshot": "f2b6cfa4"
     }
   },
-  "in_progress": [
-    "ordered full 10k comparisons against original baseline",
-    "diagnosis of ordered Texas cuDSS case 7822"
-  ],
+  "in_progress": [],
   "remaining": [
-    "corrected independent CPU baseline and default-order fidelity checks",
+    "fix and verify the disconnected-generator limit-check history defect",
+    "build corrected independent CPU reference and run default-order fidelity checks",
+    "compare saved 10k Alg2 outputs; 10k cuDSS full CSV remains unstarted",
     "full checks, installation and image refresh after approved source change",
     "final validation evidence and handoff"
   ],
@@ -280,6 +282,32 @@
     "Do not test grids larger than ACTIVSg10k.",
     "Original guide proposals are not measured results.",
     "Keep strict failures; do not ignore raw-start iteration differences or loosen voltage tolerances.",
-    "User approved restoring voltage settings in both paths on 2026-10-05; keep the original baseline and its known failures as evidence."
-  ]
+    "User approved restoring voltage settings in both paths on 2026-10-05; keep the original baseline and its known failures as evidence.",
+    "User instructed Stop now. All pending task containers were stopped; continue implementation only when the user resumes it."
+  ],
+  "interrupted": {
+    "ordered_10k_alg2": {
+      "solver_runs_finished": true,
+      "stock_seconds": 567.587883559001,
+      "gpu_seconds": 700.9102392170007,
+      "solver_returncodes": [
+        0,
+        0
+      ],
+      "comparison_finished": false,
+      "full_output_passed": null,
+      "snapshot": "18f15bca",
+      "stock_snapshot": "b32969b0",
+      "directory": "/work/validation-ordered/ACTIVSg10k_alg2"
+    },
+    "ordered_10k_cudss": {
+      "started": false
+    },
+    "stopped_by_user": {
+      "time_utc": "2026-10-06 06:51:41",
+      "queue_container": "a24b7d6aab8c",
+      "queue_exit_code": 137,
+      "active_task_containers": 0
+    }
+  }
 }

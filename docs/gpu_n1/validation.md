@@ -9,6 +9,9 @@ On 2026-10-05 the user approved restoring saved voltage settings in both
 paths, accepting changed results caused by fixing the cleanup defect.
 New corrected-reference checks must be labeled separately from this original
 baseline. The broader checks below retain their actual source snapshots.
+The user stopped work at 2026-10-06 06:51:41 UTC. No task containers remain
+running. The full 10k Alg2 solver runs finished successfully, but their table
+comparison was interrupted; 10k cuDSS did not start. Saved output is retained.
 
 ## Machine and tools actually used
 
@@ -109,8 +112,10 @@ The ordered Texas cuDSS study has one strict count failure, event 7822
 `BR_210326_210331_1`: CPU zero rounds, GPU two. All other output and shadow
 checks pass. The case alone passes at two rounds in both paths. Its full CPU
 log checks a disconnected generator's limit and starts another calculation
-with zero rounds; this is an additional issue under investigation, not
-evidence that the voltage cleanup caused the mismatch.
+with zero rounds. A two-case reproduction at `f2b6cfa4` confirms that a
+preceding divergent case leaves calculated injection data which is then
+checked on the disconnected generator. Only the reported count differs;
+the correction is not yet implemented. See `restoration.md`.
 `study-evidence.jsonl` preserves these small summaries with RAW hashes,
 source snapshots and timing context. It includes the failed default-order
 studies as well as passes. Their shadow-heavy timings are not production
