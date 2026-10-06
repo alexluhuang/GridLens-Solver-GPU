@@ -107,3 +107,46 @@ differences, not a separately isolated measurement of the loop itself.
 Batch 512 still exceeds 95% of the best eight-rank throughput. The final
 sixteen-rank raw-start comparison gives a 1.53 speedup over stock at the
 same rank count. Base-case starts may change iteration counts deliberately.
+
+## Whole-study phases with CSV output
+
+Source `d62432ec`, which adds study-phase timer categories to the driver
+(`CA: Read Network`, `CA: Base Case`, `CA: Case List and Output Setup`,
+`CA: Solve and Report Cases`, `CA: Merge Output Files`). They use GridPACK's
+own coarse timer, so the phases appear in the normal timing dump of every
+path. Each run was one full branch and generator N-1 study from the RAW file
+and configuration to the final `csv_delta` tables: eight ranks, reactive
+limits, default settings (base-case warm start on the GPU paths), no shadow
+re-solves, one trial each, nothing else running. Phase times are the maximum
+over ranks. Every path produced the same case, convergence and delta-row
+counts. All rows are in `performance-phases.jsonl`.
+
+| Grid | Path | Batch | Wall s | Read | Base | List | GPU prepare | Solve and report | Merge | GPU busy s |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Polish | CPU | – | 26.7 | 0.1 | 0.1 | 0.1 | – | 25.9 | 0.0 | – |
+| Polish | Alg2 | 512 | 12.0 | 0.1 | 0.1 | 0.0 | 0.1 | 11.0 | 0.0 | 8.9 |
+| Polish | cuDSS | 128 | 13.5 | 0.1 | 0.1 | 0.0 | 0.2 | 12.4 | 0.0 | 11.9 |
+| Texas7k | CPU | – | 251.4 | 0.3 | 0.2 | 0.1 | – | 243.9 | 6.5 | – |
+| Texas7k | Alg2 | 512 | 191.7 | 0.2 | 0.2 | 0.1 | 0.2 | 181.2 | 9.0 | 157.1 |
+| Texas7k | cuDSS | 128 | 146.4 | 0.2 | 0.2 | 0.1 | 0.2 | 136.1 | 8.8 | 60.7 |
+| 10k | CPU | – | 570.8 | 0.3 | 0.3 | 0.1 | – | 557.2 | 12.4 | – |
+| 10k | Alg2 | 512 | 321.8 | 0.3 | 0.2 | 0.1 | 0.2 | 303.0 | 17.1 | 123.6 |
+| 10k | cuDSS | 128 | 309.1 | 0.3 | 0.2 | 0.1 | 0.3 | 289.9 | 17.3 | 125.1 |
+
+Wall time by batch size (seconds; "auto" includes its sweep, shown as GPU
+prepare time):
+
+| Grid | Alg2 128 | Alg2 512 | Alg2 2048 | Alg2 auto | cuDSS 32 | cuDSS 64 | cuDSS 128 | cuDSS auto |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Polish | 23.1 | 12.0 | 12.2 | 14.5 (1024; 1.8) | 35.4 | 21.0 | 13.5 | 14.2 (128; 0.8) |
+| Texas7k | 346.4 | 191.7 | 212.3 | 234.3 (2048; 22.7) | 202.3 | 151.6 | 146.4 | 147.1 (128; 1.6) |
+| 10k | 331.4 | 321.8 | 329.3 | 336.8 (2048; 11.2) | 402.7 | 322.6 | 309.1 | 310.3 (128; 1.9) |
+
+Reading, prepare and merge are small. Almost all time is the case loop.
+At small batches the GPU limits it (GPU busy time is close to the loop
+time). At larger batches the GPU is busy for well under half of the loop on
+Texas7k and 10k; the rest is GridPACK applying each case, checking it and
+writing about 8,400 (Texas7k) or 9,800 (10k) delta rows per case on the
+reporting ranks. The merge is about 40% slower on the GPU paths because
+they write the tables in event order (guide R5). Polish writes no delta
+rows: every solved case there is `SLACK_OVERLOAD`.
