@@ -8,7 +8,11 @@ added plus deleted lines. The original stock baseline is `b32969b0`.
 On 2026-10-05 the user approved restoring saved voltage settings in both
 paths, accepting changed results caused by fixing the cleanup defect.
 New corrected-reference checks must be labeled separately from this original
-baseline. The broader checks below retain their actual source snapshots.
+baseline.
+Commit IDs follow the branch history as rewritten on 2026-10-06; each
+rewritten commit has the same content as the one it replaced. The refreshed
+images were built before the rewrite, so their embedded history shows
+`3b16592d` for what is now `2d3bcbb2`. The broader checks below retain their actual source snapshots.
 Work stopped at 2026-10-06 06:51:41 UTC and resumed later that day. The
 steps left in the handoff are now done; see "Corrected-reference checks".
 No validation job is running.
@@ -32,17 +36,17 @@ remote-controller regression is included with the tests.
 
 | Check | Evidence and source snapshot |
 |---|---|
-| CPU-only build / stock regression | All 121 CTest tests passed one at a time in 75.63 s at `3b16592d` (120 in 80.99 s at `e49d0084`). Parallel legacy tests share files, so the full suite runs sequentially. |
-| Fresh GPU build / standards CI | All supported real architectures plus PTX built. End-to-end standards CI passed all 29 batch tests at `ef11605f` (28 at `e49d0084`). Analysis has 360 clang-tidy and eight cppcheck findings, one below the recorded baseline; there are no new-code compiler warnings and no increased findings. This does not grant maintainer approval of exceptions. |
+| CPU-only build / stock regression | All 121 CTest tests passed one at a time in 75.63 s at `2d3bcbb2` (120 in 80.99 s at `fc1f71a7`). Parallel legacy tests share files, so the full suite runs sequentially. |
+| Fresh GPU build / standards CI | All supported real architectures plus PTX built. End-to-end standards CI passed all 29 batch tests at `560a7023` (28 at `fc1f71a7`). Analysis has 360 clang-tidy and eight cppcheck findings, one below the recorded baseline; there are no new-code compiler warnings and no increased findings. This does not grant maintainer approval of exceptions. |
 | Comparison tools | Nine quality-audit regressions and thirteen output-comparison regressions pass. Native NVCC warning syntax is counted; equal rows still undergo shape, key and duplicate checks. |
-| Final case records | `e49d0084` records CPU/GPU status, iterations, mismatch and final PV/PQ counts before cleanup. Unsolved cases do not inherit another case's history. All eligible IEEE118 cases and the remote-controller regression pass explicit PV/PQ membership and reporting checks on three backends. |
+| Final case records | `fc1f71a7` records CPU/GPU status, iterations, mismatch and final PV/PQ counts before cleanup. Unsolved cases do not inherit another case's history. All eligible IEEE118 cases and the remote-controller regression pass explicit PV/PQ membership and reporting checks on three backends. |
 | Kernel equations | CPU/GPU mismatch relative difference 3.78e-16, Jacobian 1.49e-16, finite-difference error 4.21e-09, Alg2/KLU solve difference 4.61e-12. The component oracle covers IEEE14, IEEE118 and the existing 240-bus fixture. |
 | Member failure / admission | A singular member is flagged while healthy members continue. IEEE118 tests enforce the validated cap and a small memory cap. Larger-budget pressure testing is still separate. |
 | Restoration regression | Three backends pass the included two-case remote-controller regression. The old code lost a PV bus and differed by 0.0181 pu. Corrected voltage/angle errors are below 1e-15. A 65-case 10k reproduction also passes. |
 | MPI / completeness | Two/four reporting ranks and two accelerator ranks on one visible GPU pass. Ordered output reconciliation detects missing, duplicate and unexpected event indices. Every generated case must have an outcome. |
 | Optional loading | Absent/disabled blocks, missing GPU/plugin, invalid settings and explicitly required acceleration are tested. `ca.x` itself has no CUDA/cuDSS dependency. |
-| Installation / images | At `ef11605f` the installed executable and the example rebuilt from the installation pass four-rank IEEE118/cuDSS CSV parity, exact PV/PQ sets and final-state reporting. Images rebuilt from `3b16592d` pass the same GPU check and serial fallback without a GPU (GPU image) or without plugins (CPU image), and import the Python bindings; `ca.x` has no CUDA/cuDSS dependency. IDs and package versions are in `image-evidence.json`. |
-| Memory checking | Final GPU kernels through `18f15bca` passed Compute Sanitizer memcheck with zero errors. Subsequent changes affect host telemetry and the Python comparator, not kernels. |
+| Installation / images | At `560a7023` the installed executable and the example rebuilt from the installation pass four-rank IEEE118/cuDSS CSV parity, exact PV/PQ sets and final-state reporting. Images rebuilt from `2d3bcbb2` pass the same GPU check and serial fallback without a GPU (GPU image) or without plugins (CPU image), and import the Python bindings; `ca.x` has no CUDA/cuDSS dependency. IDs and package versions are in `image-evidence.json`. |
+| Memory checking | Final GPU kernels through `ce1d50e9` passed Compute Sanitizer memcheck with zero errors. Subsequent changes affect host telemetry and the Python comparator, not kernels. |
 
 The final CPU image's serial fallback is compared with its own unchanged
 CPU loop. The separately compiled tools baseline cannot load in that image
@@ -54,9 +58,9 @@ the default CPU image has no entrypoint. No application wrapper is added.
 The rebuilt example outside the installation prefix requires
 `GRIDPACK_BATCHPF_PLUGIN_PATH` to locate the installed plugins.
 
-## Corrected-reference checks (final source `3b16592d`)
+## Corrected-reference checks (final source `2d3bcbb2`)
 
-Commit `3b16592d` stops GridPACK's reactive-limit check from converting a
+Commit `2d3bcbb2` stops GridPACK's reactive-limit check from converting a
 disconnected bus on an injection left by an earlier case (`restoration.md`).
 The corrected CPU reference is the original `b32969b0` source with exactly
 two patches from `reproductions/`: the approved voltage cleanup
@@ -86,7 +90,7 @@ corrected reference, both of those lists and the two independent Texas
 cases pass on Alg2 and cuDSS.
 
 The saved 10k Alg2 study with the controller outage last (solver
-`18f15bca`, original stock) was compared after the interruption. It passes
+`ce1d50e9`, original stock) was compared after the interruption. It passes
 every table, exact iterations, all 15,191 outcomes and exact shadow sets;
 the comparison took 1,397 s and 133 MB. That snapshot predates final-state
 columns, so the final-state check was not applied. The never-started 10k
@@ -116,12 +120,12 @@ The old 10k output sort reached approximately 49 GB memory. The comparator
 now caps GNU sort at 256 MB and streams already ordered GPU tables.
 
 The failing shadows differed by about 0.022 pu on 10k and 0.00996 pu on
-Texas, with one different PV bus. Commit `63f826af` fixes the reference
+Texas, with one different PV bus. Commit `131827e3` fixes the reference
 voltage retained by a CPU remote controller. The diagnosis and controlled
 Texas reproduction are in `restoration.md`.
 
 Corrected default-order Texas and 10k runs pass all GPU shadow voltage,
-angle, status, classification and exact bus-set checks at `63f826af`.
+angle, status, classification and exact bus-set checks at `131827e3`.
 
 | Study | Cases | Shadows | Maximum voltage difference, pu | Maximum angle difference, rad | Strict iteration differences |
 |---|---:|---:|---:|---:|---:|
@@ -145,7 +149,7 @@ and `8475a0ec371fe6d8003365831580cedf07e372e0003b87643372fe76f5911f37`.
 These checks cannot erase the default-order compatibility limitation.
 
 Full current Polish and Memphis CSV checks pass on both backends through
-`92a5e689`, with eight ranks, raw starts and every eligible GPU case shadowed.
+`02af0971`, with eight ranks, raw starts and every eligible GPU case shadowed.
 Polish has 4,198 outcomes and 4,026 shadows; Memphis has 1,570 outcomes and
 1,392 shadows. Maximum voltage differences are 2.028e-12 / 1.893e-12 pu
 for Polish and 1.789e-12 / 1.729e-12 pu for Memphis (Alg2/cuDSS). Exact sets,
@@ -155,16 +159,16 @@ The ordered Texas cuDSS study has one strict count failure, event 7822
 `BR_210326_210331_1`: CPU zero rounds, GPU two. All other output and shadow
 checks pass. The case alone passes at two rounds in both paths. Its full CPU
 log checks a disconnected generator's limit and starts another calculation
-with zero rounds. A two-case reproduction at `f2b6cfa4` confirms that a
+with zero rounds. A two-case reproduction at `c81a8387` confirms that a
 preceding divergent case leaves calculated injection data which is then
 checked on the disconnected generator. Only the reported count differs;
-commit `3b16592d` corrects it. See `restoration.md`.
+commit `2d3bcbb2` corrects it. See `restoration.md`.
 `study-evidence.jsonl` preserves these small summaries with RAW hashes,
 source snapshots and timing context. It includes the failed default-order
 studies as well as passes. Their shadow-heavy timings are not production
 throughput figures.
 
-Final reporting checks at `e49d0084` also pass full Polish/Alg2 and
+Final reporting checks at `fc1f71a7` also pass full Polish/Alg2 and
 Memphis/cuDSS CSV studies, all eligible shadows and explicit PV/PQ sets.
 They cover all 4,198 and 1,570 case records, including CPU-only and retry
 paths. Polish's 4,026 converged numerical solutions are labeled

@@ -2,7 +2,7 @@
 
 Chapter 10 PERF-1–4 requires whole-study measurements before tuning.
 These results use one GB10 Spark, full Polish N-1 (4,198 outcomes),
-independent stock GridPACK `b32969b0`, source `18f8e840`, text output,
+independent stock GridPACK `b32969b0`, source `d17bdaf4`, text output,
 reactive limits enabled, zero shadows and raw voltage starts. Two sequential
 trials were run per setting. The large validation queue was paused and image
 builds finished before measurement. All 34 trials passed output comparisons.
@@ -88,7 +88,7 @@ solely by these ten launches.
 
 ## Final reporting check
 
-All ten selected repeat trials at `e49d0084` passed, including per-case
+All ten selected repeat trials at `fc1f71a7` passed, including per-case
 reported-state checks. `performance-reported-state.jsonl` preserves them.
 Other builds and validation jobs began only after these trials finished.
 

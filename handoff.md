@@ -2,7 +2,7 @@
 
 Updated 2026-10-06. Repository `/home/alh360/Documents/GridLens-Solver-GPU`,
 branch `feature/gpu-batch-n1`, local commits only (not pushed). Solver source
-`3b16592d`; test-only follow-up `ef11605f`; records in the commits after it.
+`2d3bcbb2`; test-only follow-up `560a7023`; records in the commits after it.
 
 ## Instructions that still apply
 
@@ -19,7 +19,7 @@ branch `feature/gpu-batch-n1`, local commits only (not pushed). Solver source
 
 Every step of the previous handoff is done:
 
-1. `3b16592d`: GridPACK's reactive-limit check skips disconnected buses, as the
+1. `2d3bcbb2`: GridPACK's reactive-limit check skips disconnected buses, as the
    GPU check already did. A failed case no longer leaves an injection that
    converts a later disconnected bus. This is a second compatibility change,
    separate from the user's approved voltage cleanup, and it also applies

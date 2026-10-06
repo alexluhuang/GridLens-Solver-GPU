@@ -11,7 +11,7 @@
       ],
       "entrypoint": null,
       "source_driver_sha256": "0565bfa8267a30c6c7db362761868d219ff168611f55158771df3fc1f5af74dc",
-      "solver_source": "3b16592d",
+      "solver_source": "2d3bcbb2",
       "build_passed": true,
       "default_python_import_passed": true,
       "cuda_free_ca_executable": true,
@@ -36,7 +36,7 @@
         "/opt/nvidia/nvidia_entrypoint.sh"
       ],
       "source_driver_sha256": "0565bfa8267a30c6c7db362761868d219ff168611f55158771df3fc1f5af74dc",
-      "solver_source": "3b16592d",
+      "solver_source": "2d3bcbb2",
       "build_passed": true,
       "default_python_import_passed": true,
       "cuda_free_ca_executable": true,

@@ -111,7 +111,7 @@ rad. Running the outage alone gives two rounds in both paths and passes
 every comparison, including final PV/PQ counts. The full CPU log records a
 limit check on disconnected generator bus 210331 followed by another
 calculation with zero rounds. This is separate from the voltage-reference
-defect. A two-case reproduction at `f2b6cfa4` now proves the cause:
+defect. A two-case reproduction at `c81a8387` now proves the cause:
 `BR_210279_210278_1` diverges, leaving calculated injection data at bus
 210331. `BR_210326_210331_1` then disconnects that bus. `rhsValues` skips
 the disconnected bus, but `chkQlim` still checks its retained injection,

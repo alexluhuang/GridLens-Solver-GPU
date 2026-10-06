@@ -1,19 +1,19 @@
 {
   "updated": "2026-10-06",
-  "source": "3b16592d solver, ef11605f tests; each saved study retains its actual snapshot",
+  "source": "2d3bcbb2 solver, 560a7023 tests; each saved study retains its actual snapshot",
   "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
   "completed": {
     "cpu_only_ctest": {
       "passed": 121,
       "failed": 0,
       "seconds": 75.63,
-      "snapshot": "3b16592d",
+      "snapshot": "2d3bcbb2",
       "sequential": true
     },
     "gpu_all_architectures_ctest": {
       "passed": 29,
       "failed": 0,
-      "snapshot": "ef11605f"
+      "snapshot": "560a7023"
     },
     "remote_restoration_regression": {
       "passed": true,
@@ -22,17 +22,17 @@
         "alg2",
         "cudss"
       ],
-      "snapshot": "63f826af"
+      "snapshot": "131827e3"
     },
     "restored_texas_alg2_shadows": {
       "passed": true,
       "ranks": 8,
-      "snapshot": "63f826af"
+      "snapshot": "131827e3"
     },
     "restored_texas_cudss_shadows": {
       "passed": true,
       "ranks": 8,
-      "snapshot": "63f826af"
+      "snapshot": "131827e3"
     },
     "quality_parser_tests": {
       "passed": 9,
@@ -51,7 +51,7 @@
       "max_dtheta_rad": 9.219e-13,
       "exact_sets_match": true,
       "ranks": 8,
-      "snapshot": "e49d0084",
+      "snapshot": "fc1f71a7",
       "output_format": "csv_delta",
       "reported_state_checked": true
     },
@@ -63,7 +63,7 @@
       "max_dtheta_rad": 8.709e-13,
       "exact_sets_match": true,
       "ranks": 8,
-      "snapshot": "92a5e689",
+      "snapshot": "02af0971",
       "output_format": "csv_delta"
     },
     "installed_binary_and_rebuilt_example": {
@@ -71,7 +71,7 @@
       "ieee118_cudss_ranks": 4,
       "exact_sets": true,
       "reported_state": true,
-      "snapshot": "ef11605f",
+      "snapshot": "560a7023",
       "rebuilt_example_needs": "GRIDPACK_BATCHPF_PLUGIN_PATH"
     },
     "standards_ci": {
@@ -81,12 +81,12 @@
       "baseline_clang_tidy": 361,
       "baseline_cppcheck": 8,
       "new_code_compiler_warnings": 0,
-      "snapshot": "ef11605f",
+      "snapshot": "560a7023",
       "maintainer_approval": "pending"
     },
     "kernel_memcheck": {
       "errors": 0,
-      "snapshot": "18f15bca; later changes do not modify kernels"
+      "snapshot": "ce1d50e9; later changes do not modify kernels"
     },
     "restored_10k_alg2_shadows": {
       "passed": true,
@@ -94,7 +94,7 @@
       "max_dv_pu": 1.095e-12,
       "max_dtheta_rad": 5.755e-13,
       "exact_sets_match": true,
-      "snapshot": "63f826af"
+      "snapshot": "131827e3"
     },
     "restored_10k_cudss_shadows": {
       "passed": true,
@@ -102,7 +102,7 @@
       "max_dv_pu": 1.064e-12,
       "max_dtheta_rad": 5.684e-13,
       "exact_sets_match": true,
-      "snapshot": "63f826af"
+      "snapshot": "131827e3"
     },
     "polish_budget_admission": {
       "passed": true,
@@ -123,7 +123,7 @@
       "ranks": 8,
       "controller_outage_last": "GN_240278_1",
       "default_order_compatibility_passed": false,
-      "snapshot": "18f15bca"
+      "snapshot": "ce1d50e9"
     },
     "full_n1_memphis_alg2": {
       "passed": true,
@@ -133,7 +133,7 @@
       "max_dtheta_rad": 8.278e-13,
       "exact_sets_match": true,
       "ranks": 8,
-      "snapshot": "92a5e689",
+      "snapshot": "02af0971",
       "output_format": "csv_delta"
     },
     "full_n1_memphis_cudss": {
@@ -144,7 +144,7 @@
       "max_dtheta_rad": 1.013e-12,
       "exact_sets_match": true,
       "ranks": 8,
-      "snapshot": "e49d0084",
+      "snapshot": "fc1f71a7",
       "output_format": "csv_delta",
       "reported_state_checked": true
     },
@@ -158,28 +158,28 @@
       "full_csv_and_shadows_passed": true,
       "swap_pages_in": 0,
       "swap_pages_out": 0,
-      "snapshot": "92a5e689"
+      "snapshot": "02af0971"
     },
     "reported_case_state": {
       "passed": true,
-      "snapshot": "e49d0084",
+      "snapshot": "fc1f71a7",
       "scope": "IEEE118, remote-controller regression, MPI, caps; CPU and GPU records before cleanup"
     },
     "isolated_production_trials": {
       "passed": 34,
       "failed": 0,
-      "snapshot": "18f8e840",
+      "snapshot": "d17bdaf4",
       "grid": "Polish_model_v33",
       "repeated_trials": 2,
       "best_swept_batch": 2048,
       "batch_at_95_percent": 512,
       "best_tested_rank_count": 16,
-      "final_reporting_overhead_check": "10 selected repeated trials passed at e49d0084; batch-2048 median 13.329 s versus earlier 13.300 s at eight ranks"
+      "final_reporting_overhead_check": "10 selected repeated trials passed at fc1f71a7; batch-2048 median 13.329 s versus earlier 13.300 s at eight ranks"
     },
     "nsight_selected_launches": {
       "passed": true,
       "launches": 10,
-      "snapshot": "18f8e840",
+      "snapshot": "d17bdaf4",
       "occupancy_measured": true,
       "dram_traffic_measured": false,
       "clock_control": "none",
@@ -189,20 +189,20 @@
     "final_reported_state_trials": {
       "passed": 10,
       "failed": 0,
-      "snapshot": "e49d0084",
+      "snapshot": "fc1f71a7",
       "reporting_fields_checked": true,
       "best_tested_raw_ranks16_seconds": 12.454943526500301
     },
     "large_grid_reported_state_samples": {
       "passed": true,
-      "snapshot": "e49d0084",
+      "snapshot": "fc1f71a7",
       "activsg10k_cases": 65,
       "texas_independent_cases": 2,
       "full_csv_and_exact_pv_pq": true
     },
     "final_arm64_image_checks": {
       "passed": true,
-      "solver_source": "3b16592d",
+      "solver_source": "2d3bcbb2",
       "gpu_image": "sha256:1f8fc659e4d2",
       "cpu_image": "sha256:1fb4096ac447",
       "details": "image-evidence.json"
@@ -214,11 +214,11 @@
       "cpu_build_checks": 3,
       "original_delta_difference": 31.7952,
       "original_iteration_difference": 8,
-      "snapshot": "f2b6cfa4"
+      "snapshot": "c81a8387"
     },
     "isolated_bus_reactive_check": {
       "passed": true,
-      "snapshot": "3b16592d",
+      "snapshot": "2d3bcbb2",
       "component_test_grids": [
         "IEEE14_ca",
         "IEEE118",
@@ -244,7 +244,7 @@
       "exact_sets_match": true,
       "max_dv_pu": 6.861e-14,
       "max_dtheta_rad": 1.301e-13,
-      "source": "3b16592d"
+      "source": "2d3bcbb2"
     },
     "corrected_reference_default_order_Texas7k_cudss": {
       "cases": 8891,
@@ -254,7 +254,7 @@
       "exact_sets_match": true,
       "max_dv_pu": 2.249e-13,
       "max_dtheta_rad": 1.243e-11,
-      "source": "3b16592d"
+      "source": "2d3bcbb2"
     },
     "corrected_reference_default_order_ACTIVSg10k_alg2": {
       "cases": 15191,
@@ -264,7 +264,7 @@
       "exact_sets_match": true,
       "max_dv_pu": 1.095e-12,
       "max_dtheta_rad": 5.755e-13,
-      "source": "3b16592d"
+      "source": "2d3bcbb2"
     },
     "corrected_reference_default_order_ACTIVSg10k_cudss": {
       "cases": 15191,
@@ -274,7 +274,7 @@
       "exact_sets_match": true,
       "max_dv_pu": 1.109e-12,
       "max_dtheta_rad": 6.017e-13,
-      "source": "3b16592d"
+      "source": "2d3bcbb2"
     },
     "texas_reproductions_vs_corrected_reference": {
       "passed": true,
@@ -287,12 +287,12 @@
         "alg2",
         "cudss"
       ],
-      "snapshot": "3b16592d"
+      "snapshot": "2d3bcbb2"
     },
     "ordered_10k_alg2_full_csv": {
       "passed": true,
       "cases": 15191,
-      "snapshot": "18f15bca",
+      "snapshot": "ce1d50e9",
       "stock_snapshot": "b32969b0",
       "reported_state_checked": false,
       "comparison_seconds": 1396.8
@@ -345,8 +345,8 @@
       "isolated_case_passed": true,
       "cause": "A prior divergent outage leaves a calculated generator injection behind. The next outage disconnects bus 210331, whose injection is not refreshed, but the CPU still checks its limit and reports a needless zero-round controller solve.",
       "two_case_reproduction": "reproductions/texas-isolated-injection-sequence.xml",
-      "reproduction_snapshot": "f2b6cfa4",
-      "resolved_by": "3b16592d",
+      "reproduction_snapshot": "c81a8387",
+      "resolved_by": "2d3bcbb2",
       "passed_after_fix": "two-case reproduction and default-order Texas cuDSS against the corrected reference"
     },
     "fid2_default_order_original_baseline": {
@@ -372,7 +372,7 @@
     "Original guide proposals are not measured results.",
     "Keep strict failures; do not ignore raw-start iteration differences or loosen voltage tolerances.",
     "User approved restoring voltage settings in both paths on 2026-10-05; keep the original baseline and its known failures as evidence.",
-    "The isolated-bus reactive check (3b16592d) is a second compatibility change, separate from the approved voltage cleanup; it changes only extra controller rounds, their count and warnings, also without acceleration.",
+    "The isolated-bus reactive check (2d3bcbb2) is a second compatibility change, separate from the approved voltage cleanup; it changes only extra controller rounds, their count and warnings, also without acceleration.",
     "The ordered 10k cuDSS study against the original baseline was not run; the default-order 10k cuDSS study against the corrected reference supersedes it."
   ],
   "interrupted": {}
