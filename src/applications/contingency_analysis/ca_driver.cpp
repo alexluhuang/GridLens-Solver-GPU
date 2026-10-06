@@ -2091,6 +2091,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // checks and writers report it.
   auto processCase = [&](int task_id,
                          const gridpack::batchpf::GpuCaseResult *gpu) {
+    gridpack::batchpf::CaseReport report;
     if (print_calcs) printf("Executing task %d on process %d\n",task_id,world.rank());
     // Trim trailing spaces from contingency name for filename
     std::string fname = events[task_id].p_name;
@@ -2147,16 +2148,19 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     // Skip power flow if contingency setup failed (no valid slack) or islanding detected
     bool slackCapacityOk = true;  // Will be checked after solve
     bool solveOk = false;
+    bool hasSolveRecord = false;
     if (gpu) {
       pf_app.setExternalSolution(gpu->v, gpu->theta, gpu->qlim_conversion,
                                  gpu->q_required, gpu->convergence);
       solveOk = true;
+      hasSolveRecord = true;
     } else if (contingencyFound && !islandDetected) {
       try {
         solveOk = pf_app.solve();
         if (solveOk && check_Qlim && !pf_app.checkQlimViolations()) {
           pf_app.solve();
         }
+        hasSolveRecord = true;
       } catch (const std::exception& e) {
         printf("p[%d] hit exception: %s\n", world.rank(), e.what());
         printf("Solver failure\n");
@@ -2379,6 +2383,27 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       if (print_calcs) pf_app.print(sbuf);
       addFailedStatColumns(task_id);
     }
+    if (gpuPath.active()) {
+      using gridpack::batchpf::ReportStatus;
+      if (islandDetected) report.status = ReportStatus::Islanded;
+      else if (!contingencyFound) report.status = ReportStatus::NoSlack;
+      else if (!solveOk) report.status = ReportStatus::Diverged;
+      else if (!slackCapacityOk) report.status = ReportStatus::SlackOverload;
+      else report.status = ReportStatus::Ok;
+      if (hasSolveRecord) {
+        const auto cs = pf_app.getConvergence();
+        report.iterations = cs.iterations;
+        report.final_tolerance = cs.finalTolerance;
+      }
+      // Cleanup restores PV flags, so capture the solved classification first.
+      for (int b = 0; b < pf_network->numBuses(); ++b) {
+        if (!pf_network->getActiveBus(b)) continue;
+        auto *bus = dynamic_cast<gridpack::powerflow::PFBus *>(pf_network->getBus(b).get());
+        if (bus->isIsolated() || bus->getReferenceBus()) continue;
+        if (bus->isPV()) ++report.pv_buses;
+        else ++report.pq_buses;
+      }
+    }
     // Return network to its original base case state
     pf_app.unSetContingency(events[task_id]);
     // Clear Q limit violations AFTER unSetContingency so generators are restored first.
@@ -2399,6 +2424,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     }
     // Close output file for this contingency
     if (print_calcs) pf_app.close();
+    return report;
   };
   if (gpuPath.active()) {
     gpuPath.prepare(pf_app, pf_network, events, check_Qlim, outputFile);

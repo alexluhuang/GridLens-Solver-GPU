@@ -32,6 +32,7 @@ Prints "No errors detected" on success (GridPACK's test convention).
 import argparse
 import contextlib
 import csv
+from decimal import Decimal
 import functools
 import itertools
 import json
@@ -314,6 +315,58 @@ def shadow(workdir, errors, require_sets=False):
             errors.append("case %s: shadow bus types or classification differ" % row["event_idx"])
         if row.get("pv_set_match") == "0" or (require_sets and "pv_set_match" not in row):
             errors.append("case %s: exact PV/PQ set comparison failed or absent" % row["event_idx"])
+        if "pq_buses_cpu" in row and row["pq_buses_cpu"] != row["pq_buses_gpu"]:
+            errors.append("case %s: shadow PQ counts differ" % row["event_idx"])
+
+
+def reported_state(workdir, errors):
+    with open(os.path.join(workdir, FILES[0])) as stream:
+        convergence = {r["event_idx"]: r for r in csv.DictReader(stream)}
+    with open(os.path.join(workdir, "ca_results_gpu_outcomes.csv")) as stream:
+        outcomes = {r["event_idx"]: r for r in csv.DictReader(stream)}
+    fields = {"reported_status", "reported_iterations", "reported_tolerance",
+              "final_pv_buses", "final_pq_buses"}
+    for event, row in outcomes.items():
+        if not fields.issubset(row):
+            errors.append("reported case state is absent")
+            return
+        conv = convergence[event]
+        status = row["reported_status"]
+        numerical = (status == "NUMERICAL_FAILURE" and conv["status_code"] == "DIVERGED"
+                     and row["path"] == "cpu_fallback" and int(row["health_events"]) & 7
+                     and row["reported_iterations"] and row["reported_tolerance"]
+                     and not math.isfinite(float(row["reported_tolerance"])))
+        if status != conv["status_code"] and not numerical:
+            errors.append("case %s: reported status differs" % event)
+        if min(int(row["final_pv_buses"]), int(row["final_pq_buses"])) < 0:
+            errors.append("case %s: negative final bus count" % event)
+        if status in ("ISLANDED", "NO_SLACK"):
+            if row["reported_iterations"] or row["reported_tolerance"]:
+                errors.append("case %s: unsolved case inherited a solve record" % event)
+            continue
+        if row["reported_iterations"]:
+            if row["reported_iterations"] != conv["iterations"]:
+                errors.append("case %s: reported iterations differ" % event)
+            x, y = row["reported_tolerance"], conv["final_tolerance"]
+            # GridPACK reuses a stream whose precision falls from six to four
+            # decimals after its first row. Compare the published rounding bins.
+            rounding = (0.5 * sum(10.0 ** Decimal(v).as_tuple().exponent for v in (x, y))
+                        if x and x != y and all(math.isfinite(float(v)) for v in (x, y)) else 0)
+            if not x or (x != y and not abs(float(x) - float(y)) <= rounding):
+                errors.append("case %s: reported tolerance differs" % event)
+        elif status in ("OK", "SLACK_OVERLOAD"):
+            errors.append("case %s: solved case has no reported solve record" % event)
+    path = os.path.join(workdir, "ca_results_gpu_shadow.csv")
+    if os.path.exists(path):
+        with open(path) as stream:
+            for row in csv.DictReader(stream):
+                outcome = outcomes[row["event_idx"]]
+                for kind in ("pv", "pq"):
+                    count = outcome["final_%s_buses" % kind]
+                    if any(count != row.get("%s_buses_%s" % (kind, side))
+                           for side in ("cpu", "gpu")):
+                        errors.append("case %s: reported %s count differs from shadow" %
+                                      (row["event_idx"], kind))
 
 
 def main():
@@ -332,6 +385,7 @@ def main():
     ap.add_argument("--stock-cax")
     ap.add_argument("--expect-batch-at-most", type=int)
     ap.add_argument("--require-shadow-sets", action="store_true")
+    ap.add_argument("--require-reported-state", action="store_true")
     ap.add_argument("--output-format", choices=("csv_delta", "text"), default="csv_delta")
     ap.add_argument("--warm-start", choices=("raw", "base_case"))
     ap.add_argument("--shadow-fraction", type=float)
@@ -373,6 +427,8 @@ def main():
             ordered(test, errors, args.output_format)
             expected = len(rows(os.path.join(stock, FILES[4]))) - 2
             complete(test, expected, errors)
+            if args.require_reported_state:
+                reported_state(test, errors)
             if fraction > 0:
                 shadow(test, errors, args.require_shadow_sets)
             if args.expect_batch_at_most is not None:

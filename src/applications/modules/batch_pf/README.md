@@ -176,10 +176,18 @@ counts, reactive-limit conversions and final tolerance. Its GPU status is
 the original `converged`, `diverged`, `flagged` or `not_run` result. The
 ordinary convergence table contains the final GridPACK result after any
 CPU retry. A GPU failure is an outcome of one case, not a lost contingency.
+The appended `reported_status`, `reported_iterations`, `reported_tolerance`,
+`final_pv_buses` and `final_pq_buses` describe the state before cleanup,
+including CPU-only cases and retries. Unsolved cases and solver exceptions
+leave the reported iteration/tolerance fields empty. `NUMERICAL_FAILURE`
+means a GPU numerical check failed and the CPU retry returned a non-finite
+mismatch. Ordinary CPU non-convergence stays `DIVERGED`; the
+ordinary GridPACK table retains its `DIVERGED` label. Reference and isolated
+buses are excluded from the PV/PQ counts (guide §8.11).
 
 `<outputFile>_gpu_shadow.csv`, when sampling is enabled, records CPU and
 GPU convergence, maximum voltage difference in pu, wrapped angle difference
-in radians, PV bus counts, exact PV/PQ set agreement, and fast/full
+in radians, PV/PQ bus counts, exact PV/PQ set agreement, and fast/full
 classification agreement. The set check compares each bus, not only counts.
 Classification checks cover changed admittances, injections and generator
 limits against GridPACK's full contingency routine.

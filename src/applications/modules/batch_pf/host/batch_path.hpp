@@ -58,8 +58,20 @@ struct GpuCaseResult {
   gridpack::utility::ConvergenceSummary convergence;
 };
 
-/// processCase(event index, GPU result or nullptr)
-using ProcessCase = std::function<void(int, const GpuCaseResult *)>;
+enum class ReportStatus { Ok, Islanded, NoSlack, SlackOverload, Diverged,
+                          NumericalFailure, Count };
+
+/// State captured by the reporter before it restores the network (guide 8.11).
+struct CaseReport {
+  ReportStatus status = ReportStatus::Diverged;
+  int iterations = -1;          // no solve record for unsolved cases or exceptions
+  double final_tolerance = 0.0;
+  int pv_buses = 0;
+  int pq_buses = 0;
+};
+
+/// processCase(event index, GPU result or nullptr), returning the reported state.
+using ProcessCase = std::function<CaseReport(int, const GpuCaseResult *)>;
 
 class BatchPath {
  public:

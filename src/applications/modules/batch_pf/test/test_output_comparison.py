@@ -7,7 +7,63 @@ import tempfile
 import unittest
 import sys
 
-from run_ca_test import compare_table, equivalent_voltage_tie
+from run_ca_test import compare_table, equivalent_voltage_tie, reported_state
+
+
+class ReportedStateTests(unittest.TestCase):
+    def validate(self, outcome=None, convergence=None, shadow=None):
+        conv = dict(event_idx="1", status_code="OK", iterations="3", final_tolerance="1e-7")
+        report = dict(event_idx="1", path="cpu", health_events="0", reported_status="OK",
+                      reported_iterations="3", reported_tolerance="1e-7",
+                      final_pv_buses="2", final_pq_buses="10")
+        conv.update(convergence or {})
+        report.update(outcome or {})
+        with tempfile.TemporaryDirectory() as directory:
+            tables = {"convergence": conv, "gpu_outcomes": report}
+            if shadow:
+                tables["gpu_shadow"] = dict(event_idx="1", **shadow)
+            for name, row in tables.items():
+                with (Path(directory) / ("ca_results_"+name+".csv")).open("w") as stream:
+                    writer = csv.DictWriter(stream, fieldnames=row)
+                    writer.writeheader()
+                    writer.writerow(row)
+            errors = []
+            reported_state(directory, errors)
+            return errors
+
+    def test_cpu_record_and_shadow_counts_pass(self):
+        self.assertEqual(self.validate(shadow=dict(pv_buses_cpu="2", pv_buses_gpu="2",
+                                                  pq_buses_cpu="10", pq_buses_gpu="10")), [])
+
+    def test_unsolved_case_does_not_inherit_previous_iterations(self):
+        conv = dict(status_code="NO_SLACK", iterations="9")
+        outcome = dict(reported_status="NO_SLACK", reported_iterations="", reported_tolerance="")
+        self.assertEqual(self.validate(outcome, conv), [])
+        outcome["reported_iterations"] = "9"
+        self.assertTrue(self.validate(outcome, conv))
+
+    def test_missing_or_changed_solved_record_fails(self):
+        self.assertTrue(self.validate(dict(reported_iterations="")))
+        self.assertTrue(self.validate(dict(reported_iterations="4")))
+        self.assertTrue(self.validate(dict(reported_status="DIVERGED")))
+
+    def test_cleanup_bus_counts_cannot_replace_solved_counts(self):
+        self.assertTrue(self.validate(shadow=dict(pv_buses_cpu="1", pv_buses_gpu="1",
+                                                 pq_buses_cpu="11", pq_buses_gpu="11")))
+
+    def test_tolerance_uses_published_precision(self):
+        conv = dict(final_tolerance="1.6033e-07")
+        self.assertEqual(self.validate(dict(reported_tolerance="1.603344e-07"), conv), [])
+        self.assertTrue(self.validate(dict(reported_tolerance="1.603400e-07"), conv))
+
+    def test_numerical_failure_requires_health_failures_on_both_paths(self):
+        outcome = dict(path="cpu_fallback", health_events="1", reported_status="NUMERICAL_FAILURE")
+        conv = dict(status_code="DIVERGED")
+        self.assertTrue(self.validate(outcome, conv))  # Ordinary divergence is not a health failure.
+        outcome["reported_tolerance"] = conv["final_tolerance"] = "nan"
+        self.assertEqual(self.validate(outcome, conv), [])
+        outcome["health_events"] = "0"
+        self.assertTrue(self.validate(outcome, conv))
 
 
 class TableComparisonTests(unittest.TestCase):

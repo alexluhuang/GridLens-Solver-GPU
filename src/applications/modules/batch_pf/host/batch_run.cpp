@@ -31,6 +31,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
@@ -162,13 +163,19 @@ void BatchPath::Impl::processGpuCase(int event, const batchpf_outcome &o,
       m.maxQMismatch = hist[k].max_q_mismatch;
       cs.perIteration.push_back(m);
     }
-    process(event, &r);
+    row.report = process(event, &r);
     reported_gpu++;
     if (shadowSelected(event)) shadowCompare(event, r);
   } else {
     // flagged, diverged or not run on the GPU: GridPACK solves it (R3)
     row.path = 2;
-    process(event, nullptr);
+    row.report = process(event, nullptr);
+    const int numerical = BATCHPF_HEALTH_SMALL_PIVOT | BATCHPF_HEALTH_NONFINITE |
+                          BATCHPF_HEALTH_RESIDUAL;
+    if (row.report.status == ReportStatus::Diverged && (row.health & numerical) &&
+        row.report.iterations >= 0 && !std::isfinite(row.report.final_tolerance)) {
+      row.report.status = ReportStatus::NumericalFailure;
+    }
     fallback++;
   }
   outcomes.push_back(row);
@@ -206,15 +213,20 @@ void BatchPath::Impl::shadowCompare(int event, const GpuCaseResult &res)
   for (int k = 0; k < n; k++) {
     if (!network->getActiveBus(k)) continue;
     auto *bus = dynamic_cast<gridpack::powerflow::PFBus *>(network->getBus(k).get());
+    const bool cpu_pv = !bus->isIsolated() && bus->isPV() && !bus->getReferenceBus();
+    const bool cpu_pq = !bus->isIsolated() && !bus->isPV() && !bus->getReferenceBus();
+    const bool gpu_pv = type[k] == BATCHPF_BUS_PV && res.qlim_conversion[k] == 0;
+    const bool gpu_pq = type[k] == BATCHPF_BUS_PQ ||
+                       (type[k] == BATCHPF_BUS_PV && res.qlim_conversion[k] != 0);
+    row.pv_cpu += cpu_pv ? 1 : 0;
+    row.pv_gpu += gpu_pv ? 1 : 0;
+    row.pq_cpu += cpu_pq ? 1 : 0;
+    row.pq_gpu += gpu_pq ? 1 : 0;
+    if (cpu_pv != gpu_pv || cpu_pq != gpu_pq) row.pv_set_match = 0;
     if (bus->isIsolated()) continue;
     row.max_dv = std::max(row.max_dv, std::fabs(bus->getVoltage() - res.v[k]));
     row.max_dtheta = std::max(row.max_dtheta,
                               std::fabs(wrapDiff(bus->getPhase() - res.theta[k])));
-    const bool cpu_pv = bus->isPV() && !bus->getReferenceBus();
-    const bool gpu_pv = type[k] == BATCHPF_BUS_PV && res.qlim_conversion[k] == 0;
-    row.pv_cpu += cpu_pv ? 1 : 0;
-    row.pv_gpu += gpu_pv ? 1 : 0;
-    if (cpu_pv != gpu_pv) row.pv_set_match = 0;
   }
   app->unSetContingency(c);
   if (ca_qlim) app->clearQlimViolations();
@@ -391,11 +403,11 @@ void BatchPath::run(const ProcessCase &process)
     while (tm.nextTask(&t)) {
       if (d.acc) poll(0);
       const int e = d.cpu_events[t];
-      process(e, nullptr);
       OutcomeRow row;
       row.event = e;
       row.path = 1;
       row.reason = static_cast<int>(d.classes[e].reason);
+      row.report = process(e, nullptr);
       d.outcomes.push_back(row);
     }
   }
@@ -629,32 +641,47 @@ void BatchPath::finish()
   };
   static const std::array<const char *, 3> paths = {"gpu", "cpu", "cpu_fallback"};
   static const std::array<const char *, 4> statuses = {"converged", "diverged", "flagged", "not_run"};
+  static const std::array<const char *, static_cast<std::size_t>(ReportStatus::Count)>
+      reported_statuses = {"OK", "ISLANDED", "NO_SLACK", "SLACK_OVERLOAD",
+                           "DIVERGED", "NUMERICAL_FAILURE"};
+  constexpr int mismatch_precision = 6;
   {
     std::ofstream out((d.output_file + "_gpu_outcomes.csv").c_str());
     out << "event_idx,contingency,path,cpu_reason,classified_fast,gpu_status,"
            "health_events,iterations,total_iterations,controller_iterations,solves,"
-           "pv_to_pq,final_tolerance\n";
+           "pv_to_pq,final_tolerance,reported_status,reported_iterations,"
+           "reported_tolerance,final_pv_buses,final_pq_buses\n";
     for (const OutcomeRow &r : rows) {
       out << r.event + 1 << "," << rtrim(ev[r.event].p_name) << "," << paths.at(r.path) << ","
           << cpuReasonName(static_cast<CpuReason>(r.reason)) << "," << r.fast << ","
           << (r.gpu_status >= 0 && r.gpu_status <= 3 ? statuses.at(r.gpu_status) : "") << ","
           << r.health << "," << r.iterations << "," << r.total_iterations << ","
           << r.controller_iterations << "," << r.solves << "," << r.pv_to_pq << ","
-          << std::scientific << std::setprecision(6) << r.final_tolerance
-          << std::defaultfloat << "\n";
+          << std::scientific << std::setprecision(mismatch_precision) << r.final_tolerance
+          << std::defaultfloat << ","
+          << reported_statuses.at(static_cast<std::size_t>(r.report.status)) << ",";
+      if (r.report.iterations >= 0) out << r.report.iterations;
+      out << ",";
+      if (r.report.iterations >= 0) {
+        out << std::scientific << std::setprecision(mismatch_precision) << r.report.final_tolerance
+            << std::defaultfloat;
+      }
+      out << "," << r.report.pv_buses << "," << r.report.pq_buses << "\n";
     }
   }
   if (!shadow.empty()) {
     std::ofstream out((d.output_file + "_gpu_shadow.csv").c_str());
     out << "event_idx,contingency,cpu_converged,gpu_converged,max_dv_pu,max_dtheta_rad,"
-           "pv_buses_cpu,pv_buses_gpu,classification_match,pv_set_match\n";
+           "pv_buses_cpu,pv_buses_gpu,classification_match,pv_set_match,"
+           "pq_buses_cpu,pq_buses_gpu\n";
     double mdv = 0.0, mdt = 0.0;
     int agree = 0, pv_agree = 0, cls = 0;
     for (const ShadowRow &r : shadow) {
       out << r.event + 1 << "," << rtrim(ev[r.event].p_name) << "," << r.cpu_ok << ","
           << r.gpu_ok << "," << std::scientific << std::setprecision(3) << r.max_dv << ","
           << r.max_dtheta << std::defaultfloat << "," << r.pv_cpu << "," << r.pv_gpu
-          << "," << r.class_match << "," << r.pv_set_match << "\n";
+          << "," << r.class_match << "," << r.pv_set_match
+          << "," << r.pq_cpu << "," << r.pq_gpu << "\n";
       if (r.cpu_ok) {
         mdv = std::max(mdv, r.max_dv);
         mdt = std::max(mdt, r.max_dtheta);
