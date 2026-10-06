@@ -202,3 +202,23 @@ Results reach the reporting ranks one chunk at a time, and a chunk is four
 batches. At batch 2048 the first chunk holds 8,192 cases, so the other
 ranks wait for it before they can report anything; this is why batch 2048
 was not faster than 512 in the batch-size table.
+
+## Rank count and GPU-driving ranks (10k, csv_delta)
+
+Same setup as above at sixteen ranks (`performance-ranks.jsonl`). Seconds;
+per-case categories are averages per rank.
+
+| Path, 16 ranks | Wall | Apply | Solve | Inject | Check and report (rows) | Restore | Waiting | GPU busy |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CPU | 372.9 | 12.5 | 194.5 | – | 126.0 (116.5) | 6.9 | 8.4 | – |
+| cuDSS 128 | 217.7 | 15.4 | 0.8 | 20.6 | 137.5 (125.6) | 6.8 | 15.8 | 122.2 |
+| Alg2 512 | 217.6 | 13.7 | 0.8 | 19.5 | 135.1 (123.7) | 6.8 | 22.3 | 121.0 |
+| cuDSS 128, ranks 0 and 8 drive the GPU | 229.3 | 12.9 | 0.7 | 18.7 | 134.0 (122.9) | 6.3 | 36.7 | 125.7 / 135.0 |
+
+Doubling the ranks shortened the CPU path by 1.52 times, not 2: the total
+work per case rose by about 30%, because the extra ranks run on the
+efficiency cores and share memory bandwidth. The GPU paths improve by
+1.4–1.5 times and stay 1.71 times faster than the CPU path. Two GPU-driving
+ranks on the one GPU were slower: each took about as long for half of the
+cases as one rank took for all of them, because the two processes share the
+GPU in turns. One cuDSS rank at batch 128 already keeps the GPU busy.
