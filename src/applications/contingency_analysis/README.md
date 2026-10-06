@@ -84,12 +84,12 @@ When combined, duplicates from the file are automatically skipped.
 **Dc line (pole) contingencies in a contingency file** block one or more
 two-terminal dc lines. Line names may contain blanks, so several lines are
 separated by `;` or `,`; names are matched after trimming and collapsing
-internal white space (`DC    53_5` matches `DC 53_5`):
+internal white space (`DC    POLE 3` matches `DC POLE 3`):
 ```xml
 <Contingency>
   <contingencyType>DCLine</contingencyType>   <!-- or HVDC -->
-  <contingencyName>PDCI_BIPOLE</contingencyName>
-  <contingencyDCLines>CELILO1P_1; CELILO2P_2</contingencyDCLines>
+  <contingencyName>BIPOLE_1</contingencyName>
+  <contingencyDCLines>POLE_1; POLE_2</contingencyDCLines>
 </Contingency>
 ```
 A blocked line's converter injections are removed at both ends. A line is
@@ -358,7 +358,7 @@ multi-element (N-k) event stays on one row with `n_elements=k` and the
 element ids `;`-separated inside the same columns, e.g. `from_bus=1;3`,
 `to_bus=2;4`, `circuit_id=1;1`. Generator events fill `gen_bus`/`gen_id`
 and leave the branch columns blank. Dc line events (`type=hvdc`) fill
-`dc_line` with the blocked line names, e.g. `CELILO1P_1;CELILO2P_2`.
+`dc_line` with the blocked line names, e.g. `POLE_1;POLE_2`.
 
 ---
 
