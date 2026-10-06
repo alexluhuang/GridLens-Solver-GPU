@@ -256,7 +256,7 @@ class PTI35_parser : public BasePTIParser<_network>
         branch_parser.parse(p_istream,p_branchData);
         gridpack::parser::SysSwitchParser34 sys_switch_parser(&p_busMap,
             &p_nameMap, &p_branchMap);
-        sys_switch_parser.parse(p_istream);
+        sys_switch_parser.parse(p_istream,p_branchData);
         gridpack::parser::TransformerParser35 transformer_parser(&p_busMap,
             &p_nameMap, &p_branchMap);
         transformer_parser.parse(p_istream,p_busData,p_branchData,p_case_sbase,
