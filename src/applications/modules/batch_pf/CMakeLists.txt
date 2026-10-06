@@ -351,6 +351,14 @@ if (GRIDPACK_ENABLE_TESTS)
       batchpf_add_test(batchpf.parity.ca_ieee118_${b} ${Python3_EXECUTABLE} ${runner}
         --cax $<TARGET_FILE:ca.x> --raw ${raw118} --workdir ${work}/parity_${b}
         --mode parity --require-shadow-sets --backend ${b} --solver ${lu})
+      # The CPU outage activates remote regulation before the GPU result is
+      # reported. Its voltage setpoint must not leak into that result's shadow.
+      batchpf_add_test(batchpf.parity.remote_fallback_${b} ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x>
+        --raw ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.raw
+        --contingency-list ${CMAKE_CURRENT_SOURCE_DIR}/test/data/IEEE14_remote.xml
+        --workdir ${work}/remote_fallback_${b}
+        --mode parity --require-shadow-sets --backend ${b} --solver ${lu})
     endforeach()
     if (NOT GRIDPACK_BATCHPF_HAVE_CUDA)
       batchpf_add_test(batchpf.platform.cpu_only_ieee118 ${Python3_EXECUTABLE} ${runner}

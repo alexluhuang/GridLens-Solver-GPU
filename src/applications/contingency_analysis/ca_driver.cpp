@@ -2076,6 +2076,14 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // Evaluate contingencies using the task manager
   int task_id;
   char sbuf[512];
+  std::vector<double> voltageResetReference;
+  if (gpuPath.active()) {
+    voltageResetReference.reserve(pf_network->numBuses());
+    for (int b = 0; b < pf_network->numBuses(); ++b) {
+      const auto *bus = dynamic_cast<gridpack::powerflow::PFBus *>(pf_network->getBus(b).get());
+      voltageResetReference.push_back(bus->getInitialVoltage());
+    }
+  }
   // One contingency, from setting it to restoring the network. gpu is null
   // for GridPACK's own solve; otherwise it carries a solution computed by
   // the GPU batch path, which is loaded instead of solving so that the same
@@ -2378,6 +2386,16 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     if (check_Qlim) pf_app.clearQlimViolations();
     // Clear Q limit warnings for next contingency
     gridpack::powerflow::PFBus::clearQlimWarnings();
+    // Remote regulation in a CPU fallback can change resetVoltages()'s
+    // reference. Every batch member starts from the same prepared network.
+    if (gpuPath.active()) {
+      for (int b = 0; b < static_cast<int>(voltageResetReference.size()); ++b) {
+        auto *bus = dynamic_cast<gridpack::powerflow::PFBus *>(pf_network->getBus(b).get());
+        if (bus->getInitialVoltage() != voltageResetReference[b]) {
+          bus->setVoltageMag(voltageResetReference[b]);
+        }
+      }
+    }
     // Close output file for this contingency
     if (print_calcs) pf_app.close();
   };

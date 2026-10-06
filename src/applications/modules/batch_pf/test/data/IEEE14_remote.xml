@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ContingencyList>
+  <Contingency_analysis>
+    <Contingencies>
+      <Contingency>
+        <contingencyType>Line</contingencyType>
+        <contingencyName>branch</contingencyName>
+        <contingencyLineBuses>6 11</contingencyLineBuses>
+        <contingencyLineNames>BL</contingencyLineNames>
+      </Contingency>
+      <Contingency>
+        <contingencyType>Generator</contingencyType>
+        <contingencyName>remote</contingencyName>
+        <contingencyBuses>2</contingencyBuses>
+        <contingencyGenerators>1</contingencyGenerators>
+      </Contingency>
+    </Contingencies>
+  </Contingency_analysis>
+</ContingencyList>
