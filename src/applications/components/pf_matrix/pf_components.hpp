@@ -763,6 +763,14 @@ class PFBus
      */
     bool hasActiveRemoteRegulation() const;
 
+    /**
+     * The angle (degrees) and voltage magnitude (pu) that
+     * serialWrite("vr_str") prints, without the text: the internal state,
+     * not the exchanged copy getVoltage()/getPhase() return (whose angle is
+     * wrapped). Lets reports read results without formatting and parsing.
+     */
+    void stateValues(double *angle_deg, double *vmag) const;
+
     // ---------------------------------------------------------------
     // State injection used to report results solved outside GridPACK
     // (GPU batch path). They are only called by that path.
@@ -1147,6 +1155,23 @@ class PFBranch
      * true, which is what makes a shared sparsity pattern possible.
      */
     bool isActiveAtLoad() const { return p_active; }
+
+    /// One circuit's values as serialWrite("flow_str") prints them
+    struct CircuitFlow {
+      std::string tag;
+      double p = 0.0;       // MW, zero if out of service or an end is isolated
+      double q = 0.0;       // MVAr, likewise
+      double perf = 0.0;    // (|S| / rate A)^2, from the unzeroed flow
+      double rate_a = 0.0;  // MVA
+      int viol = 0;         // 1 if |S| > rate A
+    };
+
+    /**
+     * The values serialWrite("flow_str") prints for every circuit, without
+     * the text, computed by the same expressions. Returns false (and leaves
+     * out empty) where serialWrite writes nothing: an inactive branch.
+     */
+    bool flowValues(std::vector<CircuitFlow> *out);
 
   private:
     bool p_largeMatrix = false;

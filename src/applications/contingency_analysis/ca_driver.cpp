@@ -33,6 +33,7 @@
 #include "gridpack/applications/modules/powerflow/pf_app_module.hpp"
 #include "gridpack/utilities/results_exporter.hpp"
 #include "ca_driver.hpp"
+#include "ca_rows.hpp"
 #include "gridpack/applications/modules/batch_pf/host/batch_path.hpp"
 #include "gridpack/applications/modules/batch_pf/host/reconcile.hpp"
 
@@ -46,7 +47,9 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <set>
+#include <vector>
 
 // Statistical-summary output (vmag.txt, pflow.txt, etc.) used to be controlled
 // by a USE_STATBLOCK build-time macro; it is now a runtime XML option,
@@ -1123,142 +1126,268 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // _convergence.csv: written for every outputFormat.
   bool emitConv = true;
 
-  // Lambda: parse current solved flow_str/vr_str and stream one CSV row
-  // per branch into the rank's .part file. Called once per converged case
-  // (base + each contingency) on every task communicator; non-rank-0
-  // task_comm members short-circuit after the collective.
+  // ---- Flat and delta table rows, read straight from the solved state ----
+  // These rows used to be built from text: writeBusString("vr_str") and
+  // writeBranchString("flow_str") formatted every bus and branch, gathered
+  // the strings through a Global Array, and the driver parsed each one back
+  // with sscanf. Reading the components directly gives the same values
+  // (round13 reproduces the print-and-parse rounding) in the same order
+  // (buses by number, branches in global order), so the files stay
+  // byte-identical, several times faster. As before, a branch object
+  // contributes only its first circuit: its string held one line per circuit
+  // and only the first line was parsed. RowBranch::regular is false in the
+  // rare case where a tag would not read back as one token; such branches
+  // still go through the exact text route.
+  using gridpack::contingency_analysis::round13;
+  using gridpack::contingency_analysis::scanToken;
+  using gridpack::contingency_analysis::RowText;
+  using CircuitFlow = gridpack::powerflow::PFBranch::CircuitFlow;
+  struct RowBus {
+    int local;
+    int id;
+    bool monitored;
+  };
+  struct RowBranch {
+    int local = 0;
+    int from = 0, to = 0;
+    bool regular = true;
+    std::string ckt;    // the first tag as "%15s" read it (csv_delta key)
+    std::string ckt3;   // its first three characters (csv_flat)
+    int from_slot = -1, to_slot = -1;           // positions in rowBuses
+    bool mon_flat = false, mon_delta = false;
+    const BranchRates *rates_flat = nullptr;    // branch_rates entry, if any
+    const BranchRates *rates_delta = nullptr;
+    int base_slot = -1;                         // rowBase entry, csv_delta
+    // this case's values, as the text route read them
+    double p = 0.0, q = 0.0, rate_a = 0.0;
+    int viol = 0;
+  };
+  std::vector<RowBus> rowBuses;
+  std::map<int, int> rowSlotOfId;
+  std::vector<double> rowBusV, rowBusA;
+  std::vector<RowBranch> rowBranches;
+  std::vector<BaseFlow> rowBase;
+  std::map<BranchKey, int> rowBaseIndex;
+  std::vector<CircuitFlow> rowCircuits;
+  RowText rowText;
+  bool rowsPrepared = false;
+  auto slotOf = [&](int id) -> int {
+    std::map<int, int>::const_iterator it = rowSlotOfId.find(id);
+    return (it == rowSlotOfId.end()) ? -1 : it->second;
+  };
+  auto ratesOf = [&](int from, int to, const std::string &ckt) -> const BranchRates * {
+    BranchKey key;
+    key.from = from; key.to = to; key.ckt = ckt;
+    std::map<BranchKey, BranchRates>::const_iterator it = branch_rates.find(key);
+    return (it == branch_rates.end()) ? nullptr : &it->second;
+  };
+  // Keys, monitor decisions and rate lookups of one branch's current token
+  auto resolveBranch = [&](RowBranch &rb) {
+    rb.ckt3 = rb.ckt.substr(0, 3);
+    rb.from_slot = slotOf(rb.from);
+    rb.to_slot = slotOf(rb.to);
+    rb.mon_flat = branchMonitored(rb.from, rb.to, rb.ckt3);
+    rb.mon_delta = branchMonitored(rb.from, rb.to, rb.ckt);
+    rb.rates_flat = ratesOf(rb.from, rb.to, rb.ckt3);
+    rb.rates_delta = ratesOf(rb.from, rb.to, rb.ckt);
+  };
+  auto prepareRows = [&]() {
+    if (rowsPrepared) return;
+    rowsPrepared = true;
+    // Buses as writeStrings listed them (global order), keyed by number
+    // with the last one winning, then visited by number like the std::map
+    std::vector<std::pair<int, int> > order;
+    for (int i = 0; i < pf_network->numBuses(); i++) {
+      if (pf_network->getActiveBus(i)) {
+        order.push_back(std::make_pair(pf_network->getGlobalBusIndex(i), i));
+      }
+    }
+    std::sort(order.begin(), order.end());
+    std::map<int, int> localOfId;
+    for (size_t k = 0; k < order.size(); k++) {
+      localOfId[pf_network->getBus(order[k].second)->getOriginalIndex()] = order[k].second;
+    }
+    for (std::map<int, int>::const_iterator it = localOfId.begin(); it != localOfId.end(); ++it) {
+      rowSlotOfId[it->first] = static_cast<int>(rowBuses.size());
+      RowBus rb;
+      rb.local = it->second;
+      rb.id = it->first;
+      rb.monitored = busMonitored(it->first);
+      rowBuses.push_back(rb);
+    }
+    rowBusV.assign(rowBuses.size(), 0.0);
+    rowBusA.assign(rowBuses.size(), 0.0);
+    // Branches serialWrite writes (active at load, with circuits), global order
+    order.clear();
+    for (int i = 0; i < pf_network->numBranches(); i++) {
+      if (pf_network->getActiveBranch(i)) {
+        order.push_back(std::make_pair(pf_network->getGlobalBranchIndex(i), i));
+      }
+    }
+    std::sort(order.begin(), order.end());
+    for (size_t k = 0; k < order.size(); k++) {
+      gridpack::powerflow::PFBranch *br = pf_network->getBranch(order[k].second).get();
+      if (!br->isActiveAtLoad()) continue;
+      std::vector<std::string> tags = br->getLineTags();
+      if (tags.empty()) continue;
+      RowBranch rb;
+      rb.local = order[k].second;
+      rb.from = br->getBus1OriginalIndex();
+      rb.to = br->getBus2OriginalIndex();
+      rb.regular = scanToken(tags[0], &rb.ckt);
+      if (rb.regular) resolveBranch(rb);
+      rowBranches.push_back(rb);
+    }
+  };
+  // This case's bus voltages and angles
+  auto readBuses = [&]() {
+    for (size_t k = 0; k < rowBuses.size(); k++) {
+      double angle = 0.0, vmag = 0.0;
+      pf_network->getBus(rowBuses[k].local)->stateValues(&angle, &vmag);
+      rowBusA[k] = round13(angle);
+      rowBusV[k] = round13(vmag);
+    }
+  };
+  // This case's values of one branch's first circuit; false if the text
+  // route would have skipped the branch
+  auto readBranch = [&](RowBranch &rb) -> bool {
+    gridpack::powerflow::PFBranch *br = pf_network->getBranch(rb.local).get();
+    if (!br->flowValues(&rowCircuits) || rowCircuits.empty()) return false;
+    if (rb.regular) {
+      const CircuitFlow &c = rowCircuits[0];
+      rb.p = round13(c.p);
+      rb.q = round13(c.q);
+      rb.rate_a = round13(c.rate_a);
+      rb.viol = c.viol;
+      return true;
+    }
+    // The exact text route: the string serialWrite("flow_str") builds
+    // (2048 bytes, as the branch IO allocates) and the same sscanf
+    std::string text;
+    char line[256];
+    for (size_t i = 0; i < rowCircuits.size(); i++) {
+      const CircuitFlow &c = rowCircuits[i];
+      std::snprintf(line, sizeof(line), "%6d %6d %s %20.12e %20.12e %20.12e %20.12e %1d\n",
+                    rb.from, rb.to, c.tag.c_str(), c.p, c.q, c.perf, c.rate_a, c.viol);
+      if (text.size() + std::strlen(line) < 2048) text += line;
+    }
+    char ckt_buf[16] = {0};
+    int from = 0, to = 0;
+    double perf = 0.0;
+    if (sscanf(text.c_str(), "%d %d %15s %lf %lf %lf %lf %d",
+               &from, &to, ckt_buf, &rb.p, &rb.q, &perf, &rb.rate_a, &rb.viol) != 8) {
+      return false;
+    }
+    rb.from = from;
+    rb.to = to;
+    rb.ckt = ckt_buf;
+    while (!rb.ckt.empty() && rb.ckt[rb.ckt.size()-1] == ' ') rb.ckt.resize(rb.ckt.size()-1);
+    resolveBranch(rb);
+    return true;
+  };
+  // Voltage PI and violations on monitored buses, in bus-number order. The
+  // sum keeps the old expressions and order, so the summary is unchanged.
+  auto voltageChecks = [&](int event_idx, const std::string &ct_name) {
+    double *vpi = nullptr;
+    for (size_t k = 0; k < rowBuses.size(); k++) {
+      if (!rowBuses[k].monitored) continue;
+      double v_pu = rowBusV[k];
+      if (v_pu > 0.0 && std::isfinite(v_pu)) {
+        double denom = (v_pu < 1.0) ? (1.0 - Vmin) : (Vmax - 1.0);
+        if (denom > 0.0) {
+          double r = (v_pu - 1.0) / denom;
+          if (!vpi) vpi = &ctVpi[ct_name];
+          *vpi += r * r;
+        }
+      }
+      if (v_pu <= 0.0 || !std::isfinite(v_pu)) continue;
+      if (v_pu < Vmin || v_pu > Vmax) {
+        emitVoltageViolation(event_idx, ct_name, rowBuses[k].id, v_pu, Vmin, Vmax);
+      }
+    }
+  };
+  auto addBranchPi = [&](double **pi, const std::string &ct_name, double mva, double rate) {
+    if (rate <= 0.0) return;
+    double r = mva / rate;
+    if (!*pi) *pi = &ctPi[ct_name];
+    **pi += r * r;
+  };
+
+  // Stream one CSV row per branch into the rank's .part file. Called once per
+  // converged case (base + each contingency).
   auto captureFlatRows = [&](int event_idx, const std::string &name,
                              bool emit, bool is_base) {
-    std::vector<std::string> v_strs = pf_app.writeBusString("vr_str");
-    std::vector<std::string> b_strs = pf_app.writeBranchString("flow_str");
     if (!emit || task_comm.rank() != 0) return;
     if (!flatPart.is_open()) {
       flatPart.open(flatPartPath.c_str(), std::ios::out | std::ios::trunc);
       flatPart << std::fixed;
     }
-    std::map<int, std::pair<double,double> > vbymag_ang;
-    for (size_t vi = 0; vi < v_strs.size(); vi++) {
-      int    bus_id = 0, use_vmag = 0, changed = 0;
-      double angle = 0.0, vmag = 0.0;
-      if (sscanf(v_strs[vi].c_str(), "%d %lf %lf %d %d",
-                 &bus_id, &angle, &vmag, &use_vmag, &changed) == 5) {
-        vbymag_ang[bus_id] = std::make_pair(vmag, angle);
-      }
-    }
-    char ct_name[24];
-    std::strncpy(ct_name, name.c_str(), sizeof(ct_name) - 1);
-    ct_name[sizeof(ct_name) - 1] = '\0';
+    prepareRows();
+    readBuses();
+    char ct_buf[24];
+    std::strncpy(ct_buf, name.c_str(), sizeof(ct_buf) - 1);
+    ct_buf[sizeof(ct_buf) - 1] = '\0';
+    const std::string ct_name(ct_buf);
     // Voltage PI and violations on monitored buses, contingency rows only.
-    if (!is_base) {
-      for (std::map<int,std::pair<double,double> >::const_iterator vit =
-             vbymag_ang.begin(); vit != vbymag_ang.end(); ++vit) {
-        if (!busMonitored(vit->first)) continue;
-        double v_pu = vit->second.first;
-        accumVoltagePi(ct_name, v_pu);
-        if (v_pu <= 0.0 || !std::isfinite(v_pu)) continue;
-        if (v_pu < Vmin || v_pu > Vmax) {
-          emitVoltageViolation(event_idx, ct_name, vit->first, v_pu, Vmin, Vmax);
-        }
-      }
-    }
-    for (size_t bi = 0; bi < b_strs.size(); bi++) {
-      char ckt_buf[16] = {0};
-      int viol = 0;
-      double p = 0.0, q = 0.0, perf = 0.0, ratea = 0.0;
-      int from = 0, to = 0;
-      if (sscanf(b_strs[bi].c_str(),
-                 "%d %d %15s %lf %lf %lf %lf %d",
-                 &from, &to, ckt_buf, &p, &q, &perf, &ratea, &viol) != 8) {
-        continue;
-      }
-      char ckt[4];
-      std::strncpy(ckt, ckt_buf, 3); ckt[3] = '\0';
-      BranchKey mk;
-      mk.from = from; mk.to = to; mk.ckt = ckt;
-      while (!mk.ckt.empty() && mk.ckt[mk.ckt.size()-1] == ' ')
-        mk.ckt.resize(mk.ckt.size()-1);
-      if (!branchMonitored(from, to, mk.ckt)) continue;
-      std::map<BranchKey, BranchRates>::const_iterator rIt = branch_rates.find(mk);
-      double rate_sel = ratea;
-      if (rIt != branch_rates.end()) {
-        rate_sel = is_base ? rIt->second.rate_a : pickContRate(rIt->second);
+    if (!is_base) voltageChecks(event_idx, ct_name);
+    double *pi = nullptr;
+    rowText.clear();
+    for (size_t bi = 0; bi < rowBranches.size(); bi++) {
+      RowBranch &rb = rowBranches[bi];
+      if (!readBranch(rb)) continue;
+      if (!rb.mon_flat) continue;
+      double p = rb.p, q = rb.q;
+      double rate_sel = rb.rate_a;
+      if (rb.rates_flat) {
+        rate_sel = is_base ? rb.rates_flat->rate_a : pickContRate(*rb.rates_flat);
       }
       double flow_mva    = std::sqrt(p*p + q*q);
       double loading_pct = (rate_sel > 0.0) ? (flow_mva / rate_sel) * 100.0 : 0.0;
-      if (!is_base) accumBranchPi(ct_name, flow_mva, rate_sel);
+      if (!is_base) addBranchPi(&pi, ct_name, flow_mva, rate_sel);
       // Stream to _violations.csv for csv_flat runs (contingency rows only).
+      // csv_flat keeps no base-case table, so base_mva stays 0.
       if (!is_base && loading_pct > violationSeverityThreshold * 100.0) {
-        double base_mva = 0.0;
-        // No base_cache in csv_flat mode; look up in the persistent map built
-        // by populateBaseCache-style capture below? We don't have one for
-        // csv_flat, so base_mva stays 0 -- delta will just equal mva.
-        emitBranchViolation(event_idx, ct_name, from, to, ckt,
-                            flow_mva, rate_sel, loading_pct, base_mva);
+        emitBranchViolation(event_idx, ct_name, rb.from, rb.to, rb.ckt3,
+                            flow_mva, rate_sel, loading_pct, 0.0);
       }
-      std::map<int, std::pair<double,double> >::const_iterator vf =
-        vbymag_ang.find(from);
-      std::map<int, std::pair<double,double> >::const_iterator vt =
-        vbymag_ang.find(to);
-      double v_from       = (vf != vbymag_ang.end()) ? vf->second.first  : 0.0;
-      double ang_from_deg = (vf != vbymag_ang.end()) ? vf->second.second : 0.0;
-      double v_to         = (vt != vbymag_ang.end()) ? vt->second.first  : 0.0;
-      double ang_to_deg   = (vt != vbymag_ang.end()) ? vt->second.second : 0.0;
-      flatPart << event_idx << "," << ct_name << ","
-               << from << "," << to << "," << ckt << ","
-               << std::setprecision(4) << p << ","
-               << std::setprecision(4) << q << ","
-               << std::setprecision(4) << flow_mva << ","
-               << std::setprecision(4) << rate_sel << ","
-               << std::setprecision(2) << loading_pct << ","
-               << viol << ","
-               << std::setprecision(6) << v_from << ","
-               << std::setprecision(6) << v_to << ","
-               << std::setprecision(4) << ang_from_deg << ","
-               << std::setprecision(4) << ang_to_deg
-               << "\n";
+      double v_from       = (rb.from_slot >= 0) ? rowBusV[rb.from_slot] : 0.0;
+      double ang_from_deg = (rb.from_slot >= 0) ? rowBusA[rb.from_slot] : 0.0;
+      double v_to         = (rb.to_slot >= 0) ? rowBusV[rb.to_slot] : 0.0;
+      double ang_to_deg   = (rb.to_slot >= 0) ? rowBusA[rb.to_slot] : 0.0;
+      rowText.add(event_idx).add(',').add(ct_name).add(',')
+             .add(rb.from).add(',').add(rb.to).add(',').add(rb.ckt3).add(',')
+             .fixed(p, 4).add(',')
+             .fixed(q, 4).add(',')
+             .fixed(flow_mva, 4).add(',')
+             .fixed(rate_sel, 4).add(',')
+             .fixed(loading_pct, 2).add(',')
+             .add(rb.viol).add(',')
+             .fixed(v_from, 6).add(',')
+             .fixed(v_to, 6).add(',')
+             .fixed(ang_from_deg, 4).add(',')
+             .fixed(ang_to_deg, 4)
+             .add('\n');
       flatRowCount++;
     }
+    flatPart.write(rowText.str().data(), static_cast<std::streamsize>(rowText.str().size()));
   };
 
-  // Populate base_cache from current solved state. Called once after base
-  // solve on every rank (csv_delta only); world.rank() == 0 is not special
-  // here -- each rank caches the branches it sees on its task_comm so it
-  // can join later in captureDeltaRows.
+  // Base-case branch state for the csv_delta join, read once after the base
+  // solve. As with the std::map it replaces, a later branch with the same
+  // (from, to, circuit) key overwrites an earlier one.
   auto populateBaseCache = [&]() {
-    std::vector<std::string> v_strs = pf_app.writeBusString("vr_str");
-    std::vector<std::string> b_strs = pf_app.writeBranchString("flow_str");
     if (task_comm.rank() != 0) return;
-    std::map<int, std::pair<double,double> > vbymag_ang;
-    for (size_t vi = 0; vi < v_strs.size(); vi++) {
-      int    bus_id = 0, use_vmag = 0, changed = 0;
-      double angle = 0.0, vmag = 0.0;
-      if (sscanf(v_strs[vi].c_str(), "%d %lf %lf %d %d",
-                 &bus_id, &angle, &vmag, &use_vmag, &changed) == 5) {
-        vbymag_ang[bus_id] = std::make_pair(vmag, angle);
-      }
-    }
-    for (size_t bi = 0; bi < b_strs.size(); bi++) {
-      char ckt_buf[16] = {0};
-      int viol = 0;
-      double p = 0.0, q = 0.0, perf = 0.0, ratea = 0.0;
-      int from = 0, to = 0;
-      if (sscanf(b_strs[bi].c_str(),
-                 "%d %d %15s %lf %lf %lf %lf %d",
-                 &from, &to, ckt_buf, &p, &q, &perf, &ratea, &viol) != 8) {
-        continue;
-      }
-      BranchKey k;
-      k.from = from; k.to = to;
-      k.ckt  = std::string(ckt_buf);
-      // Strip trailing spaces from ckt so the key matches what flow_str
-      // returns later (sscanf %15s already trims leading whitespace).
-      while (!k.ckt.empty() && k.ckt[k.ckt.size()-1] == ' ') k.ckt.resize(k.ckt.size()-1);
-      if (!branchMonitored(from, to, k.ckt)) continue;
-      double base_rate = ratea, cont_rate = ratea;
-      std::map<BranchKey, BranchRates>::const_iterator rIt = branch_rates.find(k);
-      if (rIt != branch_rates.end()) {
-        base_rate = rIt->second.rate_a;
-        cont_rate = pickContRate(rIt->second);
+    prepareRows();
+    readBuses();
+    for (size_t bi = 0; bi < rowBranches.size(); bi++) {
+      RowBranch &rb = rowBranches[bi];
+      if (!readBranch(rb)) continue;
+      if (!rb.mon_delta) continue;
+      double p = rb.p, q = rb.q;
+      double base_rate = rb.rate_a, cont_rate = rb.rate_a;
+      if (rb.rates_delta) {
+        base_rate = rb.rates_delta->rate_a;
+        cont_rate = pickContRate(*rb.rates_delta);
       }
       BaseFlow bf;
       bf.p_mw        = p;
@@ -1267,171 +1396,117 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       bf.base_rate   = base_rate;
       bf.cont_rate   = cont_rate;
       bf.loading_pct = (base_rate > 0.0) ? (bf.mva / base_rate) * 100.0 : 0.0;
-      std::map<int, std::pair<double,double> >::const_iterator vf =
-        vbymag_ang.find(from);
-      std::map<int, std::pair<double,double> >::const_iterator vt =
-        vbymag_ang.find(to);
-      bf.v_from_pu     = (vf != vbymag_ang.end()) ? vf->second.first  : 0.0;
-      bf.ang_from_deg  = (vf != vbymag_ang.end()) ? vf->second.second : 0.0;
-      bf.v_to_pu       = (vt != vbymag_ang.end()) ? vt->second.first  : 0.0;
-      bf.ang_to_deg    = (vt != vbymag_ang.end()) ? vt->second.second : 0.0;
-      busAreaKv(from, bf.area_from, bf.base_kv_from);
-      busAreaKv(to,   bf.area_to,   bf.base_kv_to);
-      base_cache[k] = bf;
+      bf.v_from_pu     = (rb.from_slot >= 0) ? rowBusV[rb.from_slot] : 0.0;
+      bf.ang_from_deg  = (rb.from_slot >= 0) ? rowBusA[rb.from_slot] : 0.0;
+      bf.v_to_pu       = (rb.to_slot >= 0) ? rowBusV[rb.to_slot] : 0.0;
+      bf.ang_to_deg    = (rb.to_slot >= 0) ? rowBusA[rb.to_slot] : 0.0;
+      busAreaKv(rb.from, bf.area_from, bf.base_kv_from);
+      busAreaKv(rb.to,   bf.area_to,   bf.base_kv_to);
+      BranchKey k;
+      k.from = rb.from; k.to = rb.to; k.ckt = rb.ckt;
+      std::map<BranchKey, int>::const_iterator it = rowBaseIndex.find(k);
+      if (it == rowBaseIndex.end()) {
+        rowBaseIndex[k] = static_cast<int>(rowBase.size());
+        rowBase.push_back(bf);
+      } else {
+        rowBase[it->second] = bf;
+      }
+    }
+    for (size_t bi = 0; bi < rowBranches.size(); bi++) {
+      RowBranch &rb = rowBranches[bi];
+      if (!rb.regular) continue;
+      BranchKey k;
+      k.from = rb.from; k.to = rb.to; k.ckt = rb.ckt;
+      std::map<BranchKey, int>::const_iterator it = rowBaseIndex.find(k);
+      rb.base_slot = (it == rowBaseIndex.end()) ? -1 : it->second;
     }
   };
 
   // Wide-form (base+cont on same row) capture for csv_delta. Mirrors
-  // captureFlatRows but joins each branch with base_cache. Branches not
-  // in base_cache are counted in deltaSkipCount and skipped silently.
+  // captureFlatRows but joins each branch with its base-case entry. Branches
+  // without one are counted in deltaSkipCount and skipped silently. (The
+  // cont_event_facility column stays disabled: join event_idx against
+  // <outputFile>_contingencies.csv, which names every outaged element.)
   auto captureDeltaRows = [&](int event_idx,
                               const gridpack::powerflow::Contingency &evt,
                               bool emit) {
-    std::vector<std::string> v_strs = pf_app.writeBusString("vr_str");
-    std::vector<std::string> b_strs = pf_app.writeBranchString("flow_str");
     if (!emit || task_comm.rank() != 0) return;
     if (!deltaPart.is_open()) {
       deltaPart.open(deltaPartPath.c_str(), std::ios::out | std::ios::trunc);
       deltaPart << std::fixed;
     }
-    // cont_event_facility: disabled -- join event_idx against
-    // <outputFile>_contingencies.csv instead, which names every outaged element
-    // rather than the first plus "(+N more)". Kept commented in case the column
-    // is wanted back; uncomment this block, the emission below and the header
-    // field together. The [area] lookup needs a complete bus_meta (groupSize=1).
-    // std::string facility;
-    // // clean2Char pads ids to two chars; trim so the label has no stray space.
-    // auto rtrimId = [](const std::string &in) -> std::string {
-    //   std::string t = in;
-    //   while (!t.empty() && (t[t.size()-1] == ' ' || t[t.size()-1] == '\t'))
-    //     t.resize(t.size()-1);
-    //   return t;
-    // };
-    // // "[area] <element ids>" for both kinds; the type column says which.
-    // if (evt.p_type == Branch && !evt.p_from.empty()) {
-    //   int outFrom = evt.p_from[0];
-    //   int area = 0;
-    //   std::map<int, BusMeta>::const_iterator mf = bus_meta.find(outFrom);
-    //   if (mf != bus_meta.end()) area = mf->second.area;
-    //   char buf[64];
-    //   snprintf(buf, sizeof(buf), "[%d] %d %d %s",
-    //            area, outFrom, evt.p_to[0], rtrimId(evt.p_ckt[0]).c_str());
-    //   facility = buf;
-    //   if (evt.p_from.size() > 1) {
-    //     char suf[24];
-    //     snprintf(suf, sizeof(suf), " (+%zu more)", evt.p_from.size() - 1);
-    //     facility += suf;
-    //   }
-    // } else if (evt.p_type == Generator && !evt.p_busid.empty()) {
-    //   int outBus = evt.p_busid[0];
-    //   int area = 0;
-    //   std::map<int, BusMeta>::const_iterator mg = bus_meta.find(outBus);
-    //   if (mg != bus_meta.end()) area = mg->second.area;
-    //   char buf[64];
-    //   snprintf(buf, sizeof(buf), "[%d] %d %s",
-    //            area, outBus, rtrimId(evt.p_genid[0]).c_str());
-    //   facility = buf;
-    //   if (evt.p_busid.size() > 1) {
-    //     char suf[24];
-    //     snprintf(suf, sizeof(suf), " (+%zu more)", evt.p_busid.size() - 1);
-    //     facility += suf;
-    //   }
-    // }
+    prepareRows();
     std::string ct_name = evt.p_name;
     while (!ct_name.empty() && ct_name[ct_name.size()-1] == ' ')
       ct_name.resize(ct_name.size()-1);
     const char *type_str = (evt.p_type == Branch) ? "branch" : "generator";
-    std::map<int, std::pair<double,double> > vbymag_ang;
-    for (size_t vi = 0; vi < v_strs.size(); vi++) {
-      int    bus_id = 0, use_vmag = 0, changed = 0;
-      double angle = 0.0, vmag = 0.0;
-      if (sscanf(v_strs[vi].c_str(), "%d %lf %lf %d %d",
-                 &bus_id, &angle, &vmag, &use_vmag, &changed) == 5) {
-        vbymag_ang[bus_id] = std::make_pair(vmag, angle);
-      }
-    }
+    readBuses();
     // Voltage PI and violations on monitored buses.
-    for (std::map<int,std::pair<double,double> >::const_iterator vit =
-           vbymag_ang.begin(); vit != vbymag_ang.end(); ++vit) {
-      if (!busMonitored(vit->first)) continue;
-      double v_pu = vit->second.first;
-      accumVoltagePi(ct_name, v_pu);
-      if (v_pu <= 0.0 || !std::isfinite(v_pu)) continue;
-      if (v_pu < Vmin || v_pu > Vmax) {
-        emitVoltageViolation(event_idx, ct_name, vit->first, v_pu, Vmin, Vmax);
+    voltageChecks(event_idx, ct_name);
+    double *pi = nullptr;
+    rowText.clear();
+    for (size_t bi = 0; bi < rowBranches.size(); bi++) {
+      RowBranch &rb = rowBranches[bi];
+      if (!readBranch(rb)) continue;
+      if (!rb.mon_delta) continue;
+      int slot = rb.base_slot;
+      if (!rb.regular) {
+        BranchKey k;
+        k.from = rb.from; k.to = rb.to; k.ckt = rb.ckt;
+        std::map<BranchKey, int>::const_iterator it = rowBaseIndex.find(k);
+        slot = (it == rowBaseIndex.end()) ? -1 : it->second;
       }
-    }
-    for (size_t bi = 0; bi < b_strs.size(); bi++) {
-      char ckt_buf[16] = {0};
-      int viol = 0;
-      double p = 0.0, q = 0.0, perf = 0.0, ratea = 0.0;
-      int from = 0, to = 0;
-      if (sscanf(b_strs[bi].c_str(),
-                 "%d %d %15s %lf %lf %lf %lf %d",
-                 &from, &to, ckt_buf, &p, &q, &perf, &ratea, &viol) != 8) {
-        continue;
-      }
-      BranchKey k;
-      k.from = from; k.to = to;
-      k.ckt  = std::string(ckt_buf);
-      while (!k.ckt.empty() && k.ckt[k.ckt.size()-1] == ' ')
-        k.ckt.resize(k.ckt.size()-1);
-      if (!branchMonitored(from, to, k.ckt)) continue;
-      std::map<BranchKey, BaseFlow>::const_iterator it = base_cache.find(k);
-      if (it == base_cache.end()) { deltaSkipCount++; continue; }
-      const BaseFlow &bf = it->second;
+      if (slot < 0) { deltaSkipCount++; continue; }
+      const BaseFlow &bf = rowBase[slot];
+      double p = rb.p, q = rb.q;
       double cont_mva     = std::sqrt(p*p + q*q);
       double cont_loading = (bf.cont_rate > 0.0) ? (cont_mva / bf.cont_rate) * 100.0 : 0.0;
-      accumBranchPi(ct_name, cont_mva, bf.cont_rate);
+      addBranchPi(&pi, ct_name, cont_mva, bf.cont_rate);
       // Stream to _violations.csv (delta path knows base_mva already).
       if (cont_loading > violationSeverityThreshold * 100.0) {
-        emitBranchViolation(event_idx, ct_name, from, to, k.ckt,
+        emitBranchViolation(event_idx, ct_name, rb.from, rb.to, rb.ckt,
                             cont_mva, bf.cont_rate, cont_loading, bf.mva);
       }
-      std::map<int, std::pair<double,double> >::const_iterator vf =
-        vbymag_ang.find(from);
-      std::map<int, std::pair<double,double> >::const_iterator vt =
-        vbymag_ang.find(to);
-      double v_from_c = (vf != vbymag_ang.end()) ? vf->second.first  : 0.0;
-      double a_from_c = (vf != vbymag_ang.end()) ? vf->second.second : 0.0;
-      double v_to_c   = (vt != vbymag_ang.end()) ? vt->second.first  : 0.0;
-      double a_to_c   = (vt != vbymag_ang.end()) ? vt->second.second : 0.0;
+      double v_from_c = (rb.from_slot >= 0) ? rowBusV[rb.from_slot] : 0.0;
+      double a_from_c = (rb.from_slot >= 0) ? rowBusA[rb.from_slot] : 0.0;
+      double v_to_c   = (rb.to_slot >= 0) ? rowBusV[rb.to_slot] : 0.0;
+      double a_to_c   = (rb.to_slot >= 0) ? rowBusA[rb.to_slot] : 0.0;
       double d_ang_b  = bf.ang_from_deg - bf.ang_to_deg;
       double d_ang_c  = a_from_c - a_to_c;
       // Across-branch drop, same convention as the angle deltas above.
       double d_v_b    = bf.v_from_pu - bf.v_to_pu;
       double d_v_c    = v_from_c - v_to_c;
-      deltaPart << event_idx << "," << ct_name << "," << type_str << ","
-                << from << "," << to << "," << k.ckt << ","
-                << std::setprecision(2) << bf.base_kv_from << ","
-                << std::setprecision(2) << bf.base_kv_to   << ","
-                << bf.area_from << "," << bf.area_to << ","
-                << std::setprecision(4) << bf.base_rate << ","
-                << std::setprecision(4) << bf.cont_rate << ","
-                << std::setprecision(4) << bf.p_mw   << ","
-                << std::setprecision(4) << p         << ","
-                << std::setprecision(4) << bf.q_mvar << ","
-                << std::setprecision(4) << q         << ","
-                << std::setprecision(4) << bf.mva    << ","
-                << std::setprecision(4) << cont_mva  << ","
-                << std::setprecision(2) << bf.loading_pct << ","
-                << std::setprecision(2) << cont_loading  << ","
-                << std::setprecision(6) << bf.v_from_pu << ","
-                << std::setprecision(6) << v_from_c     << ","
-                << std::setprecision(6) << bf.v_to_pu   << ","
-                << std::setprecision(6) << v_to_c       << ","
-                << std::setprecision(4) << bf.ang_from_deg << ","
-                << std::setprecision(4) << a_from_c        << ","
-                << std::setprecision(4) << bf.ang_to_deg   << ","
-                << std::setprecision(4) << a_to_c          << ","
-                << std::setprecision(6) << d_v_b   << ","
-                << std::setprecision(6) << d_v_c   << ","
-                << std::setprecision(4) << d_ang_b << ","
-                << std::setprecision(4) << d_ang_c
-             // << "," << facility            // cont_event_facility: disabled
-                << "\n";
+      rowText.add(event_idx).add(',').add(ct_name).add(',').add(type_str).add(',')
+             .add(rb.from).add(',').add(rb.to).add(',').add(rb.ckt).add(',')
+             .fixed(bf.base_kv_from, 2).add(',')
+             .fixed(bf.base_kv_to, 2).add(',')
+             .add(bf.area_from).add(',').add(bf.area_to).add(',')
+             .fixed(bf.base_rate, 4).add(',')
+             .fixed(bf.cont_rate, 4).add(',')
+             .fixed(bf.p_mw, 4).add(',')
+             .fixed(p, 4).add(',')
+             .fixed(bf.q_mvar, 4).add(',')
+             .fixed(q, 4).add(',')
+             .fixed(bf.mva, 4).add(',')
+             .fixed(cont_mva, 4).add(',')
+             .fixed(bf.loading_pct, 2).add(',')
+             .fixed(cont_loading, 2).add(',')
+             .fixed(bf.v_from_pu, 6).add(',')
+             .fixed(v_from_c, 6).add(',')
+             .fixed(bf.v_to_pu, 6).add(',')
+             .fixed(v_to_c, 6).add(',')
+             .fixed(bf.ang_from_deg, 4).add(',')
+             .fixed(a_from_c, 4).add(',')
+             .fixed(bf.ang_to_deg, 4).add(',')
+             .fixed(a_to_c, 4).add(',')
+             .fixed(d_v_b, 6).add(',')
+             .fixed(d_v_c, 6).add(',')
+             .fixed(d_ang_b, 4).add(',')
+             .fixed(d_ang_c, 4)
+             .add('\n');
       deltaRowCount++;
     }
+    deltaPart.write(rowText.str().data(), static_cast<std::streamsize>(rowText.str().size()));
   };
 
   timer->start(t_base);

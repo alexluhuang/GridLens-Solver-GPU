@@ -3068,6 +3068,49 @@ void gridpack::powerflow::PFBus::setVoltageState(double v, double theta)
 }
 
 /**
+ * Same values and expressions as the "vr_str" branch of serialWrite()
+ */
+void gridpack::powerflow::PFBus::stateValues(double *angle_deg, double *vmag) const
+{
+  double pi = 4.0*atan(1.0);
+  *angle_deg = p_a*180.0/pi;
+  *vmag = p_v;
+}
+
+/**
+ * Same values and expressions as the "flow_str" branch of serialWrite()
+ */
+bool gridpack::powerflow::PFBranch::flowValues(std::vector<CircuitFlow> *out)
+{
+  out->clear();
+  if (!p_active) return false;
+  gridpack::powerflow::PFBus *bus1
+    = dynamic_cast<gridpack::powerflow::PFBus*>(getBus1().get());
+  gridpack::powerflow::PFBus *bus2
+    = dynamic_cast<gridpack::powerflow::PFBus*>(getBus2().get());
+  std::vector<std::string> tags = getLineTags();
+  out->resize(p_elems);
+  for (int i=0; i<p_elems; i++) {
+    CircuitFlow &f = (*out)[i];
+    gridpack::ComplexType s = getComplexPower(tags[i]);
+    f.tag = tags[i];
+    f.p = real(s);
+    f.q = imag(s);
+    if (!p_branch_status[i]) f.p = 0.0;
+    if (!p_branch_status[i]) f.q = 0.0;
+    if (bus1->isIsolated() || bus2->isIsolated()) f.p = 0.0;
+    if (bus1->isIsolated() || bus2->isIsolated()) f.q = 0.0;
+    f.rate_a = p_rateA[i];
+    if (p_rateA[i] > 0.0) {
+      f.perf = abs(s)/p_rateA[i];
+      if (f.perf > 1.0) f.viol = 1;
+      f.perf = f.perf*f.perf;
+    }
+  }
+  return true;
+}
+
+/**
  * Apply a PV to PQ conversion decided outside GridPACK. The state changes
  * are the ones chkQlim() makes when the requirement is outside the total
  * limits, so clearQlim() restores the bus afterwards.
