@@ -1,6 +1,6 @@
 {
   "updated": "2026-10-05",
-  "source": "18f8e840; solver binaries include 92a5e689",
+  "source": "e49d0084; each saved study retains its actual snapshot",
   "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
   "completed": {
     "cpu_only_ctest": {
@@ -12,8 +12,8 @@
     "gpu_all_architectures_ctest": {
       "passed": 28,
       "failed": 0,
-      "seconds": 27.75,
-      "snapshot": "92a5e689"
+      "seconds": 26.94,
+      "snapshot": "e49d0084"
     },
     "remote_restoration_regression": {
       "passed": true,
@@ -39,9 +39,9 @@
       "failed": 0
     },
     "voltage_tie_tests": {
-      "passed": 7,
+      "passed": 13,
       "failed": 0,
-      "scope": "table comparison and voltage ties"
+      "scope": "table comparison, voltage ties and reported state"
     },
     "full_n1_polish_alg2": {
       "passed": true,
@@ -74,10 +74,11 @@
     },
     "standards_ci": {
       "passed": true,
-      "clang_tidy_findings": 361,
+      "clang_tidy_findings": 360,
       "cppcheck_findings": 8,
       "new_compiler_warnings": 0,
-      "exception_approval": "pending maintainer review"
+      "exception_approval": "pending maintainer review",
+      "snapshot": "e49d0084"
     },
     "kernel_memcheck": {
       "errors": 0,
@@ -153,6 +154,32 @@
       "swap_pages_in": 0,
       "swap_pages_out": 0,
       "snapshot": "92a5e689"
+    },
+    "reported_case_state": {
+      "passed": true,
+      "snapshot": "e49d0084",
+      "scope": "IEEE118, remote-controller regression, MPI, caps; CPU and GPU records before cleanup"
+    },
+    "isolated_production_trials": {
+      "passed": 34,
+      "failed": 0,
+      "snapshot": "18f8e840",
+      "grid": "Polish_model_v33",
+      "repeated_trials": 2,
+      "best_swept_batch": 2048,
+      "batch_at_95_percent": 512,
+      "best_tested_rank_count": 16,
+      "final_reporting_overhead_check": "in progress"
+    },
+    "nsight_selected_launches": {
+      "passed": true,
+      "launches": 10,
+      "snapshot": "18f8e840",
+      "occupancy_measured": true,
+      "dram_traffic_measured": false,
+      "clock_control": "none",
+      "cache_control": "none",
+      "container_capability": "SYS_ADMIN"
     }
   },
   "failed_or_open": {
@@ -171,10 +198,6 @@
       "passed": false,
       "reason": "Ordered Texas Alg2 oracle passed; other ordered large-grid checks remain. Default-order controller limitation persists."
     },
-    "nsight_counters": {
-      "passed": false,
-      "reason": "ERR_NVGPUCTRPERM"
-    },
     "full_cuda_clang_tidy": {
       "passed": false,
       "reason": "LLVM 18 CUDA wrapper cannot parse CUDA 13."
@@ -184,15 +207,18 @@
       "alg2_iteration_differences": 4,
       "cudss_iteration_differences": 3,
       "cause": "Stock retains remote-controller voltage references across cases."
+    },
+    "physical_dram_bandwidth": {
+      "passed": false,
+      "reason": "GB10 Nsight metric query contains no DRAM counters; algorithm traffic estimates are separate."
     }
   },
   "in_progress": [
-    "final image builds and runtime checks",
-    "isolated performance measurements queued after builds"
+    "final selected production trials with reported-state checks"
   ],
   "remaining": [
-    "ordered Texas cuDSS and both 10k full CSV comparisons (queue temporarily paused for performance)",
-    "PERF-1 through PERF-4 measurements",
+    "ordered Texas cuDSS and both 10k full CSV comparisons (queue paused until final isolated trials finish)",
+    "final-source CPU rebuild, installation and image runtime checks",
     "final validation evidence and handoff"
   ],
   "external_gates": [

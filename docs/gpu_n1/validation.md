@@ -26,8 +26,9 @@ remote-controller regression is included with the tests.
 | Check | Evidence and source snapshot |
 |---|---|
 | CPU-only build / stock regression | All 120 sequential CTest tests passed in 71.62 s through `92a5e689`. Parallel legacy tests share files, so the final full suite is sequential. |
-| Fresh GPU build / standards CI | All supported real architectures plus PTX built. End-to-end standards CI passed all 28 batch tests in 27.75 s through `92a5e689`. The 361 clang-tidy and eight cppcheck findings remain recorded; there are zero new-code compiler warnings and no increased findings. This does not grant maintainer approval of exceptions. |
-| Comparison tools | Nine quality-audit regressions and seven output-comparison regressions pass. Native NVCC warning syntax is counted; equal rows still undergo shape, key and duplicate checks. |
+| Fresh GPU build / standards CI | All supported real architectures plus PTX built. End-to-end standards CI passed all 28 batch tests in 26.94 s through `e49d0084`. Current analysis has 360 clang-tidy and eight cppcheck findings, below the recorded baseline; there are zero new-code compiler warnings and no increased findings. This does not grant maintainer approval of exceptions. |
+| Comparison tools | Nine quality-audit regressions and thirteen output-comparison regressions pass. Native NVCC warning syntax is counted; equal rows still undergo shape, key and duplicate checks. |
+| Final case records | `e49d0084` records CPU/GPU status, iterations, mismatch and final PV/PQ counts before cleanup. Unsolved cases do not inherit another case's history. All eligible IEEE118 cases and the remote-controller regression pass explicit PV/PQ membership and reporting checks on three backends. |
 | Kernel equations | CPU/GPU mismatch relative difference 3.78e-16, Jacobian 1.49e-16, finite-difference error 4.21e-09, Alg2/KLU solve difference 4.61e-12. The component oracle covers IEEE14, IEEE118 and the existing 240-bus fixture. |
 | Member failure / admission | A singular member is flagged while healthy members continue. IEEE118 tests enforce the validated cap and a small memory cap. Larger-budget pressure testing is still separate. |
 | Restoration regression | Three backends pass the included two-case remote-controller regression. The old code lost a PV bus and differed by 0.0181 pu. Corrected voltage/angle errors are below 1e-15. A 65-case 10k reproduction also passes. |
@@ -122,9 +123,12 @@ existing branch and voltage checks rather than duplicate GPU formulas.
 
 ## Gates still requiring evidence
 
-- PERF-1–4 need isolated production measurements, identical outputs and
-  starts, host/GPU solve placement, batch sweep and rank sweep. Heavy
-  validation/build jobs must stop before those measurements.
+- PERF-1, PERF-2 and the tested rank sweep in PERF-4 have isolated evidence:
+  all 34 repeated trials passed. Batch 512 reaches 95% of the best swept
+  throughput; sixteen ranks are fastest among the tested counts. See
+  `performance.md` and `performance-trials.jsonl`. A final selected repeat
+  measures the reporting change's cost; physical DRAM bandwidth remains
+  open under PERF-3. These results do not establish multi-Spark scaling.
 - ROB-2 now has a full Polish N-1 capped-budget check: requesting 2,048
   slots with a 0.25 GB budget reduced admission to 150 slots. All full
   CSV comparisons and exact shadows passed in 67.02 s. A one-second
@@ -139,9 +143,12 @@ existing branch and voltage checks rather than duplicate GPU formulas.
   Maintainer exception review remains pending.
   There are no hidden suppressions. See `standards.md` for the scope and
   the LLVM/CUDA and cppcheck/Boost tooling limits.
-- Nsight Compute returned `ERR_NVGPUCTRPERM`; DRAM traffic and counter-based
-  occupancy remain unmeasured. Telemetry bandwidth is an estimated traffic
-  count divided by elapsed phase time.
+- Nsight Compute succeeded with the approved temporary container capability.
+  Ten selected launches have measured occupancy and resource use, preserved
+  in `profile-evidence.json`. The available GB10 metric query contains no
+  DRAM metrics, so physical DRAM bandwidth remains unmeasured. Replay
+  durations with clock/cache control disabled are not production timings.
+  Telemetry bandwidth counts estimated algorithm traffic.
 - PORT-1, PORT-3, PERF-5 and the amd64 part of DOCK-2 require unavailable
   hardware/OS workers. Do not turn these into passes based on a build flag.
 

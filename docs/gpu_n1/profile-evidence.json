@@ -1,0 +1,102 @@
+{
+  "source": "18f8e840",
+  "raw": "Polish_model_v33.raw",
+  "batch": 2048,
+  "clock_control": "none",
+  "cache_control": "none",
+  "replay_profiling": true,
+  "container_capability": "SYS_ADMIN",
+  "dram_metrics_present": false,
+  "kernel_launches": [
+    {
+      "id": 0,
+      "kernel": "void forEachKernel<Mismatch>(long, T1)",
+      "block": "(576, 1, 1)",
+      "grid": "(11094, 1, 1)",
+      "duration_ms": 4.873376,
+      "occupancy_percent": 68.931417,
+      "registers_per_thread": 54.0
+    },
+    {
+      "id": 1,
+      "kernel": "void forEachKernel<MismatchArgmax>(long, T1)",
+      "block": "(768, 1, 1)",
+      "grid": "(8320, 1, 1)",
+      "duration_ms": 0.584768,
+      "occupancy_percent": 67.620624,
+      "registers_per_thread": 22.0
+    },
+    {
+      "id": 2,
+      "kernel": "void forEachKernel<JacobianDiag>(long, T1)",
+      "block": "(640, 1, 1)",
+      "grid": "(9984, 1, 1)",
+      "duration_ms": 2.204192,
+      "occupancy_percent": 74.17093,
+      "registers_per_thread": 42.0
+    },
+    {
+      "id": 3,
+      "kernel": "void forEachKernel<JacobianEdge>(long, T1)",
+      "block": "(640, 1, 1)",
+      "grid": "(23578, 1, 1)",
+      "duration_ms": 4.487776,
+      "occupancy_percent": 70.220238,
+      "registers_per_thread": 42.0
+    },
+    {
+      "id": 4,
+      "kernel": "unnamed>::factorLevelKernel(unnamed>::Alg2Plan, const int *, int, int, const int *)",
+      "block": "(256, 1, 1)",
+      "grid": "(7856, 1, 1)",
+      "duration_ms": 0.72192,
+      "occupancy_percent": 89.789146,
+      "registers_per_thread": 40.0
+    },
+    {
+      "id": 5,
+      "kernel": "unnamed>::factorLevelKernel(unnamed>::Alg2Plan, const int *, int, int, const int *)",
+      "block": "(256, 1, 1)",
+      "grid": "(7856, 1, 1)",
+      "duration_ms": 0.909568,
+      "occupancy_percent": 94.746727,
+      "registers_per_thread": 40.0
+    },
+    {
+      "id": 6,
+      "kernel": "unnamed>::factorLevelKernel(unnamed>::Alg2Plan, const int *, int, int, const int *)",
+      "block": "(256, 1, 1)",
+      "grid": "(4680, 1, 1)",
+      "duration_ms": 0.960576,
+      "occupancy_percent": 92.974938,
+      "registers_per_thread": 40.0
+    },
+    {
+      "id": 7,
+      "kernel": "unnamed>::factorLevelKernel(unnamed>::Alg2Plan, const int *, int, int, const int *)",
+      "block": "(256, 1, 1)",
+      "grid": "(4680, 1, 1)",
+      "duration_ms": 1.146752,
+      "occupancy_percent": 93.75807,
+      "registers_per_thread": 40.0
+    },
+    {
+      "id": 8,
+      "kernel": "unnamed>::factorLevelKernel(unnamed>::Alg2Plan, const int *, int, int, const int *)",
+      "block": "(256, 1, 1)",
+      "grid": "(3120, 1, 1)",
+      "duration_ms": 0.798144,
+      "occupancy_percent": 92.043908,
+      "registers_per_thread": 40.0
+    },
+    {
+      "id": 9,
+      "kernel": "unnamed>::factorLevelKernel(unnamed>::Alg2Plan, const int *, int, int, const int *)",
+      "block": "(256, 1, 1)",
+      "grid": "(3120, 1, 1)",
+      "duration_ms": 0.899424,
+      "occupancy_percent": 92.773492,
+      "registers_per_thread": 40.0
+    }
+  ]
+}

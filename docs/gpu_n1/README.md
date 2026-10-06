@@ -33,3 +33,5 @@ Implementation evidence is in [validation.md](validation.md) and the
 [restoration diagnosis](restoration.md) explains the remaining stock-output
 compatibility problem. [standards.md](standards.md) records analysis scope,
 tool limitations and exceptions awaiting maintainer review.
+The repeated single-Spark timings and kernel-counter limits are documented
+in [performance.md](performance.md).

@@ -1,7 +1,7 @@
 # Handoff: GPU N-1 implementation and remaining validation
 
 Updated 2026-10-05. Repository: `/home/alh360/Documents/GridLens-Solver-GPU`.
-Branch: `feature/gpu-batch-n1`. Implementation through `18f8e840`; commits
+Branch: `feature/gpu-batch-n1`. Implementation through `e49d0084`; commits
 are local. This is GridPACK C++/CUDA, not the Python GridLens repository.
 The implementation has not passed every release gate in the supplied plan.
 
@@ -151,20 +151,30 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    `/tmp/{Texas7k_20210804,ACTIVSg10k}-remote-last.xml`; preserve them while
    mounted. Logs `/work/validation-ordered-<grid>-<backend>.log`; studies
    `/work/validation-ordered/<grid>_<backend>/{stock,parity}`.
-2. Final Polish/Memphis checks, session 22584: all four logs currently end
-   `No errors detected`; harvest the metrics, do not repeat automatically.
-3. Latest image refresh: sessions 21278 (CPU) and 17280 (GPU), source
-   `18f8e840`. Logs `/tmp/gridpack-image-{cpu,gpu}-final.log`. Earlier image
-   build sessions 56024/83256 finished and do not represent the latest image.
-4. Isolated performance queue: session 53554, waits for image builds. It
-   uses the existing benchmark harness, full Polish N-1, text output, zero
-   shadows, raw starts, two trials per setting. Sweep batches 32..2048,
-   host/GPU solve, Alg2/cuDSS/auto, backfill, raw/base warm start, and ranks
-   1/2/4/8/16. Results `/work/performance-final/results.jsonl`, summary JSON,
-   per-run inputs/logs/benchmark.json. Confirm all other jobs finish before
-   interpreting timings. Do not resume the large queue during measurement.
-5. Latest install/example refresh: session 31237, logs
-   `/work/*installed-quality-final.log` and `run-rebuilt-quality-final.log`.
+2. Final Polish/Memphis checks finished; all four passed. Metrics are in
+   `study-evidence.jsonl`. The cuDSS capped-budget check also passed.
+3. CPU/GPU images through `18f8e840` finished building. They need runtime
+   checks and another refresh after the reporting change below.
+4. Isolated performance session 53554 finished all 34 trials successfully.
+   Full Polish N-1, text output, zero shadows, two trials per setting;
+   raw starts except explicitly tagged base-case trials. Results are in
+   `/work/performance-final/{results.jsonl,summary.json}`. Best swept batch
+   2048; smallest batch within 95% of its peak 512. Rank 16 was fastest of
+   1/2/4/8/16. Preserve source tags: these precede final state reporting.
+5. Nsight session 28116 finished with return code zero. The approved
+   temporary container `SYS_ADMIN` capability enabled counters without
+   changing host driver policy. Report `/work/profiling-final/polish.ncu-rep`,
+   exported `counters.csv`, `result.json`, `profile.log`; ten selected kernel
+   launches, clock/cache control disabled, replay profiling (not production
+   elapsed time). Harvest measured DRAM traffic and occupancy.
+6. Commit `e49d0084` completes guide 8.11 with final status, iterations, mismatch
+   and PV/PQ counts captured before cleanup, for CPU and GPU outcomes.
+   Shadow checks now explicitly compare PQ membership too. Twelve Python
+   comparator regressions (now thirteen) pass. Standards CI and all 28 GPU
+   tests passed in 26.94 s; 120 CPU tests passed in 69.03 s. No findings
+   increase or new compiler warnings. Final selected production trials are
+   running in `/work/performance-reported-state`, source `e49d0084`; wait for
+   `complete.json` before resuming the large queue. Kernels are unchanged.
 
 ## Finish in this order
 
@@ -177,8 +187,9 @@ Container process namespaces need `--pid=host` to inspect host jobs.
    the fastest solve placement, rank count and batch at 95% of measured peak.
    If throughput still grows at the validated cap, report that saturation
    remains unresolved; do not increase that cap without validation.
-   Nsight counters are denied (`ERR_NVGPUCTRPERM`); estimated telemetry
-   bandwidth is not measured physical DRAM traffic.
+   The initial counter attempt was denied; the approved container retry
+   succeeded. Estimated telemetry bandwidth remains distinct from measured
+   DRAM traffic. Do not claim ten replayed launches profile every kernel.
 3. Resume PID 73168 and finish remaining full CSV comparisons. Keep the
    default-order failure evidence separate. Full tables are tens of GB;
    sorting is bounded to 256 MB and Python processes one event at a time.

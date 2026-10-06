@@ -83,11 +83,11 @@ The seven `useStlAlgorithm` suggestions concern ordinary loops, not defects.
 
 | Appendix F check | Implementation and limit |
 |---|---|
-| Profile first | Phase events and optional profiler ranges exist. Nsight Compute reached the GPU but returned `ERR_NVGPUCTRPERM`. Counter-based occupancy and traffic measurements remain unavailable. No host security settings were changed. |
+| Profile first | Phase events and optional profiler ranges exist. The approved temporary container capability enabled ten Nsight launches after ordinary-user access was denied. Occupancy is measured; the GB10 metric query exposes no DRAM counters. See `performance.md`. No host driver policy was changed. |
 | Effective bandwidth | Telemetry divides estimated bytes by phase time. It is not a measurement of physical DRAM traffic. Saturation and whole-study measurements are separate validation gates. |
 | Transfers | The model and working arrays stay on the device. Integrated-GPU result exchange uses pinned zero-copy memory; discrete exchange uses copies. No CPU dereference of `cudaMalloc` memory is assumed. |
 | Coalescing | A matrix position stores all batch members contiguously. Factor levels share a structure across members, following Zhou Algorithm 2. Masked members skip work. |
-| Launch configuration | Explicit block sizes must be multiples of 32. Automatic selection queries kernel resource limits. NVCC resource reports cover all compiled variants; profiler counters remain an external check. |
+| Launch configuration | Explicit block sizes must be multiples of 32. Automatic selection queries kernel resource limits. NVCC resource reports cover all compiled variants; ten actual launches also have register/occupancy evidence. |
 | Allocation | Stream-ordered pools are used when supported, with a checked older-allocation fallback. Admission accounts for model, work, factor, result and host-replica memory. Proposed headroom remains conservative pending pressure measurements. |
 | Precision | All equations and factors are double precision. There is no fast-math or reduced-precision compiler switch. |
 | Failures | Launches use `cudaGetLastError`; asynchronous phase/stream completion is checked. Destructors report cleanup failures without throwing. Capability queries distinguish absence from failure; device-code health uses status bits. |
@@ -134,6 +134,6 @@ alternative, its containment and the event that permits removal.
 | EX-CM-03, custom target variables | Existing contingency-analysis `target_libraries` | Follow the original application link list under S-4; new `ca.x` linking has an explicit `PRIVATE` scope. | Upstream build modernization. |
 | EX-CM-04, directory command | Batch module CMake `remove_definitions` | Parent `add_definitions` propagates GCC-only warning flags into NVCC. Target options cannot remove inherited flags. Remove only those inherited flags in the new subtree, then apply scoped C++/CUDA warnings. | The parent uses language-specific target options. |
 
-Tool gaps (CUDA/LLVM parser, cppcheck/Boost parser, restricted GPU counters)
+Tool gaps (CUDA/LLVM parser, cppcheck/Boost parser, unavailable DRAM metrics)
 must be revisited on toolchain upgrades. They do not justify suppressing
 compiler failures or presenting missing measurements as passed checks.
