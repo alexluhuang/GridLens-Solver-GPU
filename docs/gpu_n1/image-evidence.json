@@ -4,14 +4,14 @@
   "images": [
     {
       "tag": "alh360/gridpack-n1-validation:cpu",
-      "image_id": "sha256:073a5ddc7777068a679e9a216c5346331fff762893cbb2c2fefb0d62b5652015",
+      "image_id": "sha256:1fb4096ac4471d5fce2214057d3ad196c0ffbdd7f8fa39739ffa4c88f5adba62",
       "architecture": "arm64",
       "cmd": [
         "/bin/bash"
       ],
       "entrypoint": null,
-      "source_driver_sha256": "21f3386888ca6aa3c83823618b773fa00471537ce16d281a28ed597c5b3954ff",
-      "solver_source": "e49d0084",
+      "source_driver_sha256": "0565bfa8267a30c6c7db362761868d219ff168611f55158771df3fc1f5af74dc",
+      "solver_source": "3b16592d",
       "build_passed": true,
       "default_python_import_passed": true,
       "cuda_free_ca_executable": true,
@@ -22,11 +22,12 @@
       "packages": {
         "gcc": "4:15.2.0-4ubuntu1",
         "cmake": "3.31.6-2ubuntu6"
-      }
+      },
+      "source_components_sha256": "caf76357190705153ff96963a6ae89c670a4ab5a6be05b50dc96a18ffe3efeb9"
     },
     {
       "tag": "alh360/gridpack-n1-validation:gpu",
-      "image_id": "sha256:9db3895c7cad9d6215cff9c8727416103d06eff0ee89d402ec8b74928abc177c",
+      "image_id": "sha256:1f8fc659e4d29afb52c41e9cece55ba8d8dd38063a071acf9e79146684d5faa8",
       "architecture": "arm64",
       "cmd": [
         "/bin/bash"
@@ -34,8 +35,8 @@
       "entrypoint": [
         "/opt/nvidia/nvidia_entrypoint.sh"
       ],
-      "source_driver_sha256": "21f3386888ca6aa3c83823618b773fa00471537ce16d281a28ed597c5b3954ff",
-      "solver_source": "e49d0084",
+      "source_driver_sha256": "0565bfa8267a30c6c7db362761868d219ff168611f55158771df3fc1f5af74dc",
+      "solver_source": "3b16592d",
       "build_passed": true,
       "default_python_import_passed": true,
       "cuda_free_ca_executable": true,
@@ -52,7 +53,20 @@
         "cudss": "0.8.0-1",
         "libcudss": "0.8.0.10-1",
         "gsl": "4.0.0-3"
-      }
+      },
+      "source_components_sha256": "caf76357190705153ff96963a6ae89c670a4ab5a6be05b50dc96a18ffe3efeb9"
     }
-  ]
+  ],
+  "build_arguments": {
+    "gpu": {
+      "BASE_IMAGE": "nvidia/cuda:13.0.1-devel-ubuntu24.04",
+      "GRIDPACK_ENABLE_GPU_BATCH": "ON",
+      "GRIDPACK_BUILD_TYPE": "Release",
+      "GRIDPACK_IMAGE_VERSION": "n1-validation"
+    },
+    "cpu": {
+      "GRIDPACK_IMAGE_VERSION": "n1-validation",
+      "other": "defaults"
+    }
+  }
 }

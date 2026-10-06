@@ -9,9 +9,9 @@ On 2026-10-05 the user approved restoring saved voltage settings in both
 paths, accepting changed results caused by fixing the cleanup defect.
 New corrected-reference checks must be labeled separately from this original
 baseline. The broader checks below retain their actual source snapshots.
-The user stopped work at 2026-10-06 06:51:41 UTC. No task containers remain
-running. The full 10k Alg2 solver runs finished successfully, but their table
-comparison was interrupted; 10k cuDSS did not start. Saved output is retained.
+Work stopped at 2026-10-06 06:51:41 UTC and resumed later that day. The
+steps left in the handoff are now done; see "Corrected-reference checks".
+No validation job is running.
 
 ## Machine and tools actually used
 
@@ -32,8 +32,8 @@ remote-controller regression is included with the tests.
 
 | Check | Evidence and source snapshot |
 |---|---|
-| CPU-only build / stock regression | All 120 sequential CTest tests passed in 80.99 s through `e49d0084`. Parallel legacy tests share files, so the final full suite is sequential. |
-| Fresh GPU build / standards CI | All supported real architectures plus PTX built. End-to-end standards CI passed all 28 batch tests in 26.94 s through `e49d0084`. Current analysis has 360 clang-tidy and eight cppcheck findings, below the recorded baseline; there are zero new-code compiler warnings and no increased findings. This does not grant maintainer approval of exceptions. |
+| CPU-only build / stock regression | All 121 CTest tests passed one at a time in 75.63 s at `3b16592d` (120 in 80.99 s at `e49d0084`). Parallel legacy tests share files, so the full suite runs sequentially. |
+| Fresh GPU build / standards CI | All supported real architectures plus PTX built. End-to-end standards CI passed all 29 batch tests at `ef11605f` (28 at `e49d0084`). Analysis has 360 clang-tidy and eight cppcheck findings, one below the recorded baseline; there are no new-code compiler warnings and no increased findings. This does not grant maintainer approval of exceptions. |
 | Comparison tools | Nine quality-audit regressions and thirteen output-comparison regressions pass. Native NVCC warning syntax is counted; equal rows still undergo shape, key and duplicate checks. |
 | Final case records | `e49d0084` records CPU/GPU status, iterations, mismatch and final PV/PQ counts before cleanup. Unsolved cases do not inherit another case's history. All eligible IEEE118 cases and the remote-controller regression pass explicit PV/PQ membership and reporting checks on three backends. |
 | Kernel equations | CPU/GPU mismatch relative difference 3.78e-16, Jacobian 1.49e-16, finite-difference error 4.21e-09, Alg2/KLU solve difference 4.61e-12. The component oracle covers IEEE14, IEEE118 and the existing 240-bus fixture. |
@@ -41,7 +41,7 @@ remote-controller regression is included with the tests.
 | Restoration regression | Three backends pass the included two-case remote-controller regression. The old code lost a PV bus and differed by 0.0181 pu. Corrected voltage/angle errors are below 1e-15. A 65-case 10k reproduction also passes. |
 | MPI / completeness | Two/four reporting ranks and two accelerator ranks on one visible GPU pass. Ordered output reconciliation detects missing, duplicate and unexpected event indices. Every generated case must have an outcome. |
 | Optional loading | Absent/disabled blocks, missing GPU/plugin, invalid settings and explicitly required acceleration are tested. `ca.x` itself has no CUDA/cuDSS dependency. |
-| Installation / images | The installed executable, rebuilt installed example and final GPU image pass four-rank IEEE118/cuDSS CSV parity, exact PV/PQ sets and final-state reporting through `e49d0084`. Both final images import Python bindings and pass serial CPU fallback; `ca.x` has no CUDA/cuDSS dependency. IDs and package versions are in `image-evidence.json`. |
+| Installation / images | At `ef11605f` the installed executable and the example rebuilt from the installation pass four-rank IEEE118/cuDSS CSV parity, exact PV/PQ sets and final-state reporting. Images rebuilt from `3b16592d` pass the same GPU check and serial fallback without a GPU (GPU image) or without plugins (CPU image), and import the Python bindings; `ca.x` has no CUDA/cuDSS dependency. IDs and package versions are in `image-evidence.json`. |
 | Memory checking | Final GPU kernels through `18f15bca` passed Compute Sanitizer memcheck with zero errors. Subsequent changes affect host telemetry and the Python comparator, not kernels. |
 
 The final CPU image's serial fallback is compared with its own unchanged
@@ -53,6 +53,48 @@ startup script, which forwards normal shell and application commands;
 the default CPU image has no entrypoint. No application wrapper is added.
 The rebuilt example outside the installation prefix requires
 `GRIDPACK_BATCHPF_PLUGIN_PATH` to locate the installed plugins.
+
+## Corrected-reference checks (final source `3b16592d`)
+
+Commit `3b16592d` stops GridPACK's reactive-limit check from converting a
+disconnected bus on an injection left by an earlier case (`restoration.md`).
+The corrected CPU reference is the original `b32969b0` source with exactly
+two patches from `reproductions/`: the approved voltage cleanup
+(`cpu-voltage-cleanup-reference.patch`, SHA256 `d30d17d3…9093`) and this
+check (`cpu-isolated-qlim-reference.patch`, SHA256 `7d3eba5b…f6c7`). It is
+built separately from the untouched original build, which is kept.
+
+Every default-order study below used the full branch and generator N-1
+list, eight ranks, raw starts, full `csv_delta` output and a shadow
+re-solve of every GPU case. Each passed every check against the corrected
+reference: all output tables within 1e-3, exact iteration counts, one
+outcome per case, ordered files, exact PV/PQ sets and final reported states.
+
+| Study | Cases | Shadows | Max voltage diff., pu | Max angle diff., rad | Reference s | Batch s |
+|---|---:|---:|---:|---:|---:|---:|
+| Texas7k Alg2 | 8,891 | 8,803 | 6.861e-14 | 1.301e-13 | 258.5 | 382.8 |
+| Texas7k cuDSS | 8,891 | 8,804 | 2.249e-13 | 1.243e-11 | 247.1 | 294.2 |
+| 10k Alg2 | 15,191 | 14,581 | 1.095e-12 | 5.755e-13 | 554.4 | 688.7 |
+| 10k cuDSS | 15,191 | 14,581 | 1.109e-12 | 6.017e-13 | 562.1 | 669.7 |
+
+Times include shadow solving and overlapping jobs; they are not throughput
+figures. The same lists still fail against the untouched original build,
+as expected: the three-case Texas controller sequence by one iteration on
+two cases and 40.7604 in the delta table, and the two-case
+isolated-injection sequence by zero against two rounds. Against the
+corrected reference, both of those lists and the two independent Texas
+cases pass on Alg2 and cuDSS.
+
+The saved 10k Alg2 study with the controller outage last (solver
+`18f15bca`, original stock) was compared after the interruption. It passes
+every table, exact iterations, all 15,191 outcomes and exact shadow sets;
+the comparison took 1,397 s and 133 MB. That snapshot predates final-state
+columns, so the final-state check was not applied. The never-started 10k
+cuDSS study in that ordering is superseded by the default-order 10k cuDSS
+study above and was not run.
+
+With the final source, the CPU-only build passes all 121 tests run one at a
+time (75.63 s), and the GPU build passes all 29 batch-path tests.
 
 ## Full-study evidence and the fidelity problem
 
@@ -89,11 +131,12 @@ angle, status, classification and exact bus-set checks at `63f826af`.
 | 10k cuDSS | 15,191 | 14,581 | 1.064e-12 | 5.684e-13 | 3 |
 
 Stock's retained controller state causes the late iteration differences;
-the isolated two-case reproduction passes. FID-2 remains open for
-default-order studies. The cuDSS 10k run overlapped another validation
+the isolated two-case reproduction passes. Against the original baseline,
+FID-2 stays failed for default-order studies; against the corrected
+reference it passes (see "Corrected-reference checks"). The cuDSS 10k run overlapped another validation
 job, so its elapsed time is not an isolated measurement.
 Text-mode checks omit the full delta table, so they do not prove full CSV
-parity. Current full-CSV oracle checks are running with the controller
+parity. Full-CSV oracle checks were then run with the controller
 outage last, using identical complete explicit lists on both paths.
 Texas moves `GN_240278_1`; 10k moves `GN_74332_1`. No outage is removed.
 The list hashes are respectively
@@ -115,7 +158,7 @@ log checks a disconnected generator's limit and starts another calculation
 with zero rounds. A two-case reproduction at `f2b6cfa4` confirms that a
 preceding divergent case leaves calculated injection data which is then
 checked on the disconnected generator. Only the reported count differs;
-the correction is not yet implemented. See `restoration.md`.
+commit `3b16592d` corrects it. See `restoration.md`.
 `study-evidence.jsonl` preserves these small summaries with RAW hashes,
 source snapshots and timing context. It includes the failed default-order
 studies as well as passes. Their shadow-heavy timings are not production
@@ -131,8 +174,8 @@ grid has sufficient slack capacity. Memphis has 1,387 `OK`, five
 Maximum shadow differences are 2.028e-12 / 9.219e-13 pu/rad for Polish
 and 2.146e-12 / 1.013e-12 for Memphis. A 65-case 10k sample and the two
 independent Texas cases also pass new reported-state and exact PQ checks.
-Their small summaries are appended to `study-evidence.jsonl`. These samples
-do not replace the full large-grid CSV comparisons still running.
+Their small summaries are appended to `study-evidence.jsonl`. The full
+large-grid comparisons are in "Corrected-reference checks".
 
 ## Output comparison rules
 
@@ -160,6 +203,12 @@ reported as a flagged outcome and retried on the CPU. Reports use GridPACK's
 existing branch and voltage checks rather than duplicate GPU formulas.
 
 ## Gates still requiring evidence
+
+- FID-1 and FID-2 pass for full default-order Texas7k and 10k studies on both
+  backends against the corrected reference. They are not claimed against
+  the original `b32969b0` baseline, whose retained controller state and
+  stale injections make later cases depend on what ran before them on the
+  same rank.
 
 - PERF-1, PERF-2 and the tested rank sweep in PERF-4 have isolated evidence:
   all 34 repeated trials passed. Batch 512 reaches 95% of the best swept

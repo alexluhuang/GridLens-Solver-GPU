@@ -1,19 +1,19 @@
 {
-  "updated": "2026-10-05",
-  "source": "f2b6cfa4; each saved study retains its actual snapshot",
+  "updated": "2026-10-06",
+  "source": "3b16592d solver, ef11605f tests; each saved study retains its actual snapshot",
   "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
   "completed": {
     "cpu_only_ctest": {
-      "passed": 120,
+      "passed": 121,
       "failed": 0,
-      "seconds": 80.99,
-      "snapshot": "e49d0084"
+      "seconds": 75.63,
+      "snapshot": "3b16592d",
+      "sequential": true
     },
     "gpu_all_architectures_ctest": {
-      "passed": 28,
+      "passed": 29,
       "failed": 0,
-      "seconds": 26.94,
-      "snapshot": "e49d0084"
+      "snapshot": "ef11605f"
     },
     "remote_restoration_regression": {
       "passed": true,
@@ -68,20 +68,21 @@
     },
     "installed_binary_and_rebuilt_example": {
       "passed": true,
-      "network": "IEEE118",
-      "final_refresh_required": true,
-      "snapshot": "e49d0084",
-      "gpu_path_confirmed": true,
-      "ranks": 4,
-      "exact_pv_pq_and_reported_state": true
+      "ieee118_cudss_ranks": 4,
+      "exact_sets": true,
+      "reported_state": true,
+      "snapshot": "ef11605f",
+      "rebuilt_example_needs": "GRIDPACK_BATCHPF_PLUGIN_PATH"
     },
     "standards_ci": {
       "passed": true,
-      "clang_tidy_findings": 360,
-      "cppcheck_findings": 8,
-      "new_compiler_warnings": 0,
-      "exception_approval": "pending maintainer review",
-      "snapshot": "e49d0084"
+      "clang_tidy": 360,
+      "cppcheck": 8,
+      "baseline_clang_tidy": 361,
+      "baseline_cppcheck": 8,
+      "new_code_compiler_warnings": 0,
+      "snapshot": "ef11605f",
+      "maintainer_approval": "pending"
     },
     "kernel_memcheck": {
       "errors": 0,
@@ -201,13 +202,10 @@
     },
     "final_arm64_image_checks": {
       "passed": true,
-      "snapshot": "e49d0084",
-      "manifest": "image-evidence.json",
-      "gpu_independent_ieee118_parity": true,
-      "python_imports": true,
-      "serial_fallback": true,
-      "cuda_free_executable": true,
-      "final_refresh_required": true
+      "solver_source": "3b16592d",
+      "gpu_image": "sha256:1f8fc659e4d2",
+      "cpu_image": "sha256:1fb4096ac447",
+      "details": "image-evidence.json"
     },
     "cpu_case_restoration": {
       "passed": true,
@@ -217,6 +215,92 @@
       "original_delta_difference": 31.7952,
       "original_iteration_difference": 8,
       "snapshot": "f2b6cfa4"
+    },
+    "isolated_bus_reactive_check": {
+      "passed": true,
+      "snapshot": "3b16592d",
+      "component_test_grids": [
+        "IEEE14_ca",
+        "IEEE118",
+        "240busWECC_2018_PSS_fixedshunt"
+      ],
+      "fails_before_fix": true,
+      "texas_two_case_sequence_passes": true
+    },
+    "corrected_cpu_reference": {
+      "built": true,
+      "base": "b32969b0",
+      "patches": {
+        "reproductions/cpu-voltage-cleanup-reference.patch": "d30d17d34ca976afeee693ea3ef3d8f75f7e360ad9e5fbc4a55d2a8657ec9093",
+        "reproductions/cpu-isolated-qlim-reference.patch": "7d3eba5b79dcd6ce6303e75c348ae9ffb4ff7ed24accca116f429d1381d0f6c7"
+      },
+      "original_baseline_preserved": true
+    },
+    "corrected_reference_default_order_Texas7k_alg2": {
+      "cases": 8891,
+      "shadows": 8803,
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 6.861e-14,
+      "max_dtheta_rad": 1.301e-13,
+      "source": "3b16592d"
+    },
+    "corrected_reference_default_order_Texas7k_cudss": {
+      "cases": 8891,
+      "shadows": 8804,
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 2.249e-13,
+      "max_dtheta_rad": 1.243e-11,
+      "source": "3b16592d"
+    },
+    "corrected_reference_default_order_ACTIVSg10k_alg2": {
+      "cases": 15191,
+      "shadows": 14581,
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.095e-12,
+      "max_dtheta_rad": 5.755e-13,
+      "source": "3b16592d"
+    },
+    "corrected_reference_default_order_ACTIVSg10k_cudss": {
+      "cases": 15191,
+      "shadows": 14581,
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.109e-12,
+      "max_dtheta_rad": 6.017e-13,
+      "source": "3b16592d"
+    },
+    "texas_reproductions_vs_corrected_reference": {
+      "passed": true,
+      "lists": [
+        "texas-controller-sequence",
+        "texas-independent-cases",
+        "texas-isolated-injection-sequence"
+      ],
+      "backends": [
+        "alg2",
+        "cudss"
+      ],
+      "snapshot": "3b16592d"
+    },
+    "ordered_10k_alg2_full_csv": {
+      "passed": true,
+      "cases": 15191,
+      "snapshot": "18f15bca",
+      "stock_snapshot": "b32969b0",
+      "reported_state_checked": false,
+      "comparison_seconds": 1396.8
+    },
+    "fid2_default_order_corrected_reference": {
+      "passed": true,
+      "against": "corrected reference",
+      "reason": "Default-order Texas7k and 10k pass on Alg2 and cuDSS against b32969b0 plus both reference patches; the original baseline comparisons stay failed and are kept as evidence."
     }
   },
   "failed_or_open": {
@@ -224,16 +308,16 @@
       "passed": false,
       "alg2_iteration_differences": 2,
       "cudss_iteration_differences": 4,
-      "cause": "Stock remote-controller reference state persists into later cases; the batch restores independent-case references."
+      "cause": "Stock remote-controller reference state persists into later cases; the batch restores independent-case references.",
+      "against": "original b32969b0 baseline only",
+      "corrected_reference_passes": true
     },
     "texas_sequence_delta_comparison": {
       "passed": false,
       "max_difference": 40.7604,
-      "isolated_same_cases_pass": true
-    },
-    "fid2_full_current_csv": {
-      "passed": false,
-      "reason": "Texas Alg2 passes; Texas cuDSS has a reproduced disconnected-generator count discrepancy. The 10k Alg2 solver runs finished but comparison was interrupted by the user; 10k cuDSS did not start. Corrected-reference studies remain."
+      "isolated_same_cases_pass": true,
+      "against": "original b32969b0 baseline only",
+      "corrected_reference_passes": true
     },
     "full_cuda_clang_tidy": {
       "passed": false,
@@ -243,7 +327,9 @@
       "passed": false,
       "alg2_iteration_differences": 4,
       "cudss_iteration_differences": 3,
-      "cause": "Stock retains remote-controller voltage references across cases."
+      "cause": "Stock retains remote-controller voltage references across cases.",
+      "against": "original b32969b0 baseline only",
+      "corrected_reference_passes": true
     },
     "physical_dram_bandwidth": {
       "passed": false,
@@ -259,16 +345,19 @@
       "isolated_case_passed": true,
       "cause": "A prior divergent outage leaves a calculated generator injection behind. The next outage disconnects bus 210331, whose injection is not refreshed, but the CPU still checks its limit and reports a needless zero-round controller solve.",
       "two_case_reproduction": "reproductions/texas-isolated-injection-sequence.xml",
-      "reproduction_snapshot": "f2b6cfa4"
+      "reproduction_snapshot": "f2b6cfa4",
+      "resolved_by": "3b16592d",
+      "passed_after_fix": "two-case reproduction and default-order Texas cuDSS against the corrected reference"
+    },
+    "fid2_default_order_original_baseline": {
+      "passed": false,
+      "reason": "The original b32969b0 build carries remote-controller references and stale injections between cases on one rank, so later cases depend on order; kept as evidence."
     }
   },
   "in_progress": [],
   "remaining": [
-    "fix and verify the disconnected-generator limit-check history defect",
-    "build corrected independent CPU reference and run default-order fidelity checks",
-    "compare saved 10k Alg2 outputs; 10k cuDSS full CSV remains unstarted",
-    "full checks, installation and image refresh after approved source change",
-    "final validation evidence and handoff"
+    "maintainer review of the standards exception register",
+    "external gates listed below"
   ],
   "external_gates": [
     "PORT-1 second Arm/NVIDIA profile",
@@ -283,31 +372,8 @@
     "Original guide proposals are not measured results.",
     "Keep strict failures; do not ignore raw-start iteration differences or loosen voltage tolerances.",
     "User approved restoring voltage settings in both paths on 2026-10-05; keep the original baseline and its known failures as evidence.",
-    "User instructed Stop now. All pending task containers were stopped; continue implementation only when the user resumes it."
+    "The isolated-bus reactive check (3b16592d) is a second compatibility change, separate from the approved voltage cleanup; it changes only extra controller rounds, their count and warnings, also without acceleration.",
+    "The ordered 10k cuDSS study against the original baseline was not run; the default-order 10k cuDSS study against the corrected reference supersedes it."
   ],
-  "interrupted": {
-    "ordered_10k_alg2": {
-      "solver_runs_finished": true,
-      "stock_seconds": 567.587883559001,
-      "gpu_seconds": 700.9102392170007,
-      "solver_returncodes": [
-        0,
-        0
-      ],
-      "comparison_finished": false,
-      "full_output_passed": null,
-      "snapshot": "18f15bca",
-      "stock_snapshot": "b32969b0",
-      "directory": "/work/validation-ordered/ACTIVSg10k_alg2"
-    },
-    "ordered_10k_cudss": {
-      "started": false
-    },
-    "stopped_by_user": {
-      "time_utc": "2026-10-06 06:51:41",
-      "queue_container": "a24b7d6aab8c",
-      "queue_exit_code": 137,
-      "active_task_containers": 0
-    }
-  }
+  "interrupted": {}
 }
