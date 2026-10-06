@@ -114,7 +114,28 @@ class BaseBlockParser{
    * quotes, find the corresponding index in the p_nameMap data structure
    */
   int getBusIndex(std::string str);
-  
+
+  /**
+   * Off-nominal turns ratio of a transformer winding in per unit of the
+   * base voltage of the winding's bus, from PSS/E winding data
+   * @param cw winding data I/O code: 1 ratio in pu of bus base voltage,
+   *        2 winding voltage in kV, 3 ratio in pu of nominal winding voltage
+   * @param windv winding value (WINDV, RMA or RMI) from the RAW file
+   * @param nomv nominal winding voltage in kV; 0 means the bus base voltage
+   * @param basekv base voltage of the winding's bus in kV
+   * @return ratio in pu of the bus base voltage
+   */
+  double windingRatio(int cw, double windv, double nomv, double basekv) const;
+
+  /**
+   * Base voltage of a bus
+   * @param o_idx original bus index
+   * @param busData data collection objects for buses
+   * @return base voltage in kV, 0 if the bus or its base voltage is unknown
+   */
+  double busBaseKV(int o_idx,
+      std::vector<boost::shared_ptr<gridpack::component::DataCollection> > &busData);
+
 protected:
   std::map<int,int> *p_busMap;
   std::map<std::string,int> *p_nameMap;

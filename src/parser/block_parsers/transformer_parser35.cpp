@@ -154,6 +154,11 @@ void gridpack::parser::TransformerParser35::parse(
         rval = (split_line2.size() > 10) ? atof(split_line2[10].c_str()) : 0.0;
         data->addValue(BUS_VOLTAGE_ANG,rval);
 
+        // Winding data codes: CW for the winding voltages, CZ for the
+        // impedances
+        int cw3 = atoi(split_line[4].c_str());
+        int cz3 = atoi(split_line[5].c_str());
+
         // parse remainder of line 1
         double mag1, mag2;
         mag1 = atof(split_line[7].c_str());
@@ -174,18 +179,21 @@ void gridpack::parser::TransformerParser35::parse(
         r31 = atof(split_line2[6].c_str());
         x31 = atof(split_line2[7].c_str());
         sb31 = atof(split_line2[8].c_str());
-        // Convert pairwise impedances to case base BEFORE delta-to-star conversion
-        if (sb12 != p_case_sbase && sb12 != 0.0) {
-          r12 = r12*p_case_sbase/sb12;
-          x12 = x12*p_case_sbase/sb12;
-        }
-        if (sb23 != p_case_sbase && sb23 != 0.0) {
-          r23 = r23*p_case_sbase/sb23;
-          x23 = x23*p_case_sbase/sb23;
-        }
-        if (sb31 != p_case_sbase && sb31 != 0.0) {
-          r31 = r31*p_case_sbase/sb31;
-          x31 = x31*p_case_sbase/sb31;
+        // Convert pairwise impedances to case base BEFORE delta-to-star
+        // conversion. CZ=1 impedances are already on the system base
+        if (cz3 != 1) {
+          if (sb12 != p_case_sbase && sb12 != 0.0) {
+            r12 = r12*p_case_sbase/sb12;
+            x12 = x12*p_case_sbase/sb12;
+          }
+          if (sb23 != p_case_sbase && sb23 != 0.0) {
+            r23 = r23*p_case_sbase/sb23;
+            x23 = x23*p_case_sbase/sb23;
+          }
+          if (sb31 != p_case_sbase && sb31 != 0.0) {
+            r31 = r31*p_case_sbase/sb31;
+            x31 = x31*p_case_sbase/sb31;
+          }
         }
         // Now apply delta-to-star conversion with all impedances on same base
         r1 = 0.5*(r12+r31-r23);
@@ -213,6 +221,8 @@ void gridpack::parser::TransformerParser35::parse(
         split_line3 = this->splitPSSELine(line);
         double windv, ang, rate[12];
         parse3WindXForm(split_line3, &windv, &ang, rate);
+        windv = windingRatio(cw3, windv, atof(split_line3[1].c_str()),
+            busBaseKV(o_idx1, p_busData));
         data1->addValue(BRANCH_INDEX,index);
         data1->addValue(BRANCH_FROMBUS,o_idx1);
         data1->addValue(BRANCH_TOBUS,p_maxBusIndex);
@@ -263,6 +273,8 @@ void gridpack::parser::TransformerParser35::parse(
         this->cleanComment(line);
         split_line4 = this->splitPSSELine(line);
         parse3WindXForm(split_line4, &windv, &ang, rate);
+        windv = windingRatio(cw3, windv, atof(split_line4[1].c_str()),
+            busBaseKV(o_idx2, p_busData));
         data2->addValue(BRANCH_INDEX,index);
         data2->addValue(BRANCH_FROMBUS,o_idx2);
         data2->addValue(BRANCH_TOBUS,p_maxBusIndex);
@@ -313,6 +325,8 @@ void gridpack::parser::TransformerParser35::parse(
         this->cleanComment(line);
         split_line5 = this->splitPSSELine(line);
         parse3WindXForm(split_line5, &windv, &ang, rate);
+        windv = windingRatio(cw3, windv, atof(split_line5[1].c_str()),
+            busBaseKV(o_idx3, p_busData));
         data3->addValue(BRANCH_INDEX,index);
         data3->addValue(BRANCH_FROMBUS,o_idx3);
         data3->addValue(BRANCH_TOBUS,p_maxBusIndex);
@@ -574,12 +588,14 @@ void gridpack::parser::TransformerParser35::parse(
       ntoken = split_line3.size();
       double windv1 = atof(split_line3[0].c_str());
       double windv2 = atof(split_line4[0].c_str());
-      if(cw == 2) {
-        double nomv1 = atof(split_line3[1].c_str());
-        double nomv2 = atof(split_line4[1].c_str());
-        windv1 = windv1/nomv1;
-        windv2 = windv2/nomv2;
-      }
+      // Winding ratios in pu of the base voltage of each winding's bus
+      // (CW=1 pu of bus base voltage, CW=2 kV, CW=3 pu of NOMV)
+      double nomv1 = atof(split_line3[1].c_str());
+      double nomv2 = atof(split_line4[1].c_str());
+      double basekv1 = busBaseKV(o_idx1, p_busData);
+      double basekv2 = busBaseKV(o_idx2, p_busData);
+      windv1 = windingRatio(cw, windv1, nomv1, basekv1);
+      windv2 = windingRatio(cw, windv2, nomv2, basekv2);
       double tap = windv1/windv2;
       p_branchData[l_idx]->addValue(BRANCH_TAP,tap,nelems);
       p_branchData[l_idx]->addValue(TRANSFORMER_WINDV1,windv1,nelems);
@@ -683,15 +699,23 @@ void gridpack::parser::TransformerParser35::parse(
        * type: float
        * TRANSFORMER_RMA
        */
-      p_branchData[l_idx]->addValue(TRANSFORMER_RMA,
-          atof(split_line3[18].c_str()),nelems);
+      // For voltage or reactive power control (|COD1| = 1 or 2) RMA1 and
+      // RMI1 are winding 1 ratio limits in the units of WINDV1; store them
+      // as limits on the branch tap ratio windv1/windv2
+      double rma = atof(split_line3[18].c_str());
+      double rmi = atof(split_line3[19].c_str());
+      int cod1 = abs(atoi(split_line3[15].c_str()));
+      if ((cod1 == 1 || cod1 == 2) && windv2 > 0.0) {
+        rma = windingRatio(cw, rma, nomv1, basekv1)/windv2;
+        rmi = windingRatio(cw, rmi, nomv1, basekv1)/windv2;
+      }
+      p_branchData[l_idx]->addValue(TRANSFORMER_RMA,rma,nelems);
 
       /*
        * type: float
        * TRANSFORMER_RMI
        */
-      p_branchData[l_idx]->addValue(TRANSFORMER_RMI,
-          atof(split_line3[19].c_str()),nelems);
+      p_branchData[l_idx]->addValue(TRANSFORMER_RMI,rmi,nelems);
 
       /*
        * type: float

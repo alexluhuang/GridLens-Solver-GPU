@@ -248,3 +248,41 @@ int gridpack::parser::BaseBlockParser::getBusIndex(std::string str)
     return abs(atoi(str.c_str()));
   }
 }
+
+/**
+ * Off-nominal turns ratio of a transformer winding in per unit of the base
+ * voltage of the winding's bus, from PSS/E winding data
+ * @param cw winding data I/O code: 1 ratio in pu of bus base voltage,
+ *        2 winding voltage in kV, 3 ratio in pu of nominal winding voltage
+ * @param windv winding value (WINDV, RMA or RMI) from the RAW file
+ * @param nomv nominal winding voltage in kV; 0 means the bus base voltage
+ * @param basekv base voltage of the winding's bus in kV
+ * @return ratio in pu of the bus base voltage
+ */
+double gridpack::parser::BaseBlockParser::windingRatio(int cw, double windv,
+    double nomv, double basekv) const
+{
+  // Without a bus base voltage fall back on the nominal winding voltage
+  double base = (basekv > 0.0) ? basekv : nomv;
+  if (base <= 0.0) return windv;
+  if (cw == 2) return windv/base;
+  if (cw == 3) return windv*((nomv > 0.0) ? nomv : base)/base;
+  return windv;
+}
+
+/**
+ * Base voltage of a bus
+ * @param o_idx original bus index
+ * @param busData data collection objects for buses
+ * @return base voltage in kV, 0 if the bus or its base voltage is unknown
+ */
+double gridpack::parser::BaseBlockParser::busBaseKV(int o_idx,
+    std::vector<boost::shared_ptr<gridpack::component::DataCollection> > &busData)
+{
+  double kv = 0.0;
+  std::map<int,int>::iterator it = p_busMap->find(o_idx);
+  if (it != p_busMap->end() && it->second < static_cast<int>(busData.size())) {
+    busData[it->second]->getValue(BUS_BASEKV, &kv);
+  }
+  return kv;
+}
