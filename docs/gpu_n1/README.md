@@ -27,8 +27,11 @@ before vendor documentation. The two algorithm papers are D'Orto et al.
 
 The original stock baseline is GridPACK commit `b32969b0`. The user approved
 correcting voltage cleanup in both CPU and GPU paths; comparisons with this
-original baseline retain the resulting known differences. Work continues on
-`feature/gpu-batch-n1`; commits are local and are not pushed.
+original baseline retain the resulting known differences. A second, separate
+correction stops the reactive-limit check from using a stale injection at a
+disconnected bus. The corrected CPU reference is `b32969b0` plus the two
+patches in `reproductions/`, built separately from the original. Work
+continues on `feature/gpu-batch-n1`; commits are local and are not pushed.
 
 Implementation evidence is in [validation.md](validation.md) and the
 [structured status](validation-status.json). The

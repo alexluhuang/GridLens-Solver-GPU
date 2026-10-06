@@ -1,0 +1,12 @@
+--- a/src/applications/components/pf_matrix/pf_components.cpp
++++ b/src/applications/components/pf_matrix/pf_components.cpp
+@@ -336,7 +336,8 @@
+  */
+ bool gridpack::powerflow::PFBus::chkQlim(double q_deadband)
+ {
+-  if (!p_isPV) {
++  // A disconnected bus has no computed reactive output in this case
++  if (!p_isPV || isIsolated()) {
+     if (p_PV_ptr) *p_PV_ptr = p_isPV;
+     return false;
+   }
