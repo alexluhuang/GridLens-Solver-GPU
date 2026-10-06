@@ -35,11 +35,15 @@ class TwoTermParser33 : public BaseBlockParser {
   virtual ~TwoTermParser33(void);
 
   /**
-   * parse two terminal block. Currently does not store data
+   * parse two terminal dc block. Each record (dc line data, rectifier and
+   * inverter lines) is stored in the network data collection, indexed by dc
+   * line. Lines whose converter buses are not in the network are skipped
    * @param stream input stream that feeds lines from RAW file
+   * @param p_network_data data collection object for network-level data
    */
   void parse(
-      gridpack::stream::InputStream &stream);
+      gridpack::stream::InputStream &stream,
+      boost::shared_ptr<gridpack::component::DataCollection> &p_network_data);
 };
 
 } // parser

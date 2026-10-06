@@ -46,6 +46,8 @@ void gridpack::parser::LoadParser33::parse(
 {
   std::string          line;
   stream.nextLine(line); //this should be the first line of the block
+  int n_dgen = 0;
+  double dgen_p = 0.0, dgen_q = 0.0;
 
   while(test_end(line)) {
     std::vector<std::string>  split_line;
@@ -129,6 +131,23 @@ void gridpack::parser::LoadParser33::parse(
 
     // TODO: add variables OWNER, SCALE, INTRPT
 
+    // Distributed generation (PSS/E v34+): DGENP, DGENQ, DGENF follow
+    // INTRPT. Older records stop at INTRPT and leave these unset.
+    if (nstr > 16) {
+      double dgenp = atof(split_line[14].c_str());
+      double dgenq = atof(split_line[15].c_str());
+      int dgenf = atoi(split_line[16].c_str());
+      p_busData[l_idx]->addValue(LOAD_DGENP, dgenp, nld);
+      p_busData[l_idx]->addValue(LOAD_DGENQ, dgenq, nld);
+      p_busData[l_idx]->addValue(LOAD_DGENF, dgenf, nld);
+      int lstatus = (nstr > 2) ? atoi(split_line[2].c_str()) : 1;
+      if (dgenf == 1 && lstatus == 1 && (dgenp != 0.0 || dgenq != 0.0)) {
+        n_dgen++;
+        dgen_p += dgenp;
+        dgen_q += dgenq;
+      }
+    }
+
     // Increment number of loads in data object
     if (nld == 0) {
       nld = 1;
@@ -139,5 +158,9 @@ void gridpack::parser::LoadParser33::parse(
     }
 
     stream.nextLine(line);
+  }
+  if (n_dgen > 0) {
+    printf("Load distributed generation: %d in-service units, %.1f MW,"
+        " %.1f MVar\n", n_dgen, dgen_p, dgen_q);
   }
 }
