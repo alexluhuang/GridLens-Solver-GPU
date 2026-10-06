@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration>
+  <Contingency_analysis>
+    <printCalcFiles>false</printCalcFiles>
+    <FullBranchN1>true</FullBranchN1>
+    <FullGeneratorN1>true</FullGeneratorN1>
+    <groupSize>1</groupSize>
+    <maxVoltage>1.1</maxVoltage>
+    <minVoltage>0.9</minVoltage>
+    <contingencyRating>C</contingencyRating>
+    <qlim>true</qlim>
+    <qlimDeadband>0.1</qlimDeadband>
+    <LTC>false</LTC>
+    <writeStats>false</writeStats>
+    <outputFormat>csv_flat</outputFormat>
+    <outputFile>wecc_test</outputFile>
+  </Contingency_analysis>
+  <Powerflow>
+    <networkConfiguration>30HS2ap_v34.raw</networkConfiguration>
+    <initStart>warm</initStart>
+    <SwitchedShunt>false</SwitchedShunt>
+    <qlim>true</qlim>
+    <qlimDeadband>0.1</qlimDeadband>
+    <LTC>false</LTC>
+    <AreaInterchange>false</AreaInterchange>
+    <maxControllerIterations>10</maxControllerIterations>
+    <maxIteration>50</maxIteration>
+    <tolerance>1.0e-4</tolerance>
+    <maxQlimIterations>3</maxQlimIterations>
+    <dampingFactor>1.0</dampingFactor>
+    <phaseShiftSign>1.0</phaseShiftSign>
+    <LinearSolver>
+      <PETScOptions>
+        -ksp_type preonly
+        -pc_type lu
+        -pc_factor_mat_solver_type klu
+      </PETScOptions>
+    </LinearSolver>
+  </Powerflow>
+</Configuration>
