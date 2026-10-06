@@ -171,6 +171,31 @@ def compare_table(a, b, name, nkey, tol, errors):
             errors.append("%s: numbers differ by up to %g" % (name, worst))
 
 
+def equivalent_voltage_tie(a, b, key, left, right, tol):
+    """Both named buses must attain the global extreme in both output tables."""
+    candidates = {str(left["bus_id"]), str(right["bus_id"])}
+    voltage_tol = min(tol, 1e-6)
+    for directory in (a, b):
+        found, values = set(), []
+        with open(os.path.join(directory, FILES[2])) as table:
+            for row in csv.DictReader(table):
+                if row["type"] != "voltage":
+                    continue
+                value = float(row["mva_or_vpu"])
+                values.append(value)
+                if (row["contingency"] == left["contingency"]
+                        and row["element"] in candidates
+                        and all(abs(value - item["v_pu"]) <= voltage_tol
+                                for item in (left, right))):
+                    found.add(row["element"])
+        if found != candidates or not values:
+            return False
+        extreme = min(values) if key == "worst_voltage_low" else max(values)
+        if any(abs(extreme - item["v_pu"]) > voltage_tol for item in (left, right)):
+            return False
+    return True
+
+
 def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
             allow_iteration_differences=False):
     """Compare the outputs of two run directories"""
@@ -205,6 +230,14 @@ def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
                 return abs(x - y) <= tol
             return x == y
         left, right = json.load(f), json.load(g)
+        for key in ("worst_voltage_low", "worst_voltage_high"):
+            va, vb = left.get(key) or {}, right.get(key) or {}
+            if (va.get("bus_id") != vb.get("bus_id")
+                    and same({k: v for k, v in va.items() if k != "bus_id"},
+                             {k: v for k, v in vb.items() if k != "bus_id"})
+                    and equivalent_voltage_tie(a, b, key, va, vb, tol)):
+                print("Equivalent worst-voltage tie:", key, va["bus_id"], vb["bus_id"])
+                vb["bus_id"] = va["bus_id"]
         worst_a, worst_b = left.get("worst_loading") or {}, right.get("worst_loading") or {}
         if (worst_a.get("contingency") != worst_b.get("contingency")
                 and same({k: v for k, v in worst_a.items() if k != "contingency"},

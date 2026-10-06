@@ -332,6 +332,8 @@ if (GRIDPACK_ENABLE_TESTS)
   if (Python3_Interpreter_FOUND)
     batchpf_add_test(batchpf.unit.quality_audit ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_quality_audit.py)
+    batchpf_add_test(batchpf.unit.output_comparison ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_output_comparison.py)
     set(runner ${CMAKE_CURRENT_SOURCE_DIR}/test/run_ca_test.py)
     set(raw118 ${batchpf_data}/IEEE118.raw)
     set(raw14 ${batchpf_data}/IEEE14_ca.raw)
