@@ -27,3 +27,9 @@ before vendor documentation. The two algorithm papers are D'Orto et al.
 
 The stock baseline is GridPACK commit `b32969b0`. Work continues on
 `feature/gpu-batch-n1`; commits are local and are not pushed.
+
+Implementation evidence is in [validation.md](validation.md) and the
+[structured status](validation-status.json). The
+[restoration diagnosis](restoration.md) explains the remaining stock-output
+compatibility problem. [standards.md](standards.md) records analysis scope,
+tool limitations and exceptions awaiting maintainer review.

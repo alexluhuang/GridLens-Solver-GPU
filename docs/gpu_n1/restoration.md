@@ -33,8 +33,25 @@ The old implementation fails its shadow comparison by 0.0181 pu with
 different PV counts; the correction agrees below 1e-15. The test runs
 through the CPU reference, Alg2 and cuDSS backends.
 
-A 65-case 10k sample also passed after the correction. Full studies are
-still being checked. The unchanged stock application can retain this
-controller state for later cases on the same rank; differences after
-such an outage must be investigated and reported, not hidden by relaxed
-tolerances or an ignored iteration column.
+A 65-case 10k sample also passed after the correction. Both full Texas and 10k
+backends now pass every GPU shadow's voltage, angle, status and exact
+bus-set checks. The default-order stock output still differs for some
+late generator cases. The exact iteration comparison remains a failure.
+
+A separate one-rank Texas reproduction proves the order dependence:
+`GN_240278_1`, then `GN_250371_1`, then `GN_270208_1`. Stock takes two
+iterations on the latter two cases after the remote-control outage, while
+the restored batch path takes three. Their delta tables differ by up to
+40.7604. Running only those latter two cases makes stock take three
+iterations and pass all output comparisons against the batch path.
+
+The unchanged stock application can therefore retain controller state
+for later cases on the same rank. The batch model describes independent
+outages from the prepared network, as required by B8.2/B10.1. Reproducing
+the stock leak would violate that requirement; changing the stock path
+would violate RT-4. Default-order output parity for these grids remains
+an explicit compatibility limitation. Do not hide it with relaxed
+tolerances or an ignored iteration column. An additional oracle study
+may put the controller-activating outage last, using the same complete
+case list for both paths, but must report that ordering and retain the
+default-order failure evidence.

@@ -1,15 +1,199 @@
 {
   "updated": "2026-10-05",
+  "source": "18f8e840; solver binaries include 92a5e689",
   "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
   "completed": {
-    "cpu_only_ctest": {"passed": 116, "failed": 0, "seconds": 68.36},
-    "gpu_all_architectures_ctest": {"passed": 21, "failed": 0, "seconds": 20.12},
-    "full_n1_polish_alg2": {"passed": true, "seconds": 70.15, "ranks": 8},
-    "full_n1_polish_cudss": {"passed": true, "seconds": 63.03, "ranks": 8},
-    "full_n1_memphis_stock_comparison": {"passed": true, "ranks": 8},
-    "installed_binary_and_rebuilt_example": {"passed": true, "network": "IEEE118"}
+    "cpu_only_ctest": {
+      "passed": 120,
+      "failed": 0,
+      "seconds": 71.62,
+      "snapshot": "92a5e689"
+    },
+    "gpu_all_architectures_ctest": {
+      "passed": 28,
+      "failed": 0,
+      "seconds": 27.75,
+      "snapshot": "92a5e689"
+    },
+    "remote_restoration_regression": {
+      "passed": true,
+      "backends": [
+        "cpu_reference",
+        "alg2",
+        "cudss"
+      ],
+      "snapshot": "63f826af"
+    },
+    "restored_texas_alg2_shadows": {
+      "passed": true,
+      "ranks": 8,
+      "snapshot": "63f826af"
+    },
+    "restored_texas_cudss_shadows": {
+      "passed": true,
+      "ranks": 8,
+      "snapshot": "63f826af"
+    },
+    "quality_parser_tests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "voltage_tie_tests": {
+      "passed": 7,
+      "failed": 0,
+      "scope": "table comparison and voltage ties"
+    },
+    "full_n1_polish_alg2": {
+      "passed": true,
+      "cases": 4198,
+      "shadows": 4026,
+      "max_dv_pu": 2.028e-12,
+      "max_dtheta_rad": 9.219e-13,
+      "exact_sets_match": true,
+      "ranks": 8,
+      "snapshot": "92a5e689",
+      "output_format": "csv_delta"
+    },
+    "full_n1_polish_cudss": {
+      "passed": true,
+      "cases": 4198,
+      "shadows": 4026,
+      "max_dv_pu": 1.893e-12,
+      "max_dtheta_rad": 8.709e-13,
+      "exact_sets_match": true,
+      "ranks": 8,
+      "snapshot": "92a5e689",
+      "output_format": "csv_delta"
+    },
+    "installed_binary_and_rebuilt_example": {
+      "passed": true,
+      "network": "IEEE118",
+      "final_refresh_required": false,
+      "snapshot": "92a5e689",
+      "gpu_path_confirmed": true
+    },
+    "standards_ci": {
+      "passed": true,
+      "clang_tidy_findings": 361,
+      "cppcheck_findings": 8,
+      "new_compiler_warnings": 0,
+      "exception_approval": "pending maintainer review"
+    },
+    "kernel_memcheck": {
+      "errors": 0,
+      "snapshot": "18f15bca; later changes do not modify kernels"
+    },
+    "restored_10k_alg2_shadows": {
+      "passed": true,
+      "cases": 14581,
+      "max_dv_pu": 1.095e-12,
+      "max_dtheta_rad": 5.755e-13,
+      "exact_sets_match": true,
+      "snapshot": "63f826af"
+    },
+    "restored_10k_cudss_shadows": {
+      "passed": true,
+      "cases": 14581,
+      "max_dv_pu": 1.064e-12,
+      "max_dtheta_rad": 5.684e-13,
+      "exact_sets_match": true,
+      "snapshot": "63f826af"
+    },
+    "polish_budget_admission": {
+      "passed": true,
+      "requested_batch": 2048,
+      "admitted_batch": 150,
+      "budget_gb": 0.25,
+      "cases": 4198,
+      "full_csv_and_shadows_passed": true,
+      "swap_pages_in": 0,
+      "swap_pages_out": 0,
+      "minimum_node_available_bytes": 120949968896,
+      "max_sampler_gap_seconds": 1.0007321039997805,
+      "physical_host_exhaustion_tested": false
+    },
+    "ordered_texas_alg2_full_csv": {
+      "passed": true,
+      "cases": 8891,
+      "ranks": 8,
+      "controller_outage_last": "GN_240278_1",
+      "default_order_compatibility_passed": false,
+      "snapshot": "18f15bca"
+    },
+    "full_n1_memphis_alg2": {
+      "passed": true,
+      "cases": 1570,
+      "shadows": 1392,
+      "max_dv_pu": 1.789e-12,
+      "max_dtheta_rad": 8.278e-13,
+      "exact_sets_match": true,
+      "ranks": 8,
+      "snapshot": "92a5e689",
+      "output_format": "csv_delta"
+    },
+    "full_n1_memphis_cudss": {
+      "passed": true,
+      "cases": 1570,
+      "shadows": 1392,
+      "max_dv_pu": 1.729e-12,
+      "max_dtheta_rad": 8.029e-13,
+      "exact_sets_match": true,
+      "ranks": 8,
+      "snapshot": "92a5e689",
+      "output_format": "csv_delta"
+    }
   },
-  "in_progress": ["full N-1 ACTIVSg10k, Texas7k, Memphis on both backends", "standards findings", "documentation", "performance measurements"],
-  "external_gates": ["second platform", "multiple DGX Sparks", "amd64 image runtime"],
-  "notes": ["Run stock tests sequentially: concurrent serial/parallel tests share files.", "Do not test grids larger than ACTIVSg10k.", "Original guide proposals are not measured results."]
+  "failed_or_open": {
+    "default_order_texas_output_parity": {
+      "passed": false,
+      "alg2_iteration_differences": 2,
+      "cudss_iteration_differences": 4,
+      "cause": "Stock remote-controller reference state persists into later cases; the batch restores independent-case references."
+    },
+    "texas_sequence_delta_comparison": {
+      "passed": false,
+      "max_difference": 40.7604,
+      "isolated_same_cases_pass": true
+    },
+    "fid2_full_current_csv": {
+      "passed": false,
+      "reason": "Ordered Texas Alg2 oracle passed; other ordered large-grid checks remain. Default-order controller limitation persists."
+    },
+    "nsight_counters": {
+      "passed": false,
+      "reason": "ERR_NVGPUCTRPERM"
+    },
+    "full_cuda_clang_tidy": {
+      "passed": false,
+      "reason": "LLVM 18 CUDA wrapper cannot parse CUDA 13."
+    },
+    "default_order_10k_output_parity": {
+      "passed": false,
+      "alg2_iteration_differences": 4,
+      "cudss_iteration_differences": 3,
+      "cause": "Stock retains remote-controller voltage references across cases."
+    }
+  },
+  "in_progress": [
+    "final image builds and runtime checks",
+    "isolated performance measurements queued after builds"
+  ],
+  "remaining": [
+    "ordered Texas cuDSS and both 10k full CSV comparisons (queue temporarily paused for performance)",
+    "PERF-1 through PERF-4 measurements",
+    "final validation evidence and handoff"
+  ],
+  "external_gates": [
+    "PORT-1 second Arm/NVIDIA profile",
+    "PORT-3 DGX OS 8",
+    "PERF-5 multiple Sparks",
+    "DOCK-2 amd64 image build/runtime",
+    "maintainer standards exception review"
+  ],
+  "notes": [
+    "Run stock tests sequentially: concurrent serial/parallel tests share files.",
+    "Do not test grids larger than ACTIVSg10k.",
+    "Original guide proposals are not measured results.",
+    "Keep strict failures; do not ignore raw-start iteration differences or loosen voltage tolerances."
+  ]
 }
