@@ -367,6 +367,20 @@ int main()
     check(bad == 0, "no member flagged");
     check(dx_rel < 1e-9, "Algorithm 2 matches KLU");
 
+    // Spreading a column over several warps per member must not change a
+    // single bit: every factor entry gets the same operations in order
+    for (int lanes : {1, 2, 8, 32}) {
+      BackendSetup wide = bs;
+      wide.factor_lanes = lanes;
+      std::unique_ptr<SolverBackend> w = makeAlg2Backend(wide);
+      dst.zero(nullptr);
+      w->refactorize(db.J.span(), dmask.span(), dst.span());
+      w->solve(drhs.span(), dx.span(), dmask.span(), dst.span());
+      const std::vector<double> xw = host(dx);
+      check(xw == xg, "Algorithm 2 with " + std::to_string(lanes) +
+                          " threads per member gives bitwise the same solution");
+    }
+
     // ROB-1: a singular member must not spoil the other solves. A masked
     // member must retain the state from its last successful solve.
     constexpr int singular = 7;

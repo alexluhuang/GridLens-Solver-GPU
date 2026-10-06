@@ -126,6 +126,60 @@ __global__ void factorLevelKernel(Alg2Plan p, const int *cols, int ncols,
   factorColumn(p, cols[c], b);
 }
 
+/**
+ * Kernel for one level with L threads per member, for levels with few
+ * columns (the last levels of the elimination, where columns are long and
+ * one thread per member would work through them alone). A block of L warps
+ * takes one column for 32 consecutive members: warp w applies every L-th
+ * entry of each update segment, and the block synchronizes between
+ * segments. Every factor entry receives the same operations in the same
+ * order as in factorColumn(), so the factors are bitwise identical.
+ */
+template <int L>
+__global__ void __launch_bounds__(32 * L)
+factorLevelWideKernel(Alg2Plan p, const int *cols, int groups, const int *mask)
+{
+  const int c = blockIdx.x / groups;
+  const int b = (blockIdx.x % groups) * 32 + static_cast<int>(threadIdx.x % 32);
+  const int lane = static_cast<int>(threadIdx.x / 32);
+  const bool active = b < p.B && mask[b] != 0;
+  if (!__syncthreads_or(active)) return;   // same answer for the whole block
+  const int j = cols[c];
+  const int64_t B = p.B;
+  double *lu = p.lu;
+  for (int s = p.seg_ptr[j]; s < p.seg_ptr[j + 1]; s++) {
+    if (active) {
+      const double ukj = lu[p.seg_upos[s] * B + b];
+      const int lb = p.seg_lbeg[s];
+      const int len = p.seg_len[s];
+      const int *dst = p.dst + p.seg_dst[s];
+      // Targets of one segment are distinct, so their updates are
+      // independent: read four before writing any
+      int t = lane;
+      for (; t + 3 * L < len; t += 4 * L) {
+        const int64_t d0 = dst[t] * B + b, d1 = dst[t + L] * B + b;
+        const int64_t d2 = dst[t + 2 * L] * B + b, d3 = dst[t + 3 * L] * B + b;
+        const double l0 = lu[(lb + t) * B + b], l1 = lu[(lb + t + L) * B + b];
+        const double l2 = lu[(lb + t + 2 * L) * B + b], l3 = lu[(lb + t + 3 * L) * B + b];
+        const double x0 = lu[d0], x1 = lu[d1], x2 = lu[d2], x3 = lu[d3];
+        lu[d0] = x0 - l0 * ukj;
+        lu[d1] = x1 - l1 * ukj;
+        lu[d2] = x2 - l2 * ukj;
+        lu[d3] = x3 - l3 * ukj;
+      }
+      for (; t < len; t += L) {
+        lu[dst[t] * B + b] -= lu[(lb + t) * B + b] * ukj;
+      }
+    }
+    __syncthreads();
+  }
+  if (!active) return;
+  const double piv = lu[p.diag[j] * B + b];
+  for (int q = p.diag[j] + 1 + lane; q < p.col_ptr[j + 1]; q += L) {
+    lu[q * B + b] /= piv;
+  }
+}
+
 // Many rows can flag the same member. Preserve the strongest failure
 // without racing between threads (non-finite takes precedence).
 __host__ __device__ void recordFailure(int *status, int cause)
@@ -199,6 +253,11 @@ struct ForwardRows {
     const int r = rows[i / p.B];
     const int64_t B = p.B;
     double s = p.y[r * B + b];
+    // Same order of subtractions as a plain loop; unrolled so that the
+    // loads of several terms are in flight at once
+#ifdef __CUDA_ARCH__
+#pragma unroll 4
+#endif
     for (int q = p.lrow_ptr[r]; q < p.lrow_ptr[r + 1]; q++) {
       s -= p.lu[p.lrow_pos[q] * B + b] * p.y[p.lrow_col[q] * B + b];
     }
@@ -218,6 +277,11 @@ struct BackwardRows {
     const int r = rows[i / p.B];
     const int64_t B = p.B;
     double s = p.y[r * B + b];
+    // Same order of subtractions as a plain loop; unrolled so that the
+    // loads of several terms are in flight at once
+#ifdef __CUDA_ARCH__
+#pragma unroll 4
+#endif
     for (int q = p.urow_ptr[r]; q < p.urow_ptr[r + 1]; q++) {
       s -= p.lu[p.urow_pos[q] * B + b] * p.y[p.urow_col[q] * B + b];
     }
@@ -228,7 +292,8 @@ struct BackwardRows {
 class Alg2Backend : public SolverBackend {
  public:
   explicit Alg2Backend(const BackendSetup &setup)
-      : p_setup(setup), p_lu(*setup.lu)
+      : p_setup(setup), p_lu(*setup.lu),
+        p_factor_graph(setup.launch_graphs), p_solve_graph(setup.launch_graphs)
   {
     const cudaStream_t st = setup.stream;
     const MemoryKind mk = MemoryKind::Device;
@@ -272,6 +337,7 @@ class Alg2Backend : public SolverBackend {
     p_threads = std::min<int>(want, static_cast<int>(((B + 31) / 32) * 32));
     p_threads = std::max(p_threads, 32);
     p_chunks = static_cast<int>((B + p_threads - 1) / p_threads);
+    chooseLanes(setup);
     cudaCheck(cudaStreamSynchronize(st), "alg2 setup");
   }
 
@@ -292,21 +358,9 @@ class Alg2Backend : public SolverBackend {
     Expects(values.size() == static_cast<std::size_t>(p_setup.pattern->nnz) * p_setup.capacity);
     Expects(mask.size() == static_cast<std::size_t>(p_setup.capacity));
     Expects(member_status.size() == mask.size());
-    const Alg2Plan p = view();
-    const Executor ex(true, p_setup.stream, p_setup.threads_per_block);
-    const int64_t B = p_setup.capacity;
-    ex.run(p_lu.nnz * B, ZeroFactor{p, mask.data()}, "ZeroFactor");
-    ex.run(p_setup.pattern->nnz * B, ScatterValues{p, values.data(), mask.data()}, "ScatterValues");
-    for (std::size_t l = 0; l + 1 < p_lu.lev_ptr.size(); l++) {
-      const int beg = p_lu.lev_ptr[l];
-      const int ncols = p_lu.lev_ptr[l + 1] - beg;
-      const unsigned grid = static_cast<unsigned>(ncols) * p_chunks;
-      factorLevelKernel<<<grid, p_threads, 0, p_setup.stream>>>(
-          p, p_lev_cols.data() + beg, ncols, p_chunks, mask.data());
-      launchCheck("factorLevelKernel");
-    }
-    ex.run(static_cast<int64_t>(p_lu.n) * B,
-           PivotCheck{p, mask.data(), member_status.data()}, "PivotCheck");
+    p_factor_graph.run(p_setup.stream,
+                       {values.data(), mask.data(), member_status.data(), nullptr},
+                       [&] { launchFactor(values.data(), mask.data(), member_status.data()); });
   }
 
   void solve(gsl::span<const double> rhs, gsl::span<double> x,
@@ -320,27 +374,71 @@ class Alg2Backend : public SolverBackend {
       solveOnHost(rhs.data(), x.data(), mask.data(), member_status.data());
       return;
     }
+    p_solve_graph.run(p_setup.stream,
+                      {rhs.data(), x.data(), mask.data(), member_status.data()},
+                      [&] { launchSolve(rhs.data(), x.data(), mask.data(), member_status.data()); });
+  }
+
+ private:
+  /// The launches of one factorization (ZeroFactor to PivotCheck)
+  void launchFactor(const double *values, const int *mask, int *member_status)
+  {
+    const Alg2Plan p = view();
+    const Executor ex(true, p_setup.stream, p_setup.threads_per_block);
+    const int64_t B = p_setup.capacity;
+    ex.run(p_lu.nnz * B, ZeroFactor{p, mask}, "ZeroFactor");
+    ex.run(p_setup.pattern->nnz * B, ScatterValues{p, values, mask}, "ScatterValues");
+    const int groups = static_cast<int>((B + 31) / 32);
+    for (std::size_t l = 0; l + 1 < p_lu.lev_ptr.size(); l++) {
+      const int beg = p_lu.lev_ptr[l];
+      const int ncols = p_lu.lev_ptr[l + 1] - beg;
+      const int *cols = p_lev_cols.data() + beg;
+      const int lanes = p_lanes[l];
+      if (lanes == 1) {
+        const unsigned grid = static_cast<unsigned>(ncols) * p_chunks;
+        factorLevelKernel<<<grid, p_threads, 0, p_setup.stream>>>(
+            p, cols, ncols, p_chunks, mask);
+      } else {
+        const unsigned grid = static_cast<unsigned>(ncols) * groups;
+        const unsigned threads = 32U * static_cast<unsigned>(lanes);
+        const cudaStream_t st = p_setup.stream;
+        switch (lanes) {
+          case 2: factorLevelWideKernel<2><<<grid, threads, 0, st>>>(p, cols, groups, mask); break;
+          case 4: factorLevelWideKernel<4><<<grid, threads, 0, st>>>(p, cols, groups, mask); break;
+          case 8: factorLevelWideKernel<8><<<grid, threads, 0, st>>>(p, cols, groups, mask); break;
+          case 16: factorLevelWideKernel<16><<<grid, threads, 0, st>>>(p, cols, groups, mask); break;
+          default: factorLevelWideKernel<32><<<grid, threads, 0, st>>>(p, cols, groups, mask); break;
+        }
+      }
+      launchCheck("factorLevelKernel");
+    }
+    ex.run(static_cast<int64_t>(p_lu.n) * B,
+           PivotCheck{p, mask, member_status}, "PivotCheck");
+  }
+
+  /// The launches of one solve (PermuteIn to PermuteOut)
+  void launchSolve(const double *rhs, double *x, const int *mask, int *member_status)
+  {
     const Alg2Plan p = view();
     const int64_t B = p_setup.capacity;
     const int64_t nB = static_cast<int64_t>(p_lu.n) * B;
     const Executor ex(true, p_setup.stream, p_setup.threads_per_block);
-    ex.run(nB, PermuteIn{p, rhs.data(), mask.data()}, "PermuteIn");
+    ex.run(nB, PermuteIn{p, rhs, mask}, "PermuteIn");
     for (std::size_t l = 0; l + 1 < p_lu.llev_ptr.size(); l++) {
       const int beg = p_lu.llev_ptr[l];
       const int cnt = p_lu.llev_ptr[l + 1] - beg;
       ex.run(static_cast<int64_t>(cnt) * B,
-             ForwardRows{p, p_llev_rows.data() + beg, mask.data()}, "ForwardRows");
+             ForwardRows{p, p_llev_rows.data() + beg, mask}, "ForwardRows");
     }
     for (std::size_t l = 0; l + 1 < p_lu.ulev_ptr.size(); l++) {
       const int beg = p_lu.ulev_ptr[l];
       const int cnt = p_lu.ulev_ptr[l + 1] - beg;
       ex.run(static_cast<int64_t>(cnt) * B,
-             BackwardRows{p, p_ulev_rows.data() + beg, mask.data()}, "BackwardRows");
+             BackwardRows{p, p_ulev_rows.data() + beg, mask}, "BackwardRows");
     }
-    ex.run(nB, PermuteOut{p, x.data(), mask.data(), member_status.data()}, "PermuteOut");
+    ex.run(nB, PermuteOut{p, x, mask, member_status}, "PermuteOut");
   }
 
- private:
   /**
    * Solve on the CPU (GPUBatch/solvePlacement = host). The factors were
    * written by the GPU into pinned memory; right-hand side, mask and
@@ -398,6 +496,45 @@ class Alg2Backend : public SolverBackend {
     cudaCheck(cudaStreamSynchronize(st), "host solve");
   }
 
+  /**
+   * Threads per member for each factorization level. A level with few
+   * columns gives the GPU too little work at one thread per member: it is
+   * then spread over more warps, up to about sixteen per streaming
+   * multiprocessor, but not past the longest update in the level. (On
+   * GB10, 4, 16 and 32 warps per multiprocessor were within 10% of each
+   * other at batch sizes 128 to 2048; 16 was best or close to it.)
+   * BackendSetup::factor_lanes forces one value for all levels (tests).
+   */
+  void chooseLanes(const BackendSetup &setup)
+  {
+    const std::size_t nlev = p_lu.lev_ptr.size() - 1;
+    p_lanes.assign(nlev, 1);
+    if (setup.factor_lanes > 0) {
+      int forced = 1;
+      while (forced < setup.factor_lanes && forced < kMaxLanes) forced *= 2;
+      p_lanes.assign(nlev, forced);
+      return;
+    }
+    int sms = 1;
+    cudaCheck(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, setup.device),
+              "multiprocessor count");
+    const int64_t groups = (static_cast<int64_t>(setup.capacity) + 31) / 32;
+    const int64_t target = static_cast<int64_t>(sms) * kWarpsPerSm;
+    for (std::size_t l = 0; l < nlev; l++) {
+      int longest = 0;
+      for (int c = p_lu.lev_ptr[l]; c < p_lu.lev_ptr[l + 1]; c++) {
+        const int j = p_lu.lev_cols[c];
+        for (int s = p_lu.seg_ptr[j]; s < p_lu.seg_ptr[j + 1]; s++) {
+          longest = std::max(longest, p_lu.seg_len[s]);
+        }
+      }
+      const int64_t warps = (p_lu.lev_ptr[l + 1] - p_lu.lev_ptr[l]) * groups;
+      int lanes = 1;
+      while (lanes < kMaxLanes && warps * lanes < target && lanes < longest) lanes *= 2;
+      p_lanes[l] = lanes;
+    }
+  }
+
   Alg2Plan view()
   {
     Alg2Plan p;
@@ -430,8 +567,12 @@ class Alg2Backend : public SolverBackend {
 
   BackendSetup p_setup;
   const LuPlan &p_lu;
+  static constexpr int kMaxLanes = 32;
+  static constexpr int kWarpsPerSm = 16;
   int p_threads = 128;
   int p_chunks = 1;
+  std::vector<int> p_lanes;             // threads per member, per level
+  LaunchGraph p_factor_graph, p_solve_graph;
   Buffer<int> p_a_to_lu, p_col_ptr, p_diag, p_seg_ptr, p_seg_upos, p_seg_lbeg;
   Buffer<int> p_seg_len, p_seg_dst, p_dst, p_lev_cols;
   Buffer<int> p_lrow_ptr, p_lrow_col, p_lrow_pos, p_urow_ptr, p_urow_col, p_urow_pos;

@@ -66,6 +66,9 @@ struct BackendSetup {
   int refinement_steps = 0;
   double pivot_limit = 0.0;
   bool host_solve = false;             // GPUBatch/solvePlacement = host
+  int factor_lanes = 0;                // Alg2: threads per member in every
+                                       // factorization level; 0 = per level
+  bool launch_graphs = true;           // Alg2: replay launches as CUDA graphs
   Logger logger;
 };
 

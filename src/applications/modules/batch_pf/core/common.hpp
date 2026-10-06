@@ -27,6 +27,7 @@
 #include <gsl/span>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -297,6 +298,73 @@ class Event {
     void operator()(cudaEvent_t e) const noexcept { cudaCleanup(cudaEventDestroy(e), "cudaEventDestroy"); }
   };
   std::unique_ptr<CUevent_st, Destroy> p_event;
+};
+
+/**
+ * A fixed sequence of launches on one stream, recorded once as a CUDA graph
+ * and then replayed with a single call (CUDA Programming Guide, "CUDA
+ * Graphs"): this saves the per-launch cost when a sequence has hundreds of
+ * small kernels. The recording is tied to the buffers the launches use
+ * (key): the first call with a new key launches directly, which also lets
+ * lazily computed launch settings settle, and the second records. Without a
+ * stream of its own (the legacy default stream cannot be recorded) or when
+ * disabled, the launches always run directly.
+ */
+class LaunchGraph {
+ public:
+  using Key = std::array<const void *, 4>;
+
+  explicit LaunchGraph(bool enabled = true) : p_enabled(enabled) {}
+
+  template <class F>
+  void run(cudaStream_t stream, const Key &key, const F &launches)
+  {
+    if (!p_enabled || stream == nullptr) {
+      launches();
+      return;
+    }
+    if (key != p_key) {
+      p_exec.reset();
+      p_key = key;
+      launches();
+      return;
+    }
+    if (!p_exec) record(stream, launches);
+    cudaCheck(cudaGraphLaunch(p_exec.get(), stream), "cudaGraphLaunch");
+  }
+
+ private:
+  template <class F>
+  void record(cudaStream_t stream, const F &launches)
+  {
+    cudaCheck(cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal),
+              "cudaStreamBeginCapture");
+    cudaGraph_t graph = nullptr;
+    try {
+      launches();
+    } catch (...) {
+      if (cudaStreamEndCapture(stream, &graph) == cudaSuccess && graph) {
+        cudaCleanup(cudaGraphDestroy(graph), "cudaGraphDestroy");
+      }
+      throw;
+    }
+    cudaCheck(cudaStreamEndCapture(stream, &graph), "cudaStreamEndCapture");
+    cudaGraphExec_t exec = nullptr;
+    const cudaError_t err = cudaGraphInstantiate(&exec, graph, 0);
+    cudaCleanup(cudaGraphDestroy(graph), "cudaGraphDestroy");
+    cudaCheck(err, "cudaGraphInstantiate");
+    p_exec.reset(exec);
+  }
+
+  struct Destroy {
+    void operator()(cudaGraphExec_t e) const noexcept
+    {
+      cudaCleanup(cudaGraphExecDestroy(e), "cudaGraphExecDestroy");
+    }
+  };
+  bool p_enabled = true;
+  Key p_key{};
+  std::unique_ptr<CUgraphExec_st, Destroy> p_exec;
 };
 
 /// Copy a C string into a fixed buffer, always terminated
