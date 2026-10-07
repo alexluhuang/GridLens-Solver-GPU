@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+
+# GridPACK built from this branch on top of an image that already contains
+# the GridPACK dependencies (Boost, Global Arrays and PETSc in /deps and the
+# environment variables that point to them). GridPACK is built in Release
+# mode and installed in /app/src/install, replacing the base image's build.
+#
+# Build from the repository root:
+#   docker build -f Dockerfile.wecc -t gridpack-wecc:branch .
+# Only src/ is sent to the builder (see Dockerfile.wecc.dockerignore).
+FROM alh360/gridpack-n1-validation:cpu
+
+LABEL org.opencontainers.image.title="GridPACK (feature/wecc-gridpack-compat)" \
+      org.opencontainers.image.description="GridPACK with PSS/E v34+ parser fixes, distributed generation and two-terminal dc lines"
+
+# Replace the base image's GridPACK source with this branch's
+RUN rm -rf /app/src
+COPY --link src /app/src
+
+WORKDIR /app/src/build
+RUN cmake -D GA_DIR=${ga_gp_dir} -D Boost_ROOT=${boost_gp_dir} \
+      -D Boost_DIR=${boost_gp_dir}/lib/cmake/Boost-1.81.0 -D PETSC_DIR=${petsc_gp_dir} \
+      -D MPI_CXX_COMPILER=mpicxx -D MPI_C_COMPILER=mpicc -D MPIEXEC=mpiexec \
+      -D ENABLE_ENVIRONMENT_FROM_COMM=YES -D CMAKE_BUILD_TYPE=Release \
+      -D BUILD_SHARED_LIBS=true -D CMAKE_INSTALL_PREFIX=/app/src/install .. \
+ && make -j16 install
+
+WORKDIR /app/workspace
+CMD ["/bin/bash"]

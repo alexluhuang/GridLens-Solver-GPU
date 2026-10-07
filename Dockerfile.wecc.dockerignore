@@ -1,0 +1,5 @@
+# Build context for Dockerfile.wecc: the image only copies src/, so send
+# nothing else to the builder. This keeps case data (e.g. test_runs/) out of
+# the build context.
+*
+!src
