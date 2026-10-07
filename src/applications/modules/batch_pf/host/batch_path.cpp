@@ -66,10 +66,16 @@ void appendBytes(std::vector<char> *out, const T *src, std::size_t count)
   if (count > 0) std::memcpy(out->data() + at, src, count * sizeof(T));
 }
 
+/// Fields of a packed classification record's head, then the record counts
+enum HeadField : std::size_t {
+  kEvent, kPath, kReason, kFast, kIslands, kLoneBus, kSlackMoved, kSlackBus,
+  kBusUpdates, kEdgeUpdates, kDcOff, kHeadSize
+};
+
 /// Serialize classification records for the all-gather
 void pack(const CaseClass &c, std::vector<char> *out)
 {
-  const std::array<int32_t, 11> head = {c.event.value, static_cast<int32_t>(c.path),
+  const std::array<int32_t, kHeadSize> head = {c.event.value, static_cast<int32_t>(c.path),
                             static_cast<int32_t>(c.reason), c.fast ? 1 : 0,
                             c.island_count, c.lone_bus ? 1 : 0,
                             c.slack_transferred ? 1 : 0, c.slack_bus.value,
@@ -84,26 +90,28 @@ void pack(const CaseClass &c, std::vector<char> *out)
 
 std::size_t unpack(const char *p, CaseClass *c)
 {
-  std::array<int32_t, 11> head{};
+  std::array<int32_t, kHeadSize> head{};
   std::memcpy(head.data(), p, sizeof(head));
-  c->event = CaseIndex{head[0]};
-  c->path = static_cast<CasePath>(head[1]);
-  c->reason = static_cast<CpuReason>(head[2]);
-  c->fast = head[3] != 0;
-  c->island_count = head[4];
-  c->lone_bus = head[5] != 0;
-  c->slack_transferred = head[6] != 0;
-  c->slack_bus = BusIndex{head[7]};
+  c->event = CaseIndex{head[kEvent]};
+  c->path = static_cast<CasePath>(head[kPath]);
+  c->reason = static_cast<CpuReason>(head[kReason]);
+  c->fast = head[kFast] != 0;
+  c->island_count = head[kIslands];
+  c->lone_bus = head[kLoneBus] != 0;
+  c->slack_transferred = head[kSlackMoved] != 0;
+  c->slack_bus = BusIndex{head[kSlackBus]};
   std::size_t off = sizeof(head);
-  c->bus_updates.resize(head[8]);
-  std::memcpy(c->bus_updates.data(), p + off, head[8] * sizeof(batchpf_bus_update));
-  off += head[8] * sizeof(batchpf_bus_update);
-  c->edge_updates.resize(head[9]);
-  std::memcpy(c->edge_updates.data(), p + off, head[9] * sizeof(batchpf_edge_update));
-  off += head[9] * sizeof(batchpf_edge_update);
-  c->dc_off.resize(head[10]);
-  std::memcpy(c->dc_off.data(), p + off, head[10] * sizeof(int32_t));
-  off += head[10] * sizeof(int32_t);
+  c->bus_updates.resize(head[kBusUpdates]);
+  std::memcpy(c->bus_updates.data(), p + off,
+              head[kBusUpdates] * sizeof(batchpf_bus_update));
+  off += head[kBusUpdates] * sizeof(batchpf_bus_update);
+  c->edge_updates.resize(head[kEdgeUpdates]);
+  std::memcpy(c->edge_updates.data(), p + off,
+              head[kEdgeUpdates] * sizeof(batchpf_edge_update));
+  off += head[kEdgeUpdates] * sizeof(batchpf_edge_update);
+  c->dc_off.resize(head[kDcOff]);
+  std::memcpy(c->dc_off.data(), p + off, head[kDcOff] * sizeof(int32_t));
+  off += head[kDcOff] * sizeof(int32_t);
   return off;
 }
 

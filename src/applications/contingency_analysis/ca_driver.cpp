@@ -506,9 +506,9 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   if (outputFormat == "parquet" &&
       !gridpack::contingency_analysis::ParquetFlows::available()) {
     if (world.rank() == 0) {
-      printf("ERROR: outputFormat='parquet' needs Parquet support, which this "
-             "ca.x was built without (Apache Arrow's Parquet C++ library). "
-             "Aborting.\n");
+      std::cout << "ERROR: outputFormat='parquet' needs Parquet support, which"
+                   " this ca.x was built without (Apache Arrow's Parquet C++"
+                   " library). Aborting.\n" << std::flush;
     }
     world.barrier();
     MPI_Abort(static_cast<MPI_Comm>(world), 1);
@@ -1303,7 +1303,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     }
     for (std::map<int, int>::const_iterator it = localOfId.begin(); it != localOfId.end(); ++it) {
       rowSlotOfId[it->first] = static_cast<int>(rowBuses.size());
-      RowBus rb;
+      RowBus rb{};
       rb.local = it->second;
       rb.id = it->first;
       rb.monitored = busMonitored(it->first);
@@ -1418,10 +1418,9 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     }
     prepareRows();
     readBuses();
-    char ct_buf[24];
-    std::strncpy(ct_buf, name.c_str(), sizeof(ct_buf) - 1);
-    ct_buf[sizeof(ct_buf) - 1] = '\0';
-    const std::string ct_name(ct_buf);
+    // Names are cut to 23 characters, as the text route's 24-byte buffer did
+    constexpr size_t ct_chars = 23;
+    const std::string ct_name = name.substr(0, std::min(name.find('\0'), ct_chars));
     // Voltage PI and violations on monitored buses, contingency rows only.
     if (!is_base) voltageChecks(event_idx, ct_name);
     double *pi = nullptr;
@@ -1774,10 +1773,10 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     try {
       gridpack::contingency_analysis::ParquetFlows::writeBranches(path, table);
     } catch (const std::exception &e) {
-      printf("ERROR: %s\n", e.what());
+      std::cout << "ERROR: " << e.what() << '\n' << std::flush;
       MPI_Abort(static_cast<MPI_Comm>(world), 1);
     }
-    printf("[parquet] wrote %zu rows to %s\n", table.size(), path.c_str());
+    std::cout << "[parquet] wrote " << table.size() << " rows to " << path << '\n';
   }
 
   timer->stop(t_base);
@@ -2412,7 +2411,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     }
     if (print_calcs) pf_app.writeHeader(sbuf);
     timer->start(t_case_apply);
-    bool contingencyFound;
+    bool contingencyFound = false;
     if (known) {
       // The GPU solution sets every voltage, so no reset is needed
       contingencyFound = pf_app.setKnownContingency(events[task_id]);
@@ -2785,7 +2784,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         local.push_back(g.rows);
       }
     } catch (const std::exception &e) {
-      printf("ERROR: %s\n", e.what());
+      std::cout << "ERROR: " << e.what() << '\n' << std::flush;
       MPI_Abort(comm, 1);
     }
     int nlocal = static_cast<int>(local.size());
@@ -2842,12 +2841,14 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     world.sync();
     long written = 0;
     if (!mine.empty()) {
-      char name[32];
-      std::snprintf(name, sizeof(name), "/part-%05d.parquet", world.rank());
+      constexpr int rank_digits = 5;
+      std::ostringstream name;
+      name << "/part-" << std::setw(rank_digits) << std::setfill('0') << world.rank()
+           << ".parquet";
       try {
-        written = ParquetFlows::writeRange(parts, mine, flowsDir + name);
+        written = ParquetFlows::writeRange(parts, mine, flowsDir + name.str());
       } catch (const std::exception &e) {
-        printf("ERROR: %s\n", e.what());
+        std::cout << "ERROR: " << e.what() << '\n' << std::flush;
         MPI_Abort(comm, 1);
       }
     }
@@ -2857,7 +2858,8 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     world.sum(&written, 1);
     world.sum(&files, 1);
     if (world.rank() == 0) {
-      printf("[parquet] wrote %ld rows to %s/ (%ld files)\n", written, flowsDir.c_str(), files);
+      std::cout << "[parquet] wrote " << written << " rows to " << flowsDir << "/ ("
+                << files << " files)\n";
     }
   }
   // The tables are written by all ranks at once, each copying its own part
@@ -2872,7 +2874,9 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     const std::string outFile = outputFile + outName;
     const long long rows = gridpack::contingency_analysis::writePartsInParallel(
         writeComm, outFile, header, oss.str(), gpuPath.active());
-    if (world.rank() == 0) printf("[%s] wrote %lld rows to %s\n", tag, rows, outFile.c_str());
+    if (world.rank() == 0) {
+      std::cout << "[" << tag << "] wrote " << rows << " rows to " << outFile << '\n';
+    }
   };
   if (wantBusSidecar) {
     world.sync();
@@ -2946,8 +2950,8 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     long totalSkip = localSkip;
     world.sum(&totalSkip, 1);
     if (world.rank() == 0 && totalSkip > 0) {
-      printf("[%s] %ld branch rows had no base-cache match\n",
-             outputFormat.c_str(), totalSkip);
+      std::cout << "[" << outputFormat << "] " << totalSkip
+                << " branch rows had no base-cache match\n";
     }
   }
 
