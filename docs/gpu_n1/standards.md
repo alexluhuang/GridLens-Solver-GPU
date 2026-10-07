@@ -72,6 +72,19 @@ already explain their defaults; literal findings are not numerical failures.
 The findings still require a maintainer's standards review, especially the
 host serialization code; the baseline is not a claim of warning-free C++.
 
+The merge with the WECC compatibility branch (`feature/wecc-gpu-merged`)
+brought GridPACK report and log code into the changed-line scope: that
+branch's own lines, and the legacy `sprintf` lines the merge bounded with
+`snprintf` after one overflowed. These keep GridPACK's C-string report
+interfaces and are recorded under EX-CG-08 (169 findings). The merge's
+stand-alone messages use iostreams, and its uninitialized locals,
+constructor-body defaults and narrowing size counts were fixed rather than
+recorded, as were those in GPU-branch code added after its last recorded
+standards run (`560a7023`). The other 56 added findings are explicit test values,
+format widths and equation constants (49), and kernel (3) or record-packing
+(4) pointer views under EX-CG-05 and EX-CG-07. The merged tree's audit lists
+574 clang-tidy and 8 cppcheck findings, none above the baseline.
+
 The CPU KLU constructor-initialization suggestion is retained: its symbolic
 analysis must follow `klu_defaults`, while the vectors are constructed first
 so an allocation failure cannot strand a symbolic object. cppcheck's
@@ -93,6 +106,7 @@ The seven `useStlAlgorithm` suggestions concern ordinary loops, not defects.
 | Failures | Launches use `cudaGetLastError`; asynchronous phase/stream completion is checked. Destructors report cleanup failures without throwing. Capability queries distinguish absence from failure; device-code health uses status bits. |
 | Compatibility | Kernels build for all supported real architectures plus PTX; the core links a static CUDA runtime. The CUDA-free executable loads plugins optionally. Missing device/library/code returns a logged CPU fallback. |
 | Verification | Formula, Jacobian, finite-difference and KLU checks pass on CPU/GPU. A singular member is isolated. Compute Sanitizer previously reported zero memory errors; final-source evidence belongs in the validation report. |
+| dc line steps | `DcStart`, `DcUpdate` and their helpers run one worker per batch member over its few lines (block size from the occupancy calculator). `DcUpdate` uses 116 registers and a 40-byte stack frame with no spills on sm_121; with at most a few thousand workers per step, occupancy does not limit it. Line and converter-bus arrays are member-interleaved like the bus arrays (coalesced). The step runs only for networks with dc lines and only for members that request it; other networks run the previous kernels unchanged. The functions are GridPACK's own (`pf_hvdc.hpp`), checked against a direct call on the CPU (bitwise) and GPU (relative 9e-16) over all control modes. |
 
 ## Docker and CMake review
 
@@ -114,18 +128,21 @@ GridPACK sources remain outside the new-code warning count.
 ## Exception register
 
 For every entry, the reviewer/date is **Codex, 2026-10-05; maintainer review
-pending**. Each row states the required function, the unavailable compliant
-alternative, its containment and the event that permits removal.
+pending**, except EX-CG-08, added on 2026-10-07 for the merge with the WECC
+compatibility branch (maintainer review pending). Each row states the
+required function, the unavailable compliant alternative, its containment
+and the event that permits removal.
 
 | ID and rule | Location | Required function, obstacle and containment | Revisit trigger |
 |---|---|---|---|
-| EX-CG-01, P.2 | Module `core/*.cu`, `cudss/backend_cudss.cu`, `test/test_kernels.cu` | GPU kernels require CUDA qualifiers and launch syntax. ISO C++ has no equivalent. Only plugins and GPU tests use the extensions; the host executable remains ISO C++. | A portable GPU language can provide the same required behavior. |
+| EX-CG-01, P.2 | Module `core/*.cu`, `core/dc_kernels.cuh`, `cudss/backend_cudss.cu`, `test/test_kernels.cu`; `powerflow/pf_hvdc.hpp` (`GRIDPACK_HVDC_HD`) | GPU kernels require CUDA qualifiers and launch syntax. ISO C++ has no equivalent. Only plugins and GPU tests use the extensions; the host executable remains ISO C++. The dc line model in `pf_hvdc.hpp` is shared by GridPACK and the kernels; its one macro expands to the qualifiers under a CUDA compiler and to nothing otherwise, and is undefined at the end of the header (an ES.30 exception; ES.32 and ES.33: upper-case, unique name). | A portable GPU language can provide the same required behavior. |
 | EX-CG-02, T.10 | `core/common.hpp` buffers/exchange; host byte serialization templates | C++ language concepts require C++20, while ADR-18 requires C++17. Template element requirements use `static_assert`. | The supported GridPACK/CUDA toolchain moves to C++20. |
 | EX-CG-03, I.2/C.153 | `host/classifier.*`, power-flow adapters and PF components | GridPACK exposes static configuration setters and generic shared component pointers. It provides no virtual power-flow interface. Existing flags and checked `dynamic_cast` stay in the adapter; the engine uses exported records. | Upstream component/configuration interfaces change. |
 | EX-CG-04, ES.48/ES.49 | `host/accelerator.cpp` loader, `core/backend_plugin.cpp::openBackend`, `core/platform.cu::dmaBufSupported` | POSIX/runtime entry-point queries return untyped addresses. Typed function calls require one named cast per wrapper. No driver library is added to the host executable. | A loader returns a typed function pointer directly. |
 | EX-CG-05, F.24/bounds profile | `core/pf_kernels.cuh`, CUDA backend views | Shared C++17 host/device functions need buffers accessible to NVCC. GSL 4 spans are host functions, so kernels use non-owning pointers with model/member counts. Owners and host span checks remain outside kernels. | Supported GSL/device spans can compile on all required targets. |
 | EX-CG-06, F.24/bounds profile | PF component matrix/RHS methods switched from `LARGE_MATRIX` to runtime layout | GridPACK's existing matrix interface supplies raw output pointers with fixed block sizes. Changing that interface would change unrelated framework code. Keep the original formulas and sizes, initialize accumulators, and check them against the component oracle. | GridPACK adopts sized matrix interfaces. |
 | EX-CG-07, bounds profile | `host/batch_path.cpp` classification packing; `host/batch_run.cpp` result packing/report callback | MPI and the stable C result interface use flat byte/pointer records. These views borrow session-owned vectors and carry counts; no pointer transfers ownership. The host remains independent of CUDA/GSL installation. This is a containment record, not a waiver for new unchecked host indexing. | A CUDA-free, supported C++17 span is available for the host, or the wire adapter is revised. |
+| EX-CG-08, Type.8/Bounds.3/SL.io.3 | GridPACK's `sprintf`/`printf` report and log lines in the power-flow adapters, PF components and `ca_driver.cpp`: lines changed only to bound the write, and new lines that extend such a block (the dc line entries of the contingency listing and its output header); the GPU branch's csv_flat text route for irregular branches in `ca_driver.cpp` | GridPACK's report interfaces (`header(const char*)`, `writeHeader()`, `serialWrite(char*, int, const char*)`) take C strings in caller buffers, and the text must stay byte for byte as stock GridPACK writes it. C++17 has no type-safe formatting function (`std::format` is C++20; ADR-18). Every write is bounded by its destination (`snprintf` with the buffer's size, or the size `serialWrite()` receives); the adapters build with `-Wall`, so the compiler checks each literal format against its arguments. The text route reproduces stock's `serialWrite()` and `sscanf` text exactly. Stand-alone new messages use iostreams (SL.io.3). | GridPACK's report interfaces take `std::string`, or the toolchain moves to C++20 `std::format`. |
 | EX-CUDA-01, §12.1 | All GPU targets | Fast math is deliberately omitted because fidelity T-5 takes priority. Ordinary double-precision math supplies the required results. | Fidelity requirements explicitly change. |
 | EX-DF-01, ENV persistence | Existing Dockerfile `DEBIAN_FRONTEND` | Preserve the original image's environment under S-3. New installation steps add no persistent build-only variable. | Separate image behavior review. |
 | EX-DF-02, remote-source verification | Existing Boost/GA `wget` and PETSc clone | Preserve the original dependency installation under S-3. No new unverified remote source archive is added; GPU libraries come from the configured apt repository. | A separate dependency-pinning cleanup is authorized. |
