@@ -1678,6 +1678,9 @@ bool gridpack::powerflow::PFAppModule::unSetContingency(
   } else {
     ret = false;
   }
+  // Converter injections back to the operating point solves start from, as
+  // the switched shunts and taps above; a solve leaves its own behind
+  p_factory->startHVDC();
   return ret;
 }
 
