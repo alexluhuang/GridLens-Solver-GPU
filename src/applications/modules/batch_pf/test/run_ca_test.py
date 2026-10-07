@@ -136,7 +136,9 @@ def event_rows(path, presorted=False):
         reader = csv.reader(process.stdout)
         header = next(reader)
         yield header, itertools.groupby(reader, lambda r: int(r[0]))
-        if process.wait() != 0:
+        # Check the exit status only if every row was read; a comparison that
+        # stops early must not wait for sort to finish writing (finally below)
+        if process.stdout.read(1) == "" and process.wait() != 0:
             raise RuntimeError("could not sort " + path)
     finally:
         process.stdout.close()
@@ -145,9 +147,10 @@ def event_rows(path, presorted=False):
         process.wait()
 
 
-def compare_table(a, b, name, nkey, tol, errors):
+def compare_table(a, b, name, nkey, tol, errors, b_in_event_order=True):
+    # GPU-path files are in event order; CPU-path files are sorted first
     with event_rows(os.path.join(a, name)) as (ha, ga), \
-            event_rows(os.path.join(b, name), presorted=True) as (hb, gb):
+            event_rows(os.path.join(b, name), presorted=b_in_event_order) as (hb, gb):
         if ha != hb:
             errors.append(name + ": header differs")
             return
@@ -211,8 +214,10 @@ def equivalent_voltage_tie(a, b, key, left, right, tol):
 
 
 def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
-            allow_iteration_differences=False):
-    """Compare the outputs of two run directories"""
+            allow_iteration_differences=False, b_in_event_order=True):
+    """Compare the outputs of two run directories. The tables of a may be in
+    any order; those of b must be in event order unless b_in_event_order is
+    False (a CPU-path run)."""
     # convergence: status and iterations equal (except unsolved cases)
     ca = {r[0]: r for r in rows(os.path.join(a, FILES[0]))[1:]}
     cb = {r[0]: r for r in rows(os.path.join(b, FILES[0]))[1:]}
@@ -235,7 +240,7 @@ def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
     if output_format == "csv_flat":
         tables.append((FLAT, 5))
     for name, nkey in tables:
-        compare_table(a, b, name, nkey, tol, errors)
+        compare_table(a, b, name, nkey, tol, errors, b_in_event_order)
     with open(os.path.join(a, FILES[3])) as f, open(os.path.join(b, FILES[3])) as g:
         def same(x, y):
             if isinstance(x, dict) and isinstance(y, dict):
