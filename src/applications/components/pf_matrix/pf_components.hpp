@@ -880,7 +880,8 @@ class PFBus
     std::vector<std::string> p_lid;
     std::vector<double> p_dgp, p_dgq;  // distributed generation on each load
     std::vector<bool> p_dgstatus;
-    double p_hvdc_p, p_hvdc_q;         // power drawn by dc converters
+    double p_hvdc_p = 0.0;             // power drawn by dc converters
+    double p_hvdc_q = 0.0;
     double p_sbase;
     double p_Pinj, p_Qinj;
     double p_vmin, p_vmax;

@@ -55,17 +55,24 @@
 #include "gridpack/utilities/string_utils.hpp"
 #include <algorithm>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 
 #define USE_REAL_VALUES
+
+namespace {
+// Newton and dc line tolerance until the input sets them
+constexpr double kDefaultTolerance = 1.0e-6;
+}
 
 /**
  * Basic constructor
  */
 gridpack::powerflow::PFAppModule::PFAppModule(void)
+  : p_tolerance(kDefaultTolerance), p_hvdc_tolerance(kDefaultTolerance)
 {
   p_no_print = false;
-  p_tolerance = 1.0e-6;
-  p_hvdc_tolerance = 1.0e-6;
 }
 
 /**
@@ -261,7 +268,7 @@ void gridpack::powerflow::PFAppModule::readNetwork(
           "] unable to open network file: " + filename +
           " with error: " + w + "\n";
         if (p_comm.rank() == 0) {
-          printf("%s",msg.c_str());
+          std::cout << msg;
         }
       }
       timer->stop(t_total);
@@ -900,10 +907,11 @@ bool gridpack::powerflow::PFAppModule::solve()
       }
       if (!dc_ok) {
         if (!p_no_print) {
-          snprintf(ioBuf, sizeof(ioBuf), "HVDC converter injections updated at"
-              " controller iter %d (largest change %.3e pu)\n", ctrl_iter,
-              dc_change);
-          p_busIO->header(ioBuf);
+          std::ostringstream msg;
+          msg << "HVDC converter injections updated at controller iter "
+              << ctrl_iter << " (largest change " << std::scientific
+              << std::setprecision(3) << dc_change << " pu)\n";
+          p_busIO->header(msg.str().c_str());
         }
         if (ctrl_iter < max_ctrl_iter) {
           ctrl_repeat = true;
@@ -1537,7 +1545,7 @@ bool gridpack::powerflow::PFAppModule::applyContingencyStatus(
       if (p_factory->setHVDCLineStatus(event.p_dclines[i], false, &old)) {
         event.p_saveDCLineStatus[i] = old;
       } else {
-        printf("WARNING: DC line '%s' not found\n", event.p_dclines[i].c_str());
+        std::cout << "WARNING: DC line '" << event.p_dclines[i] << "' not found\n";
         ret = false;
       }
     }
@@ -1734,22 +1742,38 @@ void gridpack::powerflow::PFAppModule::writeHVDCSummary()
   const std::vector<bool> &status = p_factory->getHVDCLineStatus();
   const std::vector<HVDCSolution> &sol = p_factory->getHVDCSolutions();
   if (lines.empty()) return;
-  char buf[512];
+  // Column widths: name, mode, values, angles
+  constexpr int wname = 14;
+  constexpr int wmode = 48;
+  constexpr int wval = 8;
+  constexpr int wang = 6;
   p_busIO->header("\n   Two-Terminal DC Lines\n\n");
-  snprintf(buf, sizeof(buf), "   %-14s %-48s %8s %8s %8s %8s %6s %8s %8s %6s\n",
-      "Name", "Mode", "Id(kA)", "Rect", "P(MW)", "Q(MVar)", "Alpha",
-      "Inv", "P(MW)", "Gamma");
-  p_busIO->header(buf);
+  std::ostringstream head;
+  head << "   " << std::left << std::setw(wname) << "Name" << ' '
+       << std::setw(wmode) << "Mode" << std::right
+       << ' ' << std::setw(wval) << "Id(kA)" << ' ' << std::setw(wval) << "Rect"
+       << ' ' << std::setw(wval) << "P(MW)" << ' ' << std::setw(wval) << "Q(MVar)"
+       << ' ' << std::setw(wang) << "Alpha" << ' ' << std::setw(wval) << "Inv"
+       << ' ' << std::setw(wval) << "P(MW)" << ' ' << std::setw(wang) << "Gamma"
+       << '\n';
+  p_busIO->header(head.str().c_str());
   for (size_t i = 0; i < lines.size(); i++) {
     const HVDCSolution &s = sol[i];
     std::string mode = hvdcModeName(s.mode);
     if (!status[i]) mode = "out of service";
     if (s.limited) mode += " (at limits)";
-    snprintf(buf, sizeof(buf), "   %-14s %-48s %8.4f %8d %8.1f %8.1f %6.2f"
-        " %8d %8.1f %6.2f   Qinv=%.1f MVar\n", lines[i].name.c_str(),
-        mode.c_str(), s.id, lines[i].rect.bus, s.rect.p, s.rect.q,
-        s.rect.angle, lines[i].inv.bus, s.inv.p, s.inv.angle, s.inv.q);
-    p_busIO->header(buf);
+    std::ostringstream row;
+    row << std::fixed << "   " << std::left << std::setw(wname) << lines[i].name
+        << ' ' << std::setw(wmode) << mode << std::right
+        << ' ' << std::setw(wval) << std::setprecision(4) << s.id
+        << ' ' << std::setw(wval) << lines[i].rect.bus << std::setprecision(1)
+        << ' ' << std::setw(wval) << s.rect.p << ' ' << std::setw(wval) << s.rect.q
+        << ' ' << std::setw(wang) << std::setprecision(2) << s.rect.angle
+        << ' ' << std::setw(wval) << lines[i].inv.bus << std::setprecision(1)
+        << ' ' << std::setw(wval) << s.inv.p
+        << ' ' << std::setw(wang) << std::setprecision(2) << s.inv.angle
+        << "   Qinv=" << std::setprecision(1) << s.inv.q << " MVar\n";
+    p_busIO->header(row.str().c_str());
   }
 }
 

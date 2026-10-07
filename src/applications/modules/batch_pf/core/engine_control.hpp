@@ -47,9 +47,12 @@
 namespace gridpack {
 namespace batchpf {
 
+/// GridPACK's default Newton and dc line tolerance
+constexpr double kDefaultTolerance = 1.0e-6;
+
 /// Rules taken from GridPACK's settings (batchpf_solver_params)
 struct ControlRules {
-  double tolerance = 1.0e-6;
+  double tolerance = kDefaultTolerance;
   int max_iteration = 50;
   bool pf_qlim = true;            // Powerflow/qlim
   bool ca_qlim = true;            // Contingency_analysis/qlim
@@ -57,7 +60,7 @@ struct ControlRules {
   bool check_nonfinite = true;
   double residual_limit = 0.0;    // 0 = no residual check
   bool dc_lines = false;          // the network has two-terminal dc lines
-  double hvdc_tolerance = 1.0e-6; // Powerflow/hvdcTolerance (pu)
+  double hvdc_tolerance = kDefaultTolerance; // Powerflow/hvdcTolerance (pu)
 };
 
 /// What the last step produced for one slot

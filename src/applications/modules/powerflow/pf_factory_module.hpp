@@ -591,7 +591,7 @@ class PFFactoryModule
     std::vector<bool> p_hvdc_status;            // false when out of service
     std::vector<HVDCSolution> p_hvdc_solution;  // latest operating point
     std::vector<HVDCSolution> p_hvdc_reference; // starting point of solves
-    bool p_hvdc_have_reference;
+    bool p_hvdc_have_reference = false;
     std::vector<int> p_hvdc_buses;              // converter ac buses
 
     /**

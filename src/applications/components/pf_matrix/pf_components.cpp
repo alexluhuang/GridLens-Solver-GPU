@@ -140,8 +140,6 @@ gridpack::powerflow::PFBus::PFBus(void)
   p_data = NULL;
   p_ignore = false;
   p_isStarBus = false;
-  p_hvdc_p = 0.0;
-  p_hvdc_q = 0.0;
   p_isIREG_PV = false;
   p_ireg_vs = 0.0;
   p_ireg_remote_bus = 0;
@@ -361,7 +359,8 @@ bool gridpack::powerflow::PFBus::chkQlim(double q_deadband)
 
   // Constant-power Q demand: loads less distributed generation plus dc
   // converters
-  double pfix, ql;
+  double pfix = 0.0;
+  double ql = 0.0;
   getFixedPowerDemand(&pfix, &ql);
   // Add voltage-dependent Q load (IQ*V - YQ*V^2)
   double pzip, qzip;
@@ -1468,7 +1467,8 @@ double gridpack::powerflow::PFBus::getTotalGenOutput()
     calculatePowerInjection();
     // Constant-power demand: loads less distributed generation plus dc
     // converters
-    double pl, qfix;
+    double pl = 0.0;
+    double qfix = 0.0;
     getFixedPowerDemand(&pl, &qfix);
     // Add voltage-dependent P load (IP*V + YP*V^2)
     double pzip, qzip;
@@ -3163,7 +3163,7 @@ void gridpack::powerflow::PFBus::takeExchangedState()
 
 int gridpack::powerflow::PFBranch::circuitStatusIndex(const std::string &tag) const
 {
-  int bsize = p_branch_status.size();
+  const int bsize = static_cast<int>(p_branch_status.size());
   for (int i=0; i<bsize; i++) {
     if (tag == p_ckt[i]) return i;
   }

@@ -42,6 +42,9 @@
 #include <cmath>
 #include <limits>
 #include <set>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
 #include "boost/smart_ptr/shared_ptr.hpp"
 #include "gridpack/parser/dictionary.hpp"
 #include "gridpack/parallel/global_vector.hpp"
@@ -50,6 +53,11 @@
 
 namespace gridpack {
 namespace powerflow {
+
+namespace {
+// Isolation flags of converter buses are 0 or 1 after gatherHVDCBusState()
+constexpr double kFlagSet = 0.5;
+}
 
 // Powerflow factory class implementations
 
@@ -69,7 +77,6 @@ PFFactoryModule::PFFactoryModule(PFFactoryModule::NetworkPtr network)
   p_originalSlackBusIdx = -1;
   p_currentSlackBusIdx = -1;
   p_slackTransferred = false;
-  p_hvdc_have_reference = false;
 }
 
 /**
@@ -1208,14 +1215,17 @@ void gridpack::powerflow::PFFactoryModule::loadHVDC()
     ok = ok && data->getValue(HVDC_INV_TMN, &l.inv.tmn, i);
     ok = ok && data->getValue(HVDC_INV_STP, &l.inv.stp, i);
     if (!ok) {
-      if (root) printf("HVDC: incomplete data for dc line %d; line ignored\n", i);
+      if (root) {
+        std::cout << "HVDC: incomplete data for dc line " << i
+                  << "; line ignored\n";
+      }
       continue;
     }
     l.name = normalizeHVDCName(l.name);
     if (root && (l.rect.anmn > l.rect.anmx || l.inv.anmn > l.inv.anmx)) {
-      printf("HVDC: dc line %s has a minimum converter angle above its"
-          " maximum; the limits are used in increasing order\n",
-          l.name.c_str());
+      std::cout << "HVDC: dc line " << l.name << " has a minimum converter"
+                << " angle above its maximum; the limits are used in"
+                << " increasing order\n";
     }
     p_hvdc_lines.push_back(l);
     buses.insert(l.rect.bus);
@@ -1242,12 +1252,14 @@ bool gridpack::powerflow::PFFactoryModule::updateHVDC(double tol,
     double *max_change, std::vector<std::string> *notes)
 {
   if (max_change) *max_change = 0.0;
-  int nline = p_hvdc_lines.size();
+  const int nline = static_cast<int>(p_hvdc_lines.size());
   if (nline == 0) return true;
   std::vector<double> state;
   gatherHVDCBusState(state);
   std::map<int,int> bus_slot;
-  for (size_t k = 0; k < p_hvdc_buses.size(); k++) bus_slot[p_hvdc_buses[k]] = k;
+  for (size_t k = 0; k < p_hvdc_buses.size(); k++) {
+    bus_slot[p_hvdc_buses[k]] = static_cast<int>(k);
+  }
   double sbase = 0.0;
   if (p_network->numBuses() > 0) {
     sbase = dynamic_cast<gridpack::powerflow::PFBus*>(
@@ -1261,7 +1273,7 @@ bool gridpack::powerflow::PFFactoryModule::updateHVDC(double tol,
     const HVDCLine &l = p_hvdc_lines[i];
     int kr = bus_slot[l.rect.bus];
     int ki = bus_slot[l.inv.bus];
-    bool isolated = (state[2*kr+1] > 0.5 || state[2*ki+1] > 0.5);
+    bool isolated = (state[2*kr+1] > kFlagSet || state[2*ki+1] > kFlagSet);
     HVDCSolution s = blockedHVDCSolution();
     if (p_hvdc_status[i] && !isolated) {
       s = solveTwoTerminalDC(l, state[2*kr], state[2*ki]);
@@ -1273,13 +1285,13 @@ bool gridpack::powerflow::PFFactoryModule::updateHVDC(double tol,
     change = std::max(change, dl);
     if (notes && (s.mode != o.mode || s.limited != o.limited) &&
         (s.mode != HVDC_NORMAL || o.mode != HVDC_NORMAL || s.limited)) {
-      char buf[256];
-      snprintf(buf, sizeof(buf), "HVDC line %s: %s%s, Id=%.4f kA,"
-          " rectifier P=%.1f MW, inverter P=%.1f MW\n", l.name.c_str(),
-          hvdcModeName(s.mode),
-          s.limited ? " (no operating point inside the angle limits)" : "",
-          s.id, s.rect.p, s.inv.p);
-      notes->push_back(buf);
+      std::ostringstream note;
+      note << std::fixed << "HVDC line " << l.name << ": " << hvdcModeName(s.mode)
+           << (s.limited ? " (no operating point inside the angle limits)" : "")
+           << ", Id=" << std::setprecision(4) << s.id << " kA, rectifier P="
+           << std::setprecision(1) << s.rect.p << " MW, inverter P=" << s.inv.p
+           << " MW\n";
+      notes->push_back(note.str());
     }
     p_hvdc_solution[i] = s;
   }
@@ -1305,11 +1317,13 @@ void gridpack::powerflow::PFFactoryModule::startHVDC()
   std::vector<double> state;
   gatherHVDCBusState(state);
   std::map<int,int> bus_slot;
-  for (size_t k = 0; k < p_hvdc_buses.size(); k++) bus_slot[p_hvdc_buses[k]] = k;
+  for (size_t k = 0; k < p_hvdc_buses.size(); k++) {
+    bus_slot[p_hvdc_buses[k]] = static_cast<int>(k);
+  }
   for (size_t i = 0; i < p_hvdc_lines.size(); i++) {
     const HVDCLine &l = p_hvdc_lines[i];
-    bool isolated = (state[2*bus_slot[l.rect.bus]+1] > 0.5 ||
-        state[2*bus_slot[l.inv.bus]+1] > 0.5);
+    bool isolated = (state[2*bus_slot[l.rect.bus]+1] > kFlagSet ||
+        state[2*bus_slot[l.inv.bus]+1] > kFlagSet);
     if (p_hvdc_status[i] && !isolated) {
       p_hvdc_solution[i] = p_hvdc_reference[i];
     } else {
@@ -1337,7 +1351,7 @@ void gridpack::powerflow::PFFactoryModule::setHVDCReference()
 void gridpack::powerflow::PFFactoryModule::gatherHVDCBusState(
     std::vector<double> &state)
 {
-  int nbus = p_hvdc_buses.size();
+  const int nbus = static_cast<int>(p_hvdc_buses.size());
   std::vector<double> local(2*nbus, 0.0);
   state.assign(2*nbus, 0.0);
   for (int k = 0; k < nbus; k++) {
@@ -1362,7 +1376,7 @@ void gridpack::powerflow::PFFactoryModule::gatherHVDCBusState(
  */
 void gridpack::powerflow::PFFactoryModule::applyHVDCInjections()
 {
-  int nbus = p_hvdc_buses.size();
+  const int nbus = static_cast<int>(p_hvdc_buses.size());
   std::map<int,int> bus_slot;
   for (int k = 0; k < nbus; k++) bus_slot[p_hvdc_buses[k]] = k;
   std::vector<double> pinj(nbus, 0.0), qinj(nbus, 0.0);
@@ -1392,7 +1406,7 @@ void gridpack::powerflow::PFFactoryModule::applyHVDCInjections()
  */
 int gridpack::powerflow::PFFactoryModule::numHVDCLines() const
 {
-  return p_hvdc_lines.size();
+  return static_cast<int>(p_hvdc_lines.size());
 }
 
 /**
@@ -2006,7 +2020,6 @@ bool PFFactoryModule::checkLoneBusAt(std::vector<int> buses)
   std::sort(buses.begin(), buses.end());
   buses.erase(std::unique(buses.begin(), buses.end()), buses.end());
   bool bus_ok = true;
-  char buf[128];
   p_saveIsolatedStatus.clear();
   p_loneBusIndices.clear();
   for (int i : buses) {
@@ -2024,11 +2037,10 @@ bool PFFactoryModule::checkLoneBusAt(std::vector<int> buses)
       }
     }
     if (!ok) {
-      snprintf(buf, sizeof(buf),"\nLone bus %d found\n",bus->getOriginalIndex());
       p_saveIsolatedStatus.push_back(bus->isIsolated());
       p_loneBusIndices.push_back(i);
       bus->setIsolated(true);
-      printf("%s",buf);
+      std::cout << "\nLone bus " << bus->getOriginalIndex() << " found\n";
       bus_ok = false;
     }
   }
@@ -2063,7 +2075,7 @@ void PFFactoryModule::touchLineCheckBuses()
     for (int i = 0; i < numBranch; i++) {
       if (!p_network->getActiveBranch(i)) continue;
       PFBranch *branch = dynamic_cast<PFBranch*>(p_network->getBranch(i).get());
-      int nlines;
+      int nlines = 0;
       p_network->getBranchData(i)->getValue(BRANCH_NUM_ELEMENTS,&nlines);
       std::vector<std::string> tags = branch->getLineTags();
       for (int k = 0; k < nlines; k++) {
