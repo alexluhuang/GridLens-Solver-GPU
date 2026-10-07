@@ -1,8 +1,8 @@
 # Handoff: GPU N-1 implementation
 
-Updated 2026-10-06. Repository `/home/alh360/Documents/GridLens-Solver-GPU`,
-branch `feature/gpu-batch-n1`, local commits only (not pushed). Solver source
-`2d3bcbb2`; test-only follow-up `560a7023`; records in the commits after it.
+Repository `/home/alh360/Documents/GridLens-Solver-GPU`, branch
+`feature/gpu-batch-n1`. The remote branch is at `d62432ec` (the user's
+timer commit); the 13 commits after it are local and not pushed.
 
 ## Instructions that still apply
 
@@ -17,39 +17,63 @@ branch `feature/gpu-batch-n1`, local commits only (not pushed). Solver source
 
 ## State
 
-Every step of the previous handoff is done:
+Updated 2026-10-07. The user's last request (implement P1 with a runtime
+`parquet` format, P2 and P4, not P3; choose the rank count from the cores;
+test with `csv_flat` at 16 ranks) is done:
 
-1. `2d3bcbb2`: GridPACK's reactive-limit check skips disconnected buses, as the
-   GPU check already did. A failed case no longer leaves an injection that
-   converts a later disconnected bus. This is a second compatibility change,
-   separate from the user's approved voltage cleanup, and it also applies
-   without acceleration (see `docs/gpu_n1/restoration.md`).
-2. Corrected CPU reference: `b32969b0` plus
-   `reproductions/cpu-voltage-cleanup-reference.patch` and
-   `reproductions/cpu-isolated-qlim-reference.patch`, built at
-   `/work/build-corrected-reference`. The original build is kept at
-   `/work/build-stock`.
-3. Full default-order Texas7k and 10k studies pass every check against the
-   corrected reference on Alg2 and cuDSS. The saved 10k Alg2 study with the
-   controller outage last also passes. Comparisons against the original
-   baseline stay failed and are kept as evidence.
-4. CPU-only suite 121/121; GPU build 29/29; standards CI passes (360 clang-tidy,
-   8 cppcheck, below baseline); install, the rebuilt installed example and both
-   refreshed Arm64 images pass their checks.
+1. Ranks: `ca_run.sh` (`ce951584`) runs cores − 4 ranks with 8 or more
+   cores, otherwise cores − 2 (at least 1); the test harness uses the same
+   rule. CPU comparisons use the same count.
+2. P1 (`4ffdeb13`): csv_flat and csv_delta rows are built from the solved
+   numbers, byte-identical to the text route.
+3. Parquet (`e1caa4ed`): `outputFormat=parquet`, a branches file plus a
+   flows dataset directory; optional at build time (`GRIDPACK_ENABLE_PARQUET`).
+4. P2 (`c9755ddb`): GPU cases whose topology the classifier knows skip
+   GridPACK's full lone-bus and island searches, full admittance updates,
+   injections and violation checks; byte-identical outputs.
+5. P4 (`a6ce62aa`, `9669c544`, `9937c912`): several warps per long factor
+   column (bitwise-identical factors), unrolled solves, CUDA graphs,
+   refilling slots from the next submission plus immediate steps without a
+   factorization, cuDSS in the planner's order, deterministic mode, cap
+   2048. Device-side control was not needed: the per-step wait leaves no
+   measurable idle time.
+6. Checks: CPU-only suite 124/124, GPU batch suite 38/38, byte identity on
+   four grids, and six full studies against the corrected reference
+   (`docs/gpu_n1/validation.md`). Benchmarks: `docs/gpu_n1/performance.md`,
+   last section. 10k: CPU 251 s, Alg2 42 s, cuDSS 43 s at 16 ranks.
 
-Details: `docs/gpu_n1/validation.md`, `validation-status.json`,
-`study-evidence.jsonl`, `image-evidence.json`.
+Decisions left to the user:
+
+- csv_flat and csv_delta (and parquet) list only the first circuit of a
+  branch object that holds several parallel circuits. This is the stock
+  text route's behavior, reproduced exactly by P1: it drops about 489
+  circuits per case on 10k, 494 on Texas7k and 9 on Polish.
+- The first convergence row written by each rank prints its tolerance with
+  six significant digits instead of four (the precision is set after it).
+  A one-line fix would change those rows.
+- Rank rule for 7 cores (5) and for 1 to 3 cores (1) was not specified;
+  the chosen values follow the cores − 2 rule.
+- Next opportunity: the 10k study now spends 8.7 s in rank 0's merge of a
+  17 GB table and about 19 s per rank in reporting; the GPU is busy 17 s.
+
+The previous handoff's items remain done (`2d3bcbb2` isolated-bus check,
+corrected CPU reference at `/work/build-corrected-reference`, the original
+build at `/work/build-stock`).
 
 ## Environment
 
 Scratch `/home/alh360/.claude/jobs/23383591/tmp` is mounted as `/work` and is
 job-managed. `dn.sh [--nogpu] '<cmd>'` there runs a command in
-`alh360/gridpack-n1-tools:1.0` with the repository at `/src`. Builds:
+`alh360/gridpack-n1-tools:1.1` (1.0 plus Apache Parquet 25.0.1 and pyarrow
+21) with the repository at `/src`. Builds:
 `/work/build-quality` (GPU, standards CI, installs to `/work/quality-install`),
 `/work/build-cpu` (CPU-only), `/work/build-corrected-reference`,
-`/work/build-stock` (original `b32969b0`). The default-order study script is
-`/work/run-corrected-studies.sh`; its outputs (about 140 GB) are under
-`/work/validation-corrected/`. RAW files are in `/work/runs/grids/`; the
+`/work/build-stock` (original `b32969b0`). Study scripts: `/work/run-p4-studies.sh` (outputs under
+`/work/validation-p4/`) and the earlier `/work/run-corrected-studies.sh`
+(`/work/validation-corrected/`). `/work/final_bench.py` produced the last
+benchmark table; `/work/alg2bench/` is a standalone factorization benchmark
+that reads Jacobians dumped from a run (the dump hook was removed from the
+source). RAW files are in `/work/runs/grids/`; the
 external RAW files are not redistributed.
 
 ## Not done (cannot be done on this machine, or needs a person)

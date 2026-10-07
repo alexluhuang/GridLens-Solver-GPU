@@ -222,3 +222,61 @@ efficiency cores and share memory bandwidth. The GPU paths improve by
 ranks on the one GPU were slower: each took about as long for half of the
 cases as one rank took for all of them, because the two processes share the
 GPU in turns. One cuDSS rank at batch 128 already keeps the GPU busy.
+
+## After the reporting and engine changes (16 ranks, csv_flat)
+
+Source `9937c912`: rows built from numbers (P1), known-topology shortcuts
+for GPU cases (P2), and the engine changes of P4 (several warps per long
+factor column, CUDA graphs, refilling slots from the next submission, cuDSS
+in the planner's order and in deterministic mode). Each run was one full
+branch and generator N-1 study from the RAW file to the final `csv_flat`
+tables, 16 ranks on every path (the `ca_run.sh` rule for 20 cores),
+reactive limits, base-case warm start, batch 512 on both GPU backends, no
+shadow re-solves, one trial each. All three paths are this same build; the
+CPU path is the build without a `<GPUBatch>` block. Phase times are the
+maximum over ranks, per-case categories the average per rank, in seconds.
+All rows are in `performance-final.jsonl`.
+
+| Grid | Path | Wall | Loop | Merge | Apply | Solve | Inject | Check and report (rows) | Restore | GPU busy | Occupancy |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Polish | CPU | 19.5 | 18.2 | 0.0 | 0.9 | 16.3 | – | 0.0 (0.0) | 0.4 | – | – |
+| Polish | Alg2 | 4.3 | 2.5 | 0.0 | 0.1 | 0.0 | 0.0 | 0.0 (0.0) | 0.1 | 2.0 | 37% |
+| Polish | cuDSS | 6.6 | 4.8 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 (0.0) | 0.1 | 4.2 | 37% |
+| Texas7k | CPU | 110.2 | 104.6 | 4.2 | 4.7 | 85.0 | – | 10.3 (6.2) | 2.5 | – | – |
+| Texas7k | Alg2 | 26.3 | 19.5 | 4.4 | 0.1 | 0.3 | 0.3 | 9.0 (7.0) | 1.3 | 16.4 | 61% |
+| Texas7k | cuDSS | 24.9 | 18.2 | 4.3 | 0.1 | 0.3 | 0.3 | 8.7 (6.8) | 1.2 | 14.7 | 61% |
+| 10k | CPU | 251.2 | 244.0 | 5.4 | 12.7 | 199.1 | – | 21.0 (12.5) | 6.9 | – | – |
+| 10k | Alg2 | 42.2 | 30.8 | 8.7 | 1.1 | 0.6 | 0.8 | 18.6 (14.3) | 3.4 | 17.4 | 72% |
+| 10k | cuDSS | 42.6 | 31.2 | 8.6 | 1.0 | 0.7 | 0.7 | 18.4 (14.2) | 3.5 | 27.0 | 72% |
+
+The GPU paths are 4.6 (Polish), 4.4 (Texas7k) and 5.9 (10k) times faster
+than the CPU path at the same rank count. Before these changes, the same
+16-rank `csv_flat` studies took 167.1 s (Texas7k) and 181.5 s (10k) on Alg2
+and 150.3 s (Texas7k) on the CPU path.
+
+What each step did, on the same 16-rank `csv_flat` runs:
+
+| Step | Texas7k Alg2 wall | 10k Alg2 wall | Where the time went |
+|---|---:|---:|---|
+| Before | 167.1 | 181.5 | Row text formatted, gathered and parsed |
+| P1, rows from numbers | 163.2 | 139.9 | GPU busy 155 of 158 s (Texas7k): the GPU limits the loop |
+| P2, known-topology reporting | 157.8 | 130.0 | Apply, inject and restore fall from 41.7 s to 5.3 s per rank (10k) |
+| P4, several warps per column | 33.6 | 44.6 | Factorization 114.5 → 21.2 s (10k) |
+| P4, refilling from the next submission | 27.2 | 39.7 | Occupancy 40% → 72% (10k); GPU 29.6 → 17.6 s |
+
+Each step left every output byte-identical (see `validation.md`).
+
+The GPU no longer limits the 10k study: it is busy 17 s of a 31 s loop.
+The loop is now set by GridPACK's reporting on the other ranks (checks and
+rows, 18.6 s per rank) and the study by rank 0's merge of the part files
+into one 17 GB table (8.7 s). Writing the merged table from all ranks at
+once, at offsets computed from the part sizes, would remove most of the
+merge; that was not part of this work.
+
+cuDSS's batch cap is now 2048. At batch 512 the two backends give the
+same 10k wall time; cuDSS keeps the GPU busy longer there (27.0 against
+17.4 s) without changing the wall time, because reporting sets it. On
+Texas7k cuDSS was busy 1.7 s less and finished 1.4 s sooner; on Polish Alg2 was
+faster. In isolated timings of one factorization and solve at batch 512
+on the 10k Jacobian, Alg2 took 110 ms and cuDSS 186 ms.
+

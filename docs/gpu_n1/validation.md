@@ -100,6 +100,60 @@ study above and was not run.
 With the final source, the CPU-only build passes all 121 tests run one at a
 time (75.63 s), and the GPU build passes all 29 batch-path tests.
 
+## Checks after the reporting and engine changes (source `48da154c`)
+
+Commits `4ffdeb13` to `9937c912` changed how results are reported (rows
+built from numbers, P1; known-topology shortcuts for GPU cases, P2) and how
+the GPU engine runs (multi-warp factorization, CUDA graphs, streaming
+between submissions, cuDSS in the planner's order and in deterministic
+mode, P4). None of these is meant to change a result, and each was checked
+in two ways.
+
+**Byte identity.** Fixed full branch and generator N-1 studies, `csv_flat`,
+16 ranks, Alg2 at batch 512 (IEEE118, Polish, Texas7k, 10k), plus CPU-path
+runs of IEEE118 and Texas7k, were compared file by file before and after
+each step. Every table and summary was byte-identical. The only differences
+were in `_convergence.csv`, and none came from these changes:
+
+- CPU-path `ISLANDED` rows carry the previous case's solver record (already
+  documented), which depends on which case ran before on the same rank.
+- The first row written by each rank prints its tolerance with six
+  significant digits instead of four (for example `1.615152e-12` and
+  `1.6152e-12`). The row formatter sets the precision after writing the
+  tolerance, so a rank's first row keeps the stream default. Which case is
+  first on a rank depends on scheduling. The value is the same.
+
+The Alg2 factorization with several warps per case is bitwise identical to
+one thread per case (`batchpf.unit.kernels`, and the same solutions on the
+Texas7k and 10k reference Jacobians at batches 128 to 2048).
+
+**Against the corrected reference.** Every study below used the full list,
+`csv_flat`, 16 ranks, raw starts and a shadow re-solve of every GPU case,
+and passed every check against the corrected CPU reference: all tables
+within 1e-3, exact iteration counts, one outcome per case, ordered files,
+exact PV/PQ sets and final reported states. The batch was chosen
+automatically except where shown.
+
+| Study | Batch | Cases | Shadows | Max voltage diff., pu | Max angle diff., rad |
+|---|---:|---:|---:|---:|---:|
+| Texas7k Alg2 | 2048 (auto) | 8,891 | 8,803 | 6.861e-14 | 1.301e-13 |
+| Texas7k cuDSS | 512 (auto) | 8,891 | 8,804 | 6.617e-14 | 1.248e-11 |
+| Texas7k cuDSS | 2048 | 8,891 | 8,804 | 6.617e-14 | 1.248e-11 |
+| 10k Alg2 | 2048 (auto) | 15,191 | 14,581 | 1.095e-12 | 5.755e-13 |
+| 10k cuDSS | 512 (auto) | 15,191 | 14,581 | 1.146e-12 | 5.862e-13 |
+| 10k cuDSS | 2048 | 15,191 | 14,581 | 1.146e-12 | 5.862e-13 |
+
+The Alg2 maxima equal those of the earlier corrected-reference studies,
+as expected for unchanged arithmetic. The cuDSS rows back its validated
+batch of 2048 (it was 128). The cuDSS studies at batch 512 and 2048 wrote
+byte-identical flat, violation, convergence and summary files on both
+grids: in deterministic mode a case's result does not depend on the batch
+or on the other cases in it. The cuDSS Parquet test, which needs two runs
+to agree to the last digit, now passes and was repeated four times.
+
+With this source the CPU-only build passes all 124 tests run one at a
+time, and the GPU build passes all 38 batch-path tests.
+
 ## Full-study evidence and the fidelity problem
 
 The older `build-dev` matrix used eight ranks, raw starts, reactive limits,

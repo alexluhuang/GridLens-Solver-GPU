@@ -1,6 +1,6 @@
 {
-  "updated": "2026-10-06",
-  "source": "2d3bcbb2 solver, 560a7023 tests; each saved study retains its actual snapshot",
+  "updated": "2026-10-07",
+  "source": "48da154c (P1, P2, P4 and parquet); earlier saved studies retain their actual snapshots",
   "platform": "GB10 DGX Spark, ARM64, CUDA 13.0.1, driver 580.178.04",
   "completed": {
     "cpu_only_ctest": {
@@ -301,6 +301,112 @@
       "passed": true,
       "against": "corrected reference",
       "reason": "Default-order Texas7k and 10k pass on Alg2 and cuDSS against b32969b0 plus both reference patches; the original baseline comparisons stay failed and are kept as evidence."
+    },
+    "cpu_only_ctest_p4": {
+      "passed": 124,
+      "failed": 0,
+      "snapshot": "48da154c",
+      "sequential": true
+    },
+    "gpu_batch_ctest_p4": {
+      "passed": 38,
+      "failed": 0,
+      "snapshot": "48da154c"
+    },
+    "byte_identity_p1_p2_p4": {
+      "passed": true,
+      "output_format": "csv_flat",
+      "ranks": 16,
+      "grids": [
+        "IEEE118",
+        "Polish_model_v33",
+        "Texas7k_20210804",
+        "ACTIVSg10k"
+      ],
+      "note": "all tables identical; _convergence.csv differs only in known stale ISLANDED records and first-row-per-rank tolerance precision"
+    },
+    "corrected_reference_p4_Texas7k_alg2_b2048": {
+      "cases": 8891,
+      "shadows": 8803,
+      "batch": 2048,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 6.861e-14,
+      "max_dtheta_rad": 1.301e-13,
+      "source": "48da154c"
+    },
+    "corrected_reference_p4_Texas7k_cudss_b512": {
+      "cases": 8891,
+      "shadows": 8804,
+      "batch": 512,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 6.617e-14,
+      "max_dtheta_rad": 1.248e-11,
+      "source": "48da154c"
+    },
+    "corrected_reference_p4_Texas7k_cudss_b2048": {
+      "cases": 8891,
+      "shadows": 8804,
+      "batch": 2048,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 6.617e-14,
+      "max_dtheta_rad": 1.248e-11,
+      "source": "48da154c"
+    },
+    "corrected_reference_p4_ACTIVSg10k_alg2_b2048": {
+      "cases": 15191,
+      "shadows": 14581,
+      "batch": 2048,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.095e-12,
+      "max_dtheta_rad": 5.755e-13,
+      "source": "48da154c"
+    },
+    "corrected_reference_p4_ACTIVSg10k_cudss_b512": {
+      "cases": 15191,
+      "shadows": 14581,
+      "batch": 512,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.146e-12,
+      "max_dtheta_rad": 5.862e-13,
+      "source": "48da154c"
+    },
+    "corrected_reference_p4_ACTIVSg10k_cudss_b2048": {
+      "cases": 15191,
+      "shadows": 14581,
+      "batch": 2048,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.146e-12,
+      "max_dtheta_rad": 5.862e-13,
+      "source": "48da154c"
+    },
+    "cudss_batch_independence": {
+      "passed": true,
+      "note": "batch 512 and 2048 studies wrote byte-identical tables on Texas7k and ACTIVSg10k",
+      "source": "48da154c"
     }
   },
   "failed_or_open": {
