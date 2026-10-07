@@ -54,6 +54,10 @@ struct SupersetBus {
   double v_init, theta_init;     // values resetVoltage() restores (pu, rad)
   double v_solved, theta_solved; // values at export time (base solution)
   double pl, ql, ip, iq, yp, yq; // in-service load totals (RAW units)
+  double dg_q;             // in-service distributed generation Q on the
+                           // loads (MVAr), not included in ql
+  double dc_p, dc_q;       // dc converter power drawn (MW, MVAr), which p0
+                           // and q0 include
   double qmax, qmin;       // in-service generator Q limit totals (MVAr);
                            // infinite for a bus without generators
   bool remote_regulation;  // remote voltage regulation would adjust this bus

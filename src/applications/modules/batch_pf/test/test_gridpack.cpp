@@ -79,6 +79,7 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   std::vector<int> type(n), one(1, 1), conv(n, 0), edge_row(model.edge_col.size());
   std::vector<double> g(n), b(n), p0(n), q0(n), qmax(n), qmin(n), v(n), th(n), thw(n);
   std::vector<double> ql(n), ip(n), iq(n), yp(n), yq(n), pinj(n), qinj(n), qreq(n);
+  std::vector<double> dg_q(n), dc_q(n);
   for (int k = 0; k < n; k++) {
     const auto &s = model.buses[k];
     type[k] = s.type;
@@ -92,6 +93,8 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
     th[k] = s.theta_solved;
     thw[k] = s.theta_solved;   // already GridPACK's wrapped (exchanged) angle
     ql[k] = s.ql;
+    dg_q[k] = s.dg_q;
+    dc_q[k] = s.dc_q;
     ip[k] = s.ip;
     iq[k] = s.iq;
     yp[k] = s.yp;
@@ -109,6 +112,8 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   m.row_start = model.row_start.data();
   m.edge_col = model.edge_col.data();
   m.ql = ql.data();
+  m.dg_q = dg_q.data();
+  m.dc_q = dc_q.data();
   m.ip = ip.data();
   m.iq = iq.data();
   m.yp = yp.data();

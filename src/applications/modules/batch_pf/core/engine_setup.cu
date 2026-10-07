@@ -56,6 +56,8 @@ void Engine::referenceJacobian(std::vector<double> *values,
   m.row_start = h.row_start.data();
   m.edge_col = h.edge_col.data();
   m.ql = h.ql.data();
+  m.dg_q = h.dg_q.data();
+  m.dc_q = h.dc_q.data();
   m.ip = h.ip.data();
   m.iq = h.iq.data();
   m.yp = h.yp.data();
@@ -186,6 +188,8 @@ void Engine::allocate(int capacity)
     uploadModel(d.jrow_ptr, mk, p_pattern.row_ptr, st);
     uploadModel(d.jcol_idx, mk, p_pattern.col_idx, st);
     uploadModel(d.ql, mk, h.ql, st);
+    uploadModel(d.dg_q, mk, h.dg_q, st);
+    uploadModel(d.dc_q, mk, h.dc_q, st);
     uploadModel(d.ip, mk, h.ip, st);
     uploadModel(d.iq, mk, h.iq, st);
     uploadModel(d.yp, mk, h.yp, st);

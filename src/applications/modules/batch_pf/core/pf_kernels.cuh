@@ -51,6 +51,8 @@ struct ModelView {
   const int *row_start = nullptr;
   const int *edge_col = nullptr;
   const double *ql = nullptr;
+  const double *dg_q = nullptr;   // DG Q on the loads, not part of ql
+  const double *dc_q = nullptr;   // dc converter Q drawn, part of q0
   const double *ip = nullptr;
   const double *iq = nullptr;
   const double *yp = nullptr;
@@ -466,6 +468,9 @@ struct JacobianEdge {
 // whose requirement is outside its total limits (plus the dead band)
 // becomes PQ with its generators at the limit. GridPACK's split of Q among
 // generators only matters for reporting, which GridPACK redoes itself.
+// The demand is PFBus::getFixedPowerDemand(): the loads less their
+// distributed generation, plus what dc converters draw (Kundur 6.4: the
+// limits are the generators'; the other devices at the bus are demand).
 // ---------------------------------------------------------------------
 
 struct QlimCheck {
@@ -478,7 +483,8 @@ struct QlimCheck {
     if (!w.m_qcheck[bm]) return;
     if (w.type[i] != BATCHPF_BUS_PV) return;
     const double v = w.v[i];
-    double ql = m.ql[k];
+    const double qfix = (m.ql[k] - m.dg_q[k]) + m.dc_q[k];
+    double ql = qfix;
     ql += m.iq[k] * v - m.yq[k] * v * v;
     const double q_required = w.qinj[i] * m.sbase + ql;
     int side = 0;
@@ -490,7 +496,7 @@ struct QlimCheck {
     if (side == 0) return;
     const double qg = (side > 0) ? w.qmax[i] : w.qmin[i];
     w.type[i] = BATCHPF_BUS_PQ;
-    w.q0[i] = (qg - m.ql[k]) / m.sbase;
+    w.q0[i] = (qg - qfix) / m.sbase;
     w.conv[i] = side;
     w.qreq[i] = q_required;
     atomicAddInt(&w.m_qviol[bm], 1);

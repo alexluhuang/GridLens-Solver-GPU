@@ -107,7 +107,7 @@ batchpf_model ModelArrays::record() const
 {
   batchpf_model m{};
   m.struct_size = sizeof(m);
-  m.struct_version = 1;
+  m.struct_version = 2;
   m.n_bus = static_cast<int32_t>(bus_type.size());
   m.n_edge = static_cast<int32_t>(edge_col.size());
   m.bus_type = bus_type.data();
@@ -131,7 +131,18 @@ batchpf_model ModelArrays::record() const
   m.edge_mate = edge_mate.data();
   m.edge_g = eg.data();
   m.edge_b = eb.data();
+  m.dg_q = dg_q.data();
+  m.dc_p = dc_p.data();
+  m.dc_q = dc_q.data();
   return m;
+}
+
+bool ModelArrays::needsInterface11() const
+{
+  auto nonzero = [](const std::vector<double> &x) {
+    return std::any_of(x.begin(), x.end(), [](double y) { return y != 0.0; });
+  };
+  return nonzero(dg_q) || nonzero(dc_p) || nonzero(dc_q);
 }
 
 batchpf_settings BatchPath::Impl::pluginSettings() const
@@ -446,6 +457,9 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
       a.yq.push_back(b.yq);
       a.qmax.push_back(b.qmax);
       a.qmin.push_back(b.qmin);
+      a.dg_q.push_back(b.dg_q);
+      a.dc_p.push_back(b.dc_p);
+      a.dc_q.push_back(b.dc_q);
     }
     a.row_start.assign(d.model.row_start.begin(), d.model.row_start.end());
     a.edge_col.assign(d.model.edge_col.begin(), d.model.edge_col.end());
@@ -454,6 +468,12 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
     a.eb = d.model.edge_b;
     std::string why;
     try {
+      if (a.needsInterface11() && d.acc->apiMinor() < 1) {
+        throw AcceleratorError(BATCHPF_ERR_VERSION,
+                               "the plugin implements interface 1." +
+                                   std::to_string(d.acc->apiMinor()) +
+                                   ", which does not model distributed generation or dc lines");
+      }
       if (!d.acc->createSession(d.pluginSettings(), &why)) throw AcceleratorError(BATCHPF_ERR_UNAVAILABLE, why);
       batchpf_model rec = a.record();
       rec.sbase = d.model.sbase;

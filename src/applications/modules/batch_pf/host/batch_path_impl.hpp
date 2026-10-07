@@ -34,7 +34,11 @@ struct ModelArrays {
   std::vector<int32_t> bus_type, row_start, edge_col, edge_mate;
   std::vector<double> g, b, p0, q0, v_init, theta_init, v_base, theta_base;
   std::vector<double> ql, ip, iq, yp, yq, qmax, qmin, eg, eb;
+  std::vector<double> dg_q, dc_p, dc_q;
   batchpf_model record() const;
+  /// True if the network has distributed generation or dc converters,
+  /// which need a plugin implementing interface 1.1
+  bool needsInterface11() const;
 };
 
 /// One row of the GPU outcome table (<outputFile>_gpu_outcomes.csv)

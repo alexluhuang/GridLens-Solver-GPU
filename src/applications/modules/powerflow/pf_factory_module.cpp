@@ -2145,6 +2145,9 @@ void PFFactoryModule::exportSupersetModel(SupersetModel *model)
     sb.v_solved = bus->getVoltage();
     sb.theta_solved = bus->getPhase();
     bus->getOnlineLoadTotals(&sb.pl, &sb.ql, &sb.ip, &sb.iq, &sb.yp, &sb.yq);
+    double dg_p = 0.0;
+    bus->getDGPower(&dg_p, &sb.dg_q);
+    bus->getHVDCInjection(&sb.dc_p, &sb.dc_q);
     qlimBounds(bus, &sb.qmax, &sb.qmin);
     sb.remote_regulation = bus->hasActiveRemoteRegulation();
     sb.switched_shunt = bus->hasSwitchedShunt();

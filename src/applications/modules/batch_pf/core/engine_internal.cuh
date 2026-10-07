@@ -154,7 +154,7 @@ struct EngineBuffers {
   // model (class M)
   Buffer<int> row_start, edge_col, edge_row, base_type, diag_pos, edge_pos;
   Buffer<int> jrow_ptr, jcol_idx;
-  Buffer<double> ql, ip, iq, yp, yq, v_init, theta_init, v_base, theta_base;
+  Buffer<double> ql, dg_q, dc_q, ip, iq, yp, yq, v_init, theta_init, v_base, theta_base;
   Buffer<double> base_g, base_b, base_p0, base_q0, base_qmax, base_qmin;
   Buffer<double> base_eg, base_eb, ref_values, ref_rhs;
   // working (class W)
@@ -191,6 +191,8 @@ inline ModelView modelView(const ModelHost &h, EngineBuffers &d)
   m.row_start = d.row_start.data();
   m.edge_col = d.edge_col.data();
   m.ql = d.ql.data();
+  m.dg_q = d.dg_q.data();
+  m.dc_q = d.dc_q.data();
   m.ip = d.ip.data();
   m.iq = d.iq.data();
   m.yp = d.yp.data();
