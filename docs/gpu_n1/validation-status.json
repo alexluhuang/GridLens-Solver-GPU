@@ -502,6 +502,39 @@
       "ranks": 16,
       "notes": "IEEE145 with qlim false (its base case diverges with reactive limits on every path); EuropeanOpenModel_v33 shadows sampled at 25%; every run under a 64 GB container memory cap"
     },
+    "wecc_merge_parity_final_code": {
+      "commit": "0e6d3b9d",
+      "runs": 70,
+      "passed": 70,
+      "shadows": 142337,
+      "shadow_agreement": "all in status, PV/PQ set and classification",
+      "max_shadow_dv_pu": 4.782e-12,
+      "max_shadow_dtheta_rad": 1.248e-11,
+      "gpu_engine_seconds": {
+        "alg2": 112.3,
+        "cudss": 248.4
+      },
+      "gpu_cases_per_backend": 89782,
+      "notes": "Engine totals differ from the earlier run where the automatic batch-size sweep picked another size (European models); at equal sizes they match"
+    },
+    "wecc_merge_european_v33_production": {
+      "buses": 13659,
+      "cases": 24559,
+      "ranks": 16,
+      "seconds": {
+        "cpu": 765.3,
+        "alg2": 130.0,
+        "cudss_auto_512": 133.7,
+        "cudss_pinned_2048": 146.2
+      },
+      "gpu_engine_seconds": {
+        "alg2_2048": 33.1,
+        "cudss_auto_512": 92.5,
+        "cudss_pinned_2048": 71.5
+      },
+      "summary_counts_identical": true,
+      "csv_flat_identical_across_batch_sizes": true
+    },
     "wecc_merge_large_planning_case": {
       "cases": 2010,
       "gpu_cases": 1655,

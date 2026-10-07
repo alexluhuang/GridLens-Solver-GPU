@@ -219,7 +219,21 @@ the GB10 DGX Spark, release build with Algorithm 2 and cuDSS, 16 ranks:
   Memphis, Texas7k and ACTIVSg10k: all 70 runs (35 networks, two
   backends) pass every check; 142,337 shadows, largest voltage difference
   4.8e-12 pu. `IEEE145` runs with `--qlim false`: with reactive limits its
-  base case diverges on every path, including `d52b76a9`.
+  base case diverges on every path, including `d52b76a9`. Rerun on the
+  final code (`0e6d3b9d`): all 70 pass again, and the same 142,337 shadows
+  agree in status, PV/PQ set and classification; largest |dV| 4.8e-12 pu
+  (300-bus case), largest |dtheta| 1.2e-11 rad (Texas7k, cuDSS).
+- **Speed on the largest bundled network** (`EuropeanOpenModel_v33`,
+  13,659 buses, 24,559 cases; 16 ranks, raw starts, `csv_flat`, no
+  shadows): CPU path 765.3 s, Algorithm 2 130.0 s (GPU engine 33.1 s at
+  batch size 2048), cuDSS 133.7 s (92.5 s at the automatic size 512). All
+  three report the same summary counts, and the 32 GB `csv_flat` table is
+  byte-identical between cuDSS at batch sizes 512 and 2048. Pinned to 2048,
+  cuDSS's engine takes 71.5 s but the run 146.2 s: with three submissions
+  instead of twelve, less of GridPACK's reporting overlaps GPU work. The
+  final matrix's per-run engine times therefore differ from the earlier
+  run's wherever the batch-size sweep, whose candidates were within a few
+  percent, picked a different size; at equal sizes they match.
 - **Defects the matrix found**, each fixed in its own commit: a diverging
   case printed mismatches too long for the solver log buffer and aborted
   the study (`9b3g`; pre-existing); an outage isolating the reference bus
