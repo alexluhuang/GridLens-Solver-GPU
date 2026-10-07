@@ -6,6 +6,10 @@ and writes results. The plugin solves eligible cases together on the GPU.
 Cases that need GridPACK controls, form multiple islands, lack a usable
 slack, or fail a numerical check return to GridPACK's CPU loop.
 
+Two-terminal dc lines and distributed generation on loads are solved on the
+GPU as GridPACK solves them (see "Two-terminal dc lines and distributed
+generation" below); dc pole outages are GPU cases.
+
 The implementation follows [architecture guide 0.3](../../../../docs/gpu_n1/README.md).
 The guide is the first reference when changing or troubleshooting this
 code. Its proposed settings are distinguished from the actual defaults
@@ -200,6 +204,38 @@ contingency README table's false value does not describe the implementation.
   ACTIVSg10k Jacobians. On GB10 Algorithm 2 remains faster: at batch 512
   on 10k, 110 ms per factorization and solve against 186 ms for cuDSS.
 
+## Two-terminal dc lines and distributed generation
+
+GridPACK solves line-commutated dc lines with the sequential ac/dc method:
+converter power is an injection at the converter buses, held during a
+Newton solve and recomputed from the converter-bus voltage magnitudes after
+it (`modules/powerflow/pf_hvdc.hpp`, `PFAppModule::solve()` check 5). The
+batch engine follows the same sequence per case (`core/dc_kernels.cuh`):
+
+- at the start of each solve, lines in service with both converter buses
+  connected start from the base-case operating point, the others are
+  blocked (`startHVDC()`);
+- after each converged Newton loop, with the reactive-limit check and before
+  the last step, every line is solved again; a converter P or Q change above
+  `Powerflow/hvdcTolerance` repeats the controller iteration
+  (`updateHVDC()`).
+
+The converter equations are GridPACK's own inline functions, compiled for
+the GPU, so the paths solve one model. Converter power only changes the
+scheduled injections, so the superset pattern, the LU plan and the batch are
+unchanged (Zhou et al. 2017). A dc pole outage changes no admittance or
+topology: the classifier sends it to the GPU with the case's line statuses.
+Final dc operating points come back with each result, and GridPACK's
+reports use them.
+
+Distributed generation is part of each load's constant-power demand.
+The reactive-limit check compares generator output with the bus demand
+GridPACK's `chkQlim()` uses: loads less their distributed generation plus
+dc converter draw (exported separately as `dg_q` and `dc_q`).
+
+These need plugin interface 1.1 (`batchpf_plugin.h`). With an older plugin,
+networks that have either use GridPACK's CPU loop and say so in the log.
+
 ## Outputs and numerical checks
 
 Normal GridPACK outputs keep their schemas. With the batch path active,
@@ -250,7 +286,14 @@ ctest --test-dir build -R batchpf --output-on-failure
 
 The tests cover element formulas, KLU agreement, isolated singular members,
 controller behavior, malformed models, ordered merging, missing/duplicate
-outcomes, MPI reporting, admission limits, and CPU fallback. The example
+outcomes, MPI reporting, admission limits, and CPU fallback. dc lines and
+distributed generation are covered by the control sequence tests, the dc
+step against GridPACK's model on CPU and GPU (`batchpf.unit.kernels`), and
+a network generated from the public 240-bus WECC case with three dc lines
+and distributed generation (`test/make_dc_case.py`): component and
+classifier parity, and full N-1 parity with every dc pole outage on each
+backend (`batchpf.parity.ca_dc_dg_*`). The harness option `--full-hvdc-n1`
+adds the dc pole outages to any study. The example
 uses GridPACK's run-test helper; the parity harness compares two studies.
 Run the broader stock suite sequentially: some existing serial and parallel
 tests share files.
