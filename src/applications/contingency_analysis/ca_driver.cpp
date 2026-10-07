@@ -3562,7 +3562,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
           std::string nm = events[ei].p_name;
           while (!nm.empty() && nm[nm.size()-1] == ' ') nm.resize(nm.size()-1);
           row << ei + 1 << "," << nm << ","
-              << ((events[ei].p_type == Branch) ? "branch" : "generator")
+              << contingencyTypeName(events[ei])
               << ",false,0,0.000000e+00,0,0.0000,0,0.0000,MISSING\n";
           all.push_back(std::make_pair(static_cast<int>(ei) + 1, row.str()));
         }
