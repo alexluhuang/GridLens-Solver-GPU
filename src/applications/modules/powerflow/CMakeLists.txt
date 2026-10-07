@@ -44,6 +44,15 @@ add_library(gridpack_powerflow_module
 
 gridpack_set_library_version(gridpack_powerflow_module)
 
+# Header-only two-terminal dc line model (pf_hvdc.hpp). The GPU batch
+# plugin links it so that its kernels evaluate the same formulas.
+add_library(gridpack_hvdc_model INTERFACE)
+add_library(gridpack::hvdc_model ALIAS gridpack_hvdc_model)
+target_include_directories(gridpack_hvdc_model INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:include/gridpack/applications/modules/powerflow>
+)
+
 target_link_libraries(gridpack_powerflow_module
   gridpack_pfmatrix_components
   gridpack_partition
