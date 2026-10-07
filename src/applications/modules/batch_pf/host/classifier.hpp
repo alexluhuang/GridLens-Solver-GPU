@@ -18,7 +18,8 @@
  *    includes cases GridPACK reports without solving (ISLANDED, NO_SLACK),
  *    studies with controls the GPU does not reproduce (switched shunts,
  *    tap changers, area interchange, remote voltage regulation), and
- *    elements that cannot be found.
+ *    elements that cannot be found, and outages that isolate the reference
+ *    bus (no equation is left; GridPACK's linear solver reports failure).
  *
  * GridPACK semantics are kept by construction: a case is classified by
  * applying it with GridPACK's setContingency(), reading what it did, and
@@ -70,7 +71,8 @@ enum class CpuReason {
   NotFound,           // element or slack missing: GridPACK reports NO_SLACK
   Islanded,           // more than one island: GridPACK reports ISLANDED
   NoSlack,
-  Other
+  Other,
+  ReferenceIsolated   // the reference bus is cut off: GridPACK's solve fails
 };
 const char *cpuReasonName(CpuReason r);
 

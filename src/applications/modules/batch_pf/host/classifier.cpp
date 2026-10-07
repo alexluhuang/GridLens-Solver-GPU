@@ -63,6 +63,7 @@ const char *cpuReasonName(CpuReason r)
     case CpuReason::Islanded: return "islanded";
     case CpuReason::NoSlack: return "no_slack";
     case CpuReason::Other: return "other";
+    case CpuReason::ReferenceIsolated: return "reference_isolated";
     default: return "";
   }
 }
@@ -326,6 +327,8 @@ CaseClass Classifier::classifyFull(CaseIndex event, gridpack::powerflow::Conting
   const bool found = p_app.setContingency(c);
   gridpack::powerflow::ContingencyEffects fx;
   p_app.getContingencyEffects(&fx);
+  const bool reference_isolated =
+      fx.slack_bus < 0 || busAt(net, BusIndex{fx.slack_bus})->isIsolated();
   std::vector<int> buses = fx.isolated_buses;
   std::vector<int> branches;
   if (fx.slack_bus >= 0) buses.push_back(fx.slack_bus);
@@ -361,6 +364,11 @@ CaseClass Classifier::classifyFull(CaseIndex event, gridpack::powerflow::Conting
   if (fx.island_count > 1) {
     out.path = CasePath::Cpu;
     out.reason = CpuReason::Islanded;
+    return out;
+  }
+  if (reference_isolated) {
+    out.path = CasePath::Cpu;
+    out.reason = CpuReason::ReferenceIsolated;
     return out;
   }
   out.path = CasePath::Gpu;
