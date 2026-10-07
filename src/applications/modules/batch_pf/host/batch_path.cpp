@@ -153,13 +153,15 @@ bool ModelArrays::needsInterface11() const
   return nonzero(dg_q) || nonzero(dc_p) || nonzero(dc_q) || !dc_lines.empty();
 }
 
-void BatchPath::Impl::dcStatus(int event, int32_t *status) const
+std::vector<int32_t> BatchPath::Impl::dcStatus(int event) const
 {
-  const std::size_t nl = model.dc_status.size();
-  std::copy(model.dc_status.begin(), model.dc_status.end(), status);
+  std::vector<int32_t> status(model.dc_status.begin(), model.dc_status.end());
   for (const int32_t l : classes[event].dc_off) {
-    if (l >= 0 && static_cast<std::size_t>(l) < nl) status[l] = 0;
+    if (l >= 0 && static_cast<std::size_t>(l) < status.size()) {
+      status[static_cast<std::size_t>(l)] = 0;
+    }
   }
+  return status;
 }
 
 batchpf_settings BatchPath::Impl::pluginSettings() const

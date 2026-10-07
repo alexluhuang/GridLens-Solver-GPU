@@ -131,8 +131,8 @@ struct BatchPath::Impl {
                       const double *theta, const int32_t *conv, const double *qreq,
                       const batchpf_mismatch_record *hist, int hist_count,
                       const batchpf_dc_state *dc, const ProcessCase &process);
-  /// dc line statuses of a case: in service at export, less its outages
-  void dcStatus(int event, int32_t *status) const;
+  /// dc line statuses of a case (1 in service): as exported, less its outages
+  std::vector<int32_t> dcStatus(int event) const;
   void shadowCompare(int event, const GpuCaseResult &res);
 };
 

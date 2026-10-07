@@ -330,11 +330,12 @@ void BatchPath::run(const ProcessCase &process)
     ch->conv.assign(static_cast<std::size_t>(m) * n, 0);
     ch->hist.assign(static_cast<std::size_t>(m) * d.history_capacity, batchpf_mismatch_record());
     ch->hist_count.assign(m, 0);
-    ch->dc_status.assign(static_cast<std::size_t>(m) * nl, 1);
-    ch->dc.assign(static_cast<std::size_t>(m) * nl, batchpf_dc_state());
-    for (int i = 0; i < m && nl > 0; i++) {
-      d.dcStatus(ch->events[i], ch->dc_status.data() + static_cast<std::size_t>(i) * nl);
+    ch->dc_status.clear();
+    for (int e : ch->events) {
+      const std::vector<int32_t> status = d.dcStatus(e);
+      ch->dc_status.insert(ch->dc_status.end(), status.begin(), status.end());
     }
+    ch->dc.assign(static_cast<std::size_t>(m) * nl, batchpf_dc_state());
     std::memset(&ch->batch, 0, sizeof(ch->batch));
     ch->batch.struct_size = sizeof(ch->batch);
     ch->batch.struct_version = 2;
