@@ -189,6 +189,61 @@ maxima equal the earlier studies'.
 The large output tables of these runs were deleted after the checks; the
 logs and summaries remain in the scratch directory.
 
+## Merge with the WECC compatibility branch (`feature/wecc-gpu-merged`)
+
+`feature/wecc-gpu-merged` replays `feature/wecc-gridpack-compat` (PSS/E
+v34+ parser fixes, distributed generation, two-terminal dc lines; see
+`docs/markdown/WECC_COMPATIBILITY.md`) on `d52b76a9` and adds dc lines and
+distributed generation to the batch path (plugin interface 1.1). Checks on
+the GB10 DGX Spark, release build with Algorithm 2 and cuDSS, 16 ranks:
+
+- **Unit and component tests.** The control-sequence test adds six dc line
+  scenarios (re-solve, joint Q-limit and dc check, restart in the second
+  solve, controller limit, no dc step after divergence, stagnation). The dc
+  steps match GridPACK's model in `pf_hvdc.hpp` over voltages reaching four
+  control modes: bitwise on the CPU, 9e-16 relative on the GPU; converter
+  bus injections within 5e-15 pu. On a network generated from the public
+  240-bus WECC case with three dc lines and distributed generation
+  (`test/make_dc_case.py`), the GPU reactive-limit check converts exactly
+  the buses `chkQlim()` converts, and fast-path classification of every
+  branch, generator and dc pole outage equals GridPACK's full routine.
+- **Full CTest.** 145 of 150 tests pass, four Parquet tests are skipped (no
+  Parquet library). `kalman_ds_serial` fails when the container has GPU
+  access: it completes its calculation and then aborts in teardown. The
+  unmodified `d52b76a9` also fails with GPU access (it hangs); both pass
+  without GPU access, as the CPU-only suite runs.
+- **Parity on every input file.** Full branch and generator N-1 plus every
+  dc pole outage (`--full-hvdc-n1`), raw starts, a CPU shadow re-solve of
+  every GPU case (25% sample on `EuropeanOpenModel_v33`), on all 31 RAW
+  files in `data_sets/raw` (PSS/E v23 to v36), the generated dc case,
+  Memphis, Texas7k and ACTIVSg10k: all 70 runs (35 networks, two
+  backends) pass every check; 142,337 shadows, largest voltage difference
+  4.8e-12 pu. `IEEE145` runs with `--qlim false`: with reactive limits its
+  base case diverges on every path, including `d52b76a9`.
+- **Defects the matrix found**, each fixed in its own commit: a diverging
+  case printed mismatches too long for the solver log buffer and aborted
+  the study (`9b3g`; pre-existing); an outage isolating the reference bus
+  was solved on the GPU and reported as converged while GridPACK reports
+  its solver failure (`case2mod`); the harness rejected a value one
+  printed digit apart on a rounding boundary (3,000-bus case), two outages
+  tied for the lowest voltage (300-bus case), and a study with no GPU case.
+- **Standards CI** (`quality.cmake`): no finding above the baseline (574
+  clang-tidy, 8 cppcheck). The merge brought GridPACK's report code into the
+  changed-line scope; its bounded C-string lines are exception EX-CG-08, and
+  the other findings were fixed or recorded as `standards.md` describes. The
+  converted messages print the same text (the dc case's log is unchanged).
+  The gate's 43 batch unit, parity and platform tests pass, including dc
+  case parity on the CPU reference, Algorithm 2 and cuDSS.
+- **Large planning case** (CEII, 28,000 buses, six in-service dc lines,
+  1,800 loads with DG; tolerance 1e-4): a 2,010-case list (outages within
+  three buses of a converter, 1,500 sampled elsewhere, every pole outage).
+  Both backends agree with the CPU path in every status and summary count;
+  the table differences are at the `hvdcTolerance` in two cases
+  (`WECC_COMPATIBILITY.md` 8.5). Production runs (base-case warm start, no
+  shadows, `csv_flat`): CPU path 188.2 s, Algorithm 2 25.7 s, cuDSS 45.4 s;
+  the GPU solved its 1,655 cases in 5.3 s (Algorithm 2) and 23.5 s
+  (cuDSS), with 0.04 s in the reactive-limit and dc steps.
+
 ## Full-study evidence and the fidelity problem
 
 The older `build-dev` matrix used eight ranks, raw starts, reactive limits,
@@ -274,7 +329,12 @@ large-grid comparisons are in "Corrected-reference checks".
 
 Physics shadows use 1e-6 pu/rad and compare exact PV/PQ sets, in addition
 to counts, statuses and classification. Rounded CSV values use a separate
-1e-3 absolute output tolerance. The stricter physics checks remain required.
+1e-3 absolute output tolerance, or one unit of the last printed digit if
+that is larger: a value printed with two decimals on a rounding boundary
+(for example 5.995) can print as 5.99 on one path and 6.00 on the other
+when the solutions agree to 1e-12. Across millions of rows this happens a
+few times; it first failed a study on the 3,000-bus case. The stricter
+physics checks remain required.
 
 Warm starts deliberately differ from stock's raw starts (ADR-05), so the
 benchmark records that choice and may have different iteration counts.
@@ -287,7 +347,10 @@ GridPACK retains a first strict maximum when results complete. Equivalent
 worst-loading labels are accepted only when both named cases attain the
 same loading in both violation tables. Equivalent worst-voltage bus labels
 require both buses to attain the global reported minimum/maximum in both
-tables within 1e-6 pu. A nearby or missing candidate fails the test. This
+tables within 1e-6 pu. Equivalent worst-voltage case labels (two outages
+that leave the same bus at the same voltage, such as a generator and its
+only branch) require both cases to attain that voltage at that bus in both
+violation tables within 1e-6 pu. A nearby or missing candidate fails the test. This
 does not excuse a changed voltage, status, or controller state.
 
 The component oracle preserves GridPACK's reference-bus reactive-limit

@@ -466,6 +466,53 @@
       "max_dv_pu": 1.095e-12,
       "max_dtheta_rad": 5.755e-13,
       "source": "27042644"
+    },
+    "wecc_merge_standards_ci": {
+      "passed": true,
+      "branch": "feature/wecc-gpu-merged",
+      "clang_tidy": 574,
+      "cppcheck": 8,
+      "added_to_baseline": 225,
+      "new_register_entry": "EX-CG-08",
+      "batch_tests_passed": 43,
+      "batch_tests_failed": 0,
+      "maintainer_approval": "pending"
+    },
+    "wecc_merge_ctest_gpu_access": {
+      "passed": 145,
+      "skipped": 4,
+      "failed": 1,
+      "branch": "feature/wecc-gpu-merged",
+      "failed_test": "kalman_ds_serial",
+      "cause": "Aborts in teardown when the container has GPU access; unmodified d52b76a9 hangs there; both pass without GPU access",
+      "sequential": true
+    },
+    "wecc_merge_parity_all_inputs": {
+      "networks": 35,
+      "runs": 70,
+      "passed": 70,
+      "backends": [
+        "alg2",
+        "cudss"
+      ],
+      "inputs": "all 31 data_sets/raw files (v23-v36), generated 240-bus dc/DG case, Memphis, Texas7k, ACTIVSg10k",
+      "contingencies": "full branch and generator N-1 plus every dc pole outage",
+      "shadows": 142337,
+      "max_shadow_dv_pu": 4.8e-12,
+      "ranks": 16,
+      "notes": "IEEE145 with qlim false (its base case diverges with reactive limits on every path); EuropeanOpenModel_v33 shadows sampled at 25%; every run under a 64 GB container memory cap"
+    },
+    "wecc_merge_large_planning_case": {
+      "cases": 2010,
+      "gpu_cases": 1655,
+      "status_differences": 0,
+      "production_seconds": {
+        "cpu": 188.2,
+        "alg2": 25.7,
+        "cudss": 45.4
+      },
+      "ranks": 16,
+      "notes": "CEII case; aggregate results only (WECC_COMPATIBILITY.md 8.5); two cases differ at the hvdcTolerance boundary"
     }
   },
   "failed_or_open": {
@@ -538,7 +585,8 @@
     "Keep strict failures; do not ignore raw-start iteration differences or loosen voltage tolerances.",
     "User approved restoring voltage settings in both paths on 2026-10-05; keep the original baseline and its known failures as evidence.",
     "The isolated-bus reactive check (2d3bcbb2) is a second compatibility change, separate from the approved voltage cleanup; it changes only extra controller rounds, their count and warnings, also without acceleration.",
-    "The ordered 10k cuDSS study against the original baseline was not run; the default-order 10k cuDSS study against the corrected reference supersedes it."
+    "The ordered 10k cuDSS study against the original baseline was not run; the default-order 10k cuDSS study against the corrected reference supersedes it.",
+    "The merge checks ran the bundled 13,700-bus European models, above the ACTIVSg10k limit noted above, at the user's request to cover every input file, under a 64 GB memory cap."
   ],
   "interrupted": {}
 }
