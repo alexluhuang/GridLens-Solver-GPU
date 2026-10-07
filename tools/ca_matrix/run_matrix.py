@@ -48,6 +48,32 @@ STEPS = ["CA: Read Network", "CA: Base Case", "CA: Case List and Output Setup",
          "CA case: Write Table Rows", "CA case: Restore Network"]
 
 
+def runnable_tasks():
+    """Tasks ready to run on the whole machine, the least of a few quick
+    samples (/proc/loadavg is not limited to the container)"""
+    counts = []
+    for _ in range(5):
+        with open("/proc/loadavg") as f:
+            counts.append(int(f.read().split()[3].split("/")[0]))
+        time.sleep(0.4)
+    return min(counts)
+
+
+def wait_until_quiet(limit_s=600, quiet=3):
+    """Wait for other work on the machine to finish; True if it did"""
+    start = time.monotonic()
+    busy = runnable_tasks()
+    if busy <= quiet:
+        return True
+    print("machine busy (%d tasks running); waiting up to %d s" % (busy, limit_s), flush=True)
+    while time.monotonic() - start < limit_s:
+        time.sleep(10)
+        if runnable_tasks() <= quiet:
+            return True
+    print("still busy; running anyway, the run is marked busy", flush=True)
+    return False
+
+
 def timers(log):
     found = {}
     for step in STEPS:
@@ -104,6 +130,7 @@ def main():
                         gpu=block, raw=net, solver="klu", output_format="csv_flat",
                         contingencies="    <FullBranchN1>true</FullBranchN1>\n"
                                       "    <FullGeneratorN1>true</FullGeneratorN1>"))
+                quiet = wait_until_quiet()
                 start = time.monotonic()
                 run = subprocess.run(["mpiexec", "--bind-to", "none", "-n", str(ranks), cax,
                                       "input.xml"], cwd=work, stdout=subprocess.PIPE,
@@ -121,12 +148,14 @@ def main():
                           "batch": args.batch if PATHS[path] else None,
                           "start": (args.start if PATHS[path] else "file"),
                           "returncode": run.returncode, "wall_s": round(wall, 2),
+                          "machine_busy": not quiet,
                           "steps": timers(run.stdout), "folder": work}
                 with open(MATRIX + "/results.jsonl", "a") as f:
                     f.write(json.dumps(record, sort_keys=True) + "\n")
-                print("%s %s %s ranks %d run %d: %s, %.1f s" % (
+                print("%s %s %s ranks %d run %d: %s, %.1f s%s" % (
                     args.program, net, path, ranks, repeat,
-                    "ok" if run.returncode == 0 else "FAILED", wall), flush=True)
+                    "ok" if run.returncode == 0 else "FAILED", wall,
+                    "" if quiet else " (machine was busy)"), flush=True)
 
 
 if __name__ == "__main__":

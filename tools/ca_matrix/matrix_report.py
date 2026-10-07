@@ -5,8 +5,10 @@
 #     found in the LICENSE file in the top level directory of this
 #     distribution.
 #
-"""Step times of every run in matrix/results.jsonl, each also as a multiple
-of the optimized CPU run of the same network and rank count.
+"""Step times of every run in matrix/results.jsonl, and for each step the
+absolute and percentage difference from the optimized CPU run of the same
+network and rank count: difference = run - CPU (negative is faster),
+percentage = difference / CPU x 100. Values have four decimal places.
 
   python3 tools/ca_matrix/matrix_report.py [--csv report.csv]
 
@@ -65,19 +67,26 @@ def main():
         network, ranks, program, path = key
         rs = runs[key]
         base = runs.get((network, ranks, "ours", "cpu"))
-        row = {"network": network, "ranks": ranks, "program": program, "path": path,
-               "runs": len(rs)}
+        busy = sum(1 for r in rs if r.get("machine_busy"))
+        print("%s, %d ranks, %s %s (%d runs)%s" % (
+            network, ranks, program, path, len(rs),
+            "  WARNING: %d run(s) while the machine was busy" % busy if busy else ""))
+        print("    %-18s %12s %18s %18s" % ("step", "seconds", "diff vs CPU (s)",
+                                            "diff vs CPU (%)"))
         for step in STEPS:
             v = value(rs, step)
-            b = value(base, step) if base else 0.0
-            row[step[0] + " s"] = round(v, 2)
-            row[step[0] + " vs CPU"] = round(v / b, 3) if b > 0 else ""
-        table.append(row)
-        print("%s, %d ranks, %s %s (%d runs)" % (network, ranks, program, path, len(rs)))
-        for step in STEPS:
-            ratio = row[step[0] + " vs CPU"]
-            print("    %-18s %9.2f s%s" % (step[0], row[step[0] + " s"],
-                                         "   x%.2f of optimized CPU" % ratio if ratio != "" else ""))
+            b = value(base, step) if base else None
+            diff = v - b if b is not None else None
+            pct = 100.0 * diff / b if b else None
+            table.append({"network": network, "ranks": ranks, "program": program,
+                          "path": path, "runs": len(rs), "busy runs": busy, "step": step[0],
+                          "seconds": "%.4f" % v,
+                          "optimized CPU seconds": "" if b is None else "%.4f" % b,
+                          "difference (s)": "" if diff is None else "%.4f" % diff,
+                          "difference (%)": "" if pct is None else "%.4f" % pct})
+            print("    %-18s %12.4f %18s %18s" % (
+                step[0], v, "" if diff is None else "%.4f" % diff,
+                "" if pct is None else "%.4f" % pct))
     if args.csv and table:
         with open(args.csv, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(table[0]))

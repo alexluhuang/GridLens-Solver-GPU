@@ -4,9 +4,11 @@ Runs full N-1 studies over several networks, solve paths and rank counts,
 and reports two things for each run, both against the optimized CPU path of
 the same network and rank count:
 
-- **accuracy**: do its result tables match?
-- **runtime**: how long each step of the pipeline took, and that time as a
-  multiple of the optimized CPU time.
+- **accuracy**: absolute and percentage differences of utilization, power
+  and bus values over all result rows, and the share of rows more than 1%
+  off;
+- **runtime**: each step of the pipeline, with its absolute and percentage
+  difference.
 
 The four solve paths:
 
@@ -50,7 +52,15 @@ Run these from the top of the repository.
    ```
 
    Leaving out `--ranks` uses the cores rule of `ca_run.sh` (16 on a
-   20-core DGX Spark). Run nothing else on the machine meanwhile.
+   20-core DGX Spark). Run nothing else on the machine meanwhile: before
+   each run the script waits up to 10 minutes for other work on the machine
+   to finish, and marks a run made while it was still busy; the runtime
+   report flags such runs.
+
+   `run.sh` caps the container's memory at 64 GB (set
+   `CA_MATRIX_MEMORY_GB` to change it) and refuses to start if the machine
+   has less than that available, so a run cannot use up the memory of a
+   shared machine.
 
    GPU paths normally start each case from the solved base case (the
    production setting, so the times are what a user would see). The CPU
@@ -64,13 +74,23 @@ Run these from the top of the repository.
    tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/compare_runs.py"
    ```
 
-   One line per kept run: PASS if every table matches the optimized CPU
-   run within 0.001 (same cases, same convergence, and the same number of
-   solver steps unless the run started from the base case), or FAIL with
-   the first differences. Stock GridPACK fails on some networks: it
-   carries a voltage setting from one case into later cases on the same
-   rank, so a few results change from run to run (see
-   `docs/gpu_n1/restoration.md`).
+   Each kept run's result table is matched row by row with the optimized
+   CPU run of the same network and rank count. For utilization, complex
+   power, real power, reactive power, bus voltage and bus angle it prints
+   the mean and largest absolute difference, the mean and largest
+   percentage difference, and the percentage of rows more than 1% away from
+   the CPU value, all to four decimal places, and writes them to
+   `matrix/accuracy.csv`. It also counts rows found in only one of the two
+   runs. Solver steps are not compared: the GPU paths take different steps
+   by design.
+
+   Add `--rows` to also save every row's values and differences
+   (`matrix/accuracy_rows/`, about 9 GB for a 10,000-bus network).
+   `--engine gpu` runs the comparison on the GPU; the default CPU engine
+   was faster on the DGX Spark (9 s against 12 s for 150 million rows).
+   The first comparison of a run converts its table to a compact copy
+   (`ca_results_flat.parquet/` in the run folder, about 20 s for 17 GB),
+   which later comparisons reuse.
 
 5. **Runtime against optimized CPU:**
 
@@ -78,19 +98,25 @@ Run these from the top of the repository.
    python3 tools/ca_matrix/matrix_report.py --csv matrix/report.csv
    ```
 
-   For every network, rank count and path: the total time and each step
-   (read network, base case, case setup, all cases, merge files, and inside
-   the cases: apply outage, solve, inject GPU result, check and report,
-   write rows, restore), each followed by its multiple of the optimized CPU
-   time. `matrix/report.csv` holds the same table for a spreadsheet.
+   For every network, rank count and path, and every step (total, read
+   network, base case, case setup, all cases, merge files, and inside the
+   cases: apply outage, solve, inject GPU result, check and report, write
+   rows, restore): the seconds, the difference from optimized CPU in
+   seconds, and the difference in percent (negative means faster), to four
+   decimal places. `matrix/report.csv` holds the same table for a
+   spreadsheet. With `--repeat 2` or more, each value is the middle value
+   of the repeats; check that repeats agree, since a busy machine slows a
+   run.
 
-6. **Free disk space** once step 4 is done (a 10k-bus run writes about
+6. **Free disk space** once step 4 is done (a 10,000-bus run writes about
    17 GB of tables):
 
    ```sh
    find matrix/out -name 'ca_results_*.csv' -size +1M -delete
+   rm -rf matrix/accuracy_rows
    ```
 
-   `results.jsonl` and the run logs stay, so step 5 still works.
+   `results.jsonl`, the run logs and the compact copies stay, so steps 4
+   and 5 still work.
 
 To start over, delete `matrix/out` and `matrix/results.jsonl`.

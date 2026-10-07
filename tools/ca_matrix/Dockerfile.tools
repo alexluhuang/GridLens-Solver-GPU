@@ -1,0 +1,9 @@
+# Measurement image 1.2: tools image 1.1 (GridPACK dependencies, CUDA 13,
+# cuDSS, Apache Parquet) plus Polars and its GPU engine (cudf-polars), used
+# by compare_runs.py to compare result tables quickly.
+#
+#   docker build -t alh360/gridpack-n1-tools:1.2 -f tools/ca_matrix/Dockerfile.tools .
+FROM alh360/gridpack-n1-tools:1.1
+USER root
+RUN pip3 install --no-cache-dir --break-system-packages \
+      --extra-index-url=https://pypi.nvidia.com "cudf-polars-cu13==26.8.*"
