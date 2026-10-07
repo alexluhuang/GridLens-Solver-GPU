@@ -81,7 +81,8 @@ FILES = ["ca_results_convergence.csv", "ca_results_delta.csv",
 
 
 def run(cax, workdir, raw, gpu_lines, solver, env=None, launcher=(),
-        execution=None, output_format="csv_delta", contingency_list=None):
+        execution=None, output_format="csv_delta", contingency_list=None,
+        full_hvdc=False):
     os.makedirs(workdir, exist_ok=True)
     shutil.copy(raw, workdir)
     gpu = ""
@@ -97,6 +98,8 @@ def run(cax, workdir, raw, gpu_lines, solver, env=None, launcher=(),
         if contingency_list:
             shutil.copy(contingency_list, os.path.join(workdir, "contingencies.xml"))
             contingencies = "    <contingencyList>contingencies.xml</contingencyList>"
+        if full_hvdc:
+            contingencies += "\n    <FullHVDCN1>true</FullHVDCN1>"
         f.write(TEMPLATE.format(gpu=gpu, raw=os.path.basename(raw), solver=solver,
                                 output_format=output_format, contingencies=contingencies))
     e = dict(os.environ)
@@ -414,6 +417,8 @@ def main():
     ap.add_argument("--warm-start", choices=("raw", "base_case"))
     ap.add_argument("--shadow-fraction", type=float)
     ap.add_argument("--contingency-list", help="Optional existing XML list for a repeatable sample")
+    ap.add_argument("--full-hvdc-n1", action="store_true",
+                    help="Also outage every two-terminal dc line (pole) in service")
     args = ap.parse_args()
     errors = []
     args.ranks = default_ranks() if args.ranks == "auto" else int(args.ranks)
@@ -425,7 +430,8 @@ def main():
     if args.shadow_fraction is not None and not 0 <= args.shadow_fraction <= 1:
         ap.error("--shadow-fraction must be between zero and one")
     invoke = functools.partial(run, launcher=launcher, execution=args.accelerator_ranks,
-                               output_format=args.output_format, contingency_list=args.contingency_list)
+                               output_format=args.output_format, contingency_list=args.contingency_list,
+                               full_hvdc=args.full_hvdc_n1)
     stock = os.path.join(args.workdir, "stock")
     code, _ = invoke(args.stock_cax or args.cax, stock, args.raw, None, args.solver)
     if code != 0:

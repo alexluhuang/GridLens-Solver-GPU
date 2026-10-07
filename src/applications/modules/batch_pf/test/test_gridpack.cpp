@@ -325,13 +325,24 @@ void classifierParity(gridpack::powerflow::PFAppModule &app,
       cases.push_back(c);
     }
   }
+  int dc_cases = 0;
+  for (const std::string &name : app.getHVDCLineNames(false)) {
+    gridpack::powerflow::Contingency c;
+    c.p_type = gridpack::powerflow::DCLine;
+    c.p_name = "dc line";
+    c.p_dclines.push_back(name);
+    c.p_saveDCLineStatus.push_back(true);
+    cases.push_back(c);
+    dc_cases++;
+  }
   int fast = 0, mismatched = 0;
   for (std::size_t e = 0; e < cases.size(); e++) {
     const CaseClass a = cls.classify(CaseIndex{static_cast<int>(e)}, cases[e]);
     if (!a.fast) continue;
     fast++;
     const CaseClass b = cls.classifyFull(CaseIndex{static_cast<int>(e)}, cases[e]);
-    bool same = a.path == b.path && (a.path == CasePath::Gpu || a.reason == b.reason);
+    bool same = a.path == b.path && (a.path == CasePath::Gpu || a.reason == b.reason) &&
+                a.dc_off == b.dc_off;
     std::map<int, batchpf_bus_update> fb;
     for (const auto &u : b.bus_updates) fb[u.bus] = u;
     for (const auto &u : a.bus_updates) {
@@ -355,8 +366,9 @@ void classifierParity(gridpack::powerflow::PFAppModule &app,
       if (mismatched < 5) std::cout << "classification differs for case " << e << "\n";
     }
   }
-  std::cout << "classifier parity: " << cases.size() << " cases, " << fast
-            << " by the fast path, " << mismatched << " differ from GridPACK's full routine\n";
+  std::cout << "classifier parity: " << cases.size() << " cases (" << dc_cases
+            << " dc line outages), " << fast << " by the fast path, " << mismatched
+            << " differ from GridPACK's full routine\n";
   check(mismatched == 0, "fast path equals GridPACK's contingency routine");
 }
 

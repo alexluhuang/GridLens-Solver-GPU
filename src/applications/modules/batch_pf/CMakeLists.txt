@@ -276,6 +276,18 @@ if (GRIDPACK_ENABLE_TESTS)
   set(batchpf_data ${GRIDPACK_DATA_DIR}/raw)
   find_package(Python3 COMPONENTS Interpreter QUIET)
 
+  # Test network with two-terminal dc lines and distributed generation,
+  # generated from the public 240-bus WECC case (test/make_dc_case.py)
+  set(dc_case_dir ${CMAKE_CURRENT_BINARY_DIR}/dc_case)
+  set(dc_case_raw ${dc_case_dir}/WECC240_dc_dg.raw)
+  if (Python3_Interpreter_FOUND)
+    file(MAKE_DIRECTORY ${dc_case_dir})
+    add_test(NAME batchpf.fixture.dc_case
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/make_dc_case.py
+              ${batchpf_data}/240busWECC_2018_PSS_fixedshunt.raw ${dc_case_raw})
+    set_tests_properties(batchpf.fixture.dc_case PROPERTIES FIXTURES_SETUP batchpf_dc_case)
+  endif()
+
   if (GRIDPACK_BATCHPF_HAVE_CUDA)
     add_executable(batchpf_test_model test/test_model.cpp)
     target_link_libraries(batchpf_test_model PRIVATE
@@ -337,6 +349,26 @@ if (GRIDPACK_ENABLE_TESTS)
         PASS_REGULAR_EXPRESSION "No errors detected"
         FAIL_REGULAR_EXPRESSION "failure detected")
     endforeach()
+    # The same checks with dc converters and distributed generation in the
+    # reactive-limit demand, and dc pole outages in the classifier
+    if (Python3_Interpreter_FOUND)
+      file(WRITE ${dc_case_dir}/input.xml
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<Configuration><Powerflow>"
+        "<networkConfiguration>WECC240_dc_dg.raw</networkConfiguration>"
+        "<jacobianFormulation>large</jacobianFormulation>"
+        "<maxIteration>50</maxIteration><tolerance>1.0e-6</tolerance>"
+        "<LinearSolver><PETScOptions>-ksp_type preonly -pc_type lu "
+        "-pc_factor_mat_solver_type klu</PETScOptions>"
+        "</LinearSolver></Powerflow></Configuration>\n")
+      add_test(NAME batchpf.parity.components_WECC240_dc_dg
+        COMMAND $<TARGET_FILE:batchpf_test_gridpack> input.xml
+        WORKING_DIRECTORY ${dc_case_dir})
+      set_tests_properties(batchpf.parity.components_WECC240_dc_dg PROPERTIES
+        PASS_REGULAR_EXPRESSION "No errors detected"
+        FAIL_REGULAR_EXPRESSION "failure detected"
+        FIXTURES_REQUIRED batchpf_dc_case)
+    endif()
   endif()
 
   # End-to-end runs of ca.x against the same ca.x without the batch path
@@ -404,6 +436,14 @@ if (GRIDPACK_ENABLE_TESTS)
         --raw ${raw118} --workdir ${work}/parquet_${b} --solver ${lu}
         --gpu-setting "<enabled>on</enabled>" --gpu-setting "<backend>${b}</backend>")
       set_tests_properties(batchpf.parity.parquet_${b} PROPERTIES SKIP_RETURN_CODE 77)
+      # Two-terminal dc lines (sequential ac/dc) and distributed generation,
+      # with every dc pole outage added to the full N-1
+      batchpf_add_test(batchpf.parity.ca_dc_dg_${b} ${Python3_EXECUTABLE} ${runner}
+        --cax $<TARGET_FILE:ca.x> --raw ${dc_case_raw} --workdir ${work}/dc_dg_${b}
+        --mode parity --require-shadow-sets --require-reported-state --backend ${b}
+        --solver ${lu} --full-hvdc-n1)
+      set_tests_properties(batchpf.parity.ca_dc_dg_${b} PROPERTIES
+        FIXTURES_REQUIRED batchpf_dc_case)
     endforeach()
     if (NOT GRIDPACK_BATCHPF_HAVE_CUDA)
       batchpf_add_test(batchpf.platform.cpu_only_ieee118 ${Python3_EXECUTABLE} ${runner}
