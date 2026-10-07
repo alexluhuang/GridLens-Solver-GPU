@@ -1,0 +1,126 @@
+--- a/src/applications/contingency_analysis/ca_driver.cpp
++++ b/src/applications/contingency_analysis/ca_driver.cpp
+@@ -525,9 +525,24 @@
+   // Read in the network from an external file and partition it over the
+   // processors in the task communicator. This will read in power flow
+   // parameters from the Powerflow block in the input
++  // Study phases, reported by GridPACK's coarse timer at the end of the run
++  // alongside its power flow categories, so the CPU and GPU paths can be
++  // compared phase by phase (guide 8.12)
++  const int t_read = timer->createCategory("CA: Read Network");
++  const int t_base = timer->createCategory("CA: Base Case");
++  const int t_list = timer->createCategory("CA: Case List and Output Setup");
++  const int t_cases = timer->createCategory("CA: Solve and Report Cases");
++  const int t_merge = timer->createCategory("CA: Merge Output Files");
++  const int t_case_apply = timer->createCategory("CA case: Apply Outage");
++  const int t_case_solve = timer->createCategory("CA case: CPU Solve");
++  const int t_case_report = timer->createCategory("CA case: Check and Report");
++  const int t_case_rows = timer->createCategory("CA case: Write Table Rows");
++  const int t_case_restore = timer->createCategory("CA case: Restore Network");
++  timer->start(t_read);
+   pf_app.readNetwork(pf_network,config);
+   // Finish initializing the network
+   pf_app.initialize();
++  timer->stop(t_read);
+ 
+   // Build (number -> name) lookup tables for area, zone, owner.
+   // Keyed on the PSS/E-assigned number (not contiguous), used when
+@@ -1408,6 +1423,7 @@
+     }
+   };
+ 
++  timer->start(t_base);
+   //  Set minimum and maximum voltage limits on all buses
+   pf_app.setVoltageLimits(Vmin, Vmax);
+   // Route CA violation checks and loadingPercent through the same rating tier.
+@@ -1530,6 +1546,8 @@
+     populateBaseCache();
+   }
+ 
++  timer->stop(t_base);
++  timer->start(t_list);
+   // Check if auto-generation of N-1 contingencies is enabled
+   // FullBranchN1: generate N-1 contingencies for all branches
+   // FullGeneratorN1: generate N-1 contingencies for all generators
+@@ -2070,6 +2088,8 @@
+   // Evaluate contingencies using the task manager
+   int task_id;
+   char sbuf[512];
++  timer->stop(t_list);
++  timer->start(t_cases);
+   // nextTask returns the same task_id on all processors in task_comm. When the
+   // calculation runs out of task, nextTask will return false.
+   while (taskmgr.nextTask(task_comm, &task_id)) {
+@@ -2110,6 +2130,7 @@
+       }
+     }
+     if (print_calcs) pf_app.writeHeader(sbuf);
++    timer->start(t_case_apply);
+     // Reset all voltages back to their original values
+     pf_app.resetVoltages();
+     // Sync ghost bus data after voltage reset to ensure branches connected to
+@@ -2129,7 +2150,9 @@
+     // Skip power flow if contingency setup failed (no valid slack) or islanding detected
+     bool slackCapacityOk = true;  // Will be checked after solve
+     bool solveOk = false;
++    timer->stop(t_case_apply);
+     if (contingencyFound && !islandDetected) {
++      timer->start(t_case_solve);
+       try {
+         solveOk = pf_app.solve();
+         if (solveOk && check_Qlim && !pf_app.checkQlimViolations()) {
+@@ -2143,7 +2166,9 @@
+         printf("p[%d] hit unknown exception during solve\n", world.rank());
+         solveOk = false;
+       }
++      timer->stop(t_case_solve);
+     }
++    timer->start(t_case_report);
+     if (solveOk) {
+       // Write PV->PQ conversion warnings to output file
+       if (print_calcs && check_Qlim) {
+@@ -2193,12 +2218,14 @@
+           populateViolations(ctResult, static_cast<int>(task_id) + 1);
+           if (outputFormat != "text") localContingencies.push_back(ctResult);
+         }
++        timer->start(t_case_rows);
+         if (outputFormat == "csv_flat") {
+           captureFlatRows(task_id + 1, events[task_id].p_name, true, false);
+         }
+         if (outputFormat == "csv_delta") {
+           captureDeltaRows(task_id + 1, events[task_id], true);
+         }
++        timer->stop(t_case_rows);
+         recordConv(task_id, "OK", std::string());
+       // Include results of violation checks in output
+       if (ok) {
+@@ -2357,6 +2384,8 @@
+       if (print_calcs) pf_app.print(sbuf);
+       addFailedStatColumns(task_id);
+     }
++    timer->stop(t_case_report);
++    timer->start(t_case_restore);
+     // Return network to its original base case state
+     pf_app.unSetContingency(events[task_id]);
+     // Clear Q limit violations AFTER unSetContingency so generators are restored first.
+@@ -2365,9 +2394,12 @@
+     if (check_Qlim) pf_app.clearQlimViolations();
+     // Clear Q limit warnings for next contingency
+     gridpack::powerflow::PFBus::clearQlimWarnings();
++    timer->stop(t_case_restore);
+     // Close output file for this contingency
+     if (print_calcs) pf_app.close();
+   }
++  timer->stop(t_cases);
++  timer->start(t_merge);
+   // csv_flat / csv_delta: each rank streamed rows to its .part file during
+   // the loop. Close, sync, then world rank 0 writes header + concatenates.
+   if (outputFormat == "csv_flat") {
+@@ -3136,6 +3168,7 @@
+     }
+   }
+ 
++  timer->stop(t_merge);
+   // Print out statistics on contingencies
+   if (write_stats) {
+     int t_stats = timer->createCategory("Write Statistics");

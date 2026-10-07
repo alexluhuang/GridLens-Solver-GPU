@@ -280,3 +280,108 @@ Texas7k cuDSS was busy 1.7 s less and finished 1.4 s sooner; on Polish Alg2 was
 faster. In isolated timings of one factorization and solve at batch 512
 on the 10k Jacobian, Alg2 took 110 ms and cuDSS 186 ms.
 
+## Multi-rank file writing, and comparison with stock GridPACK
+
+Source `27042644` writes the `csv_flat`, `csv_delta` and violation tables
+from all ranks at once (`ca_parallel_write.hpp`). Each rank finds the runs
+of rows of one case in its own part file; the ranks exchange only the run
+sizes and compute the same layout; each rank copies its own rows to their
+offsets in the final file. The files are byte-identical to the old rank-0
+merge (checked on Memphis, Texas7k and 10k against the previous build, and
+by `batchpf.unit.reconcile`).
+
+**Setup, the same for every run.** One GB10 DGX Spark. Every build is
+`CMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG`), compiled in the same container
+image (`alh360/gridpack-n1-tools:1.1`) against the same GA, PETSc, Boost
+and MPI, and run in that image with `mpiexec --bind-to none -n 16`. Each
+run is one full branch and generator N-1 study from the RAW file and
+configuration to the final `csv_flat` tables, reactive limits on,
+`writeStats=false`, `printCalcFiles=false`, no shadow re-solves, nothing
+else running. GPU paths use batch 512 and base-case warm starts.
+
+- **Stock** is the untouched original `b32969b0` build. It has no
+  per-step timers, so **timed stock** is `b32969b0` plus
+  `reproductions/stock-timer-only.patch` (SHA256 `6611ab61…bf74b`), which
+  adds only the coarse-timer categories of `d62432ec` and `e656133e`. Its
+  wall times are within 1.5% of stock (10k 334.1 against 330.9 s; Texas7k
+  150.8 against 149.1 s). Its tables equal stock's on Memphis. On Texas7k
+  and 10k four cases differ; two runs of untouched stock differ in the same
+  way (three late Texas7k cases, events 8863-8889): the original build's outage
+  cleanup lets one case's controller adjustment reach later cases on the
+  same rank, so its results depend on scheduling (`restoration.md`).
+- **This build** (`27042644`) is shown on its CPU path (no `<GPUBatch>`
+  block) and on the GPU path with Alg2 and with cuDSS.
+
+Times are medians of two trials (stock: one). Phases are the maximum over
+ranks; per-case steps are the average per rank of time summed over that
+rank's cases. "Other" is the case-loop time not in a per-case step: on the
+GPU paths mostly waiting for GPU results, on all paths the wait for the
+last rank. All records are in `performance-stock-comparison.jsonl`.
+
+| Step (s) | Stock | This build, CPU | Alg2 | cuDSS |
+|---|---:|---:|---:|---:|
+| **ACTIVSg10k** (10,000 buses, 15,191 cases) | | | | |
+| Read network | 0.60 | 0.56 | 0.55 | 0.55 |
+| Base case | 0.36 | 0.20 | 0.20 | 0.20 |
+| Case list and output setup | 0.49 | 0.40 | 0.40 | 0.40 |
+| Case loop (solve and report) | 323.8 | 244.1 | 29.7 | 31.5 |
+| – apply outage | 12.9 | 12.7 | 1.2 | 1.0 |
+| – CPU solve | 197.9 | 199.0 | 0.7 | 0.8 |
+| – inject GPU result | – | – | 0.7 | 0.7 |
+| – check and report | 100.9 | 21.0 | 18.7 | 18.6 |
+| – of which table rows | 91.2 | 12.5 | 14.4 | 14.3 |
+| – restore network | 6.1 | 6.9 | 3.5 | 3.4 |
+| – other (waiting) | 6.0 | 4.4 | 5.0 | 7.0 |
+| Merge output files | 8.2 | 5.8 | 4.0 | 4.1 |
+| **Wall** | **334.1** (stock 330.9) | **251.7** | **36.5** | **38.2** |
+| GPU busy | – | – | 17.1 | 27.2 |
+| **Texas7k** (6,717 buses, 8,891 cases) | | | | |
+| Read network | 0.42 | 0.39 | 0.39 | 0.39 |
+| Base case | 0.25 | 0.16 | 0.14 | 0.14 |
+| Case list and output setup | 0.34 | 0.31 | 0.28 | 0.28 |
+| Case loop (solve and report) | 145.0 | 105.7 | 19.8 | 18.4 |
+| – apply outage | 4.9 | 4.7 | 0.1 | 0.1 |
+| – CPU solve | 85.6 | 86.0 | 0.3 | 0.3 |
+| – inject GPU result | – | – | 0.3 | 0.3 |
+| – check and report | 49.2 | 10.4 | 9.0 | 8.7 |
+| – of which table rows | 44.4 | 6.2 | 7.1 | 6.8 |
+| – restore network | 2.4 | 2.5 | 1.3 | 1.2 |
+| – other (waiting) | 3.0 | 2.1 | 8.7 | 7.8 |
+| Merge output files | 4.0 | 2.8 | 2.0 | 2.0 |
+| **Wall** | **150.8** (stock 149.1) | **110.0** | **24.1** | **22.7** |
+| GPU busy | – | – | 16.5 | 14.8 |
+| **Memphis** (993 buses, 1,570 cases) | | | | |
+| Read network | 0.08 | 0.07 | 0.07 | 0.07 |
+| Base case | 0.04 | 0.02 | 0.02 | 0.02 |
+| Case list and output setup | 0.06 | 0.05 | 0.05 | 0.05 |
+| Case loop (solve and report) | 3.83 | 2.81 | 2.37 | 2.58 |
+| – apply outage | 0.10 | 0.09 | 0.02 | 0.02 |
+| – CPU solve | 2.45 | 2.37 | 0.87 | 0.90 |
+| – check and report | 1.13 | 0.22 | 0.14 | 0.13 |
+| – of which table rows | 1.02 | 0.13 | 0.12 | 0.12 |
+| Merge output files | 0.10 | 0.08 | 0.08 | 0.08 |
+| **Wall** | **4.9** (stock 4.9) | **3.9** | **4.0** | **4.3** |
+| GPU busy | – | – | 0.7 | 1.0 |
+
+Against untouched stock at the same 16 ranks, this build is 9.1 (Alg2) and
+8.7 (cuDSS) times faster on 10k and 6.2 and 6.6 times on Texas7k; its
+CPU path is 1.3 (10k) and 1.4 (Texas7k) times faster. Memphis is too small for the GPU to help:
+its whole study takes 4 s, of which GPU setup and planning are a large
+part, and 177 of its 1,569 GPU cases (11%) diverge on the GPU and are
+re-solved by GridPACK, which is the CPU solve time on the GPU paths.
+
+Where the time went: the solve itself is the same on both CPU builds; the
+GPU replaces it (199 s on 10k). Building the table rows from numbers (P1)
+cut row writing from 91 to 12–14 s per rank. The known-topology shortcuts
+(P2) cut applying and restoring outages on the GPU path. The merge fell
+from 8.2 s (stock, rank 0) to 4.0 s.
+
+The merge is now limited by the disk, not by the ranks. A separate test
+with 16 threads copying 17 GB of part files moved 3.3 GB/s (4 threads:
+4.2 GB/s); finding the runs took 0.5 s. The parts written during the loop
+already fill much of the page cache's dirty-page allowance (20% of
+memory), so the final table is written at about the NVMe drive's speed.
+In-kernel `copy_file_range` was slower (6.6 against 5.1 s). Going further
+would mean not writing the rows twice, which a single ordered CSV file
+does not allow; the Parquet format already avoids the large text table.
+

@@ -154,6 +154,41 @@ to agree to the last digit, now passes and was repeated four times.
 With this source the CPU-only build passes all 124 tests run one at a
 time, and the GPU build passes all 38 batch-path tests.
 
+## Multi-rank file writing (source `27042644`)
+
+The tables are now written by all ranks at once (`performance.md`, last
+section). Checks, all with full branch and generator N-1 lists, `csv_flat`
+and 16 ranks:
+
+- **Against the previous build** (`e387af03`) on Memphis, Texas7k and 10k:
+  every file of the Alg2 runs is byte-identical. On the CPU path, where row
+  order follows the dynamic case schedule, every table is identical after
+  sorting; the convergence tables differ only in `ISLANDED` rows carrying
+  the previous case's record (documented above).
+- **Against the corrected CPU reference**, with a shadow re-solve of every
+  GPU case: every check passes (all tables within 1e-3, exact iterations,
+  one outcome per case, ordered files, exact PV/PQ sets, final states).
+
+| Study | Cases | Shadows | Max voltage diff., pu | Max angle diff., rad |
+|---|---:|---:|---:|---:|
+| Memphis Alg2 | 1,570 | 1,392 | 1.789e-12 | 8.278e-13 |
+| Memphis cuDSS | 1,570 | 1,392 | 1.265e-12 | 6.004e-13 |
+| Texas7k Alg2 | 8,891 | 8,803 | 6.861e-14 | 1.301e-13 |
+| 10k Alg2 | 15,191 | 14,581 | 1.095e-12 | 5.755e-13 |
+
+Memphis (`MemphisCase2026_Mar7`, 993 buses) had not been checked against
+the corrected reference before. 177 of its GPU cases diverge on the GPU
+and are solved by GridPACK; those are not shadowed. The Texas7k and 10k
+maxima equal the earlier studies'.
+
+- **Timed stock** (`reproductions/stock-timer-only.patch`, timer calls
+  only) wrote the same tables as untouched stock on Memphis. On Texas7k and
+  10k four late cases differed, as they do between two runs of untouched
+  stock (the original cleanup defect, `restoration.md`).
+
+The large output tables of these runs were deleted after the checks; the
+logs and summaries remain in the scratch directory.
+
 ## Full-study evidence and the fidelity problem
 
 The older `build-dev` matrix used eight ranks, raw starts, reactive limits,

@@ -407,6 +407,65 @@
       "passed": true,
       "note": "batch 512 and 2048 studies wrote byte-identical tables on Texas7k and ACTIVSg10k",
       "source": "48da154c"
+    },
+    "multi_rank_writer_identity": {
+      "passed": true,
+      "source": "27042644",
+      "against": "e387af03",
+      "grids": [
+        "MemphisCase2026_Mar7",
+        "Texas7k_20210804",
+        "ACTIVSg10k"
+      ],
+      "note": "Alg2 byte-identical; CPU path identical after sorting"
+    },
+    "corrected_reference_mrw_MemphisCase2026_Mar7_alg2": {
+      "cases": 1570,
+      "shadows": 1392,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.789e-12,
+      "max_dtheta_rad": 8.278e-13,
+      "source": "27042644"
+    },
+    "corrected_reference_mrw_MemphisCase2026_Mar7_cudss": {
+      "cases": 1570,
+      "shadows": 1392,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.265e-12,
+      "max_dtheta_rad": 6.004e-13,
+      "source": "27042644"
+    },
+    "corrected_reference_mrw_Texas7k_20210804_alg2": {
+      "cases": 8891,
+      "shadows": 8803,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 6.861e-14,
+      "max_dtheta_rad": 1.301e-13,
+      "source": "27042644"
+    },
+    "corrected_reference_mrw_ACTIVSg10k_alg2": {
+      "cases": 15191,
+      "shadows": 14581,
+      "ranks": 16,
+      "output_format": "csv_flat",
+      "full_output_passed": true,
+      "iterations_exact": true,
+      "exact_sets_match": true,
+      "max_dv_pu": 1.095e-12,
+      "max_dtheta_rad": 5.755e-13,
+      "source": "27042644"
     }
   },
   "failed_or_open": {

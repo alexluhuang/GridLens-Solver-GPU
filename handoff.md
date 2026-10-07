@@ -53,8 +53,11 @@ Decisions left to the user:
   A one-line fix would change those rows.
 - Rank rule for 7 cores (5) and for 1 to 3 cores (1) was not specified;
   the chosen values follow the cores − 2 rule.
-- Next opportunity: the 10k study now spends 8.7 s in rank 0's merge of a
-  17 GB table and about 19 s per rank in reporting; the GPU is busy 17 s.
+- Multi-rank table writing (`27042644`) is done: the 10k merge fell from
+  8.7 to 4.0 s and is now limited by the disk. Against untouched stock at
+  16 ranks the GPU path is 9.1x faster on 10k, 6.2-6.6x on Texas7k, and no
+  faster on the 993-bus Memphis case (`docs/gpu_n1/performance.md`, last
+  section). Reporting (about 19 s per rank on 10k) now sets the loop time.
 
 The previous handoff's items remain done (`2d3bcbb2` isolated-bus check,
 corrected CPU reference at `/work/build-corrected-reference`, the original
@@ -68,7 +71,9 @@ job-managed. `dn.sh [--nogpu] '<cmd>'` there runs a command in
 21) with the repository at `/src`. Builds:
 `/work/build-quality` (GPU, standards CI, installs to `/work/quality-install`),
 `/work/build-cpu` (CPU-only), `/work/build-corrected-reference`,
-`/work/build-stock` (original `b32969b0`). Study scripts: `/work/run-p4-studies.sh` (outputs under
+`/work/build-stock` (original `b32969b0`). Study scripts: `/work/run-mrw-bench.sh` and `/work/run-mrw-parity.sh`
+(multi-rank writing; `bench_runs.py` runs any binary on any grids),
+`/work/build-stock-timed` (stock plus timers only), `/work/run-p4-studies.sh` (outputs under
 `/work/validation-p4/`) and the earlier `/work/run-corrected-studies.sh`
 (`/work/validation-corrected/`). `/work/final_bench.py` produced the last
 benchmark table; `/work/alg2bench/` is a standalone factorization benchmark
