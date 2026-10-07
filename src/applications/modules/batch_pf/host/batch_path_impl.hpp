@@ -35,6 +35,7 @@ struct ModelArrays {
   std::vector<double> g, b, p0, q0, v_init, theta_init, v_base, theta_base;
   std::vector<double> ql, ip, iq, yp, yq, qmax, qmin, eg, eb;
   std::vector<double> dg_q, dc_p, dc_q;
+  std::vector<batchpf_dc_line> dc_lines;
   batchpf_model record() const;
   /// True if the network has distributed generation or dc converters,
   /// which need a plugin implementing interface 1.1
@@ -129,7 +130,9 @@ struct BatchPath::Impl {
   void processGpuCase(int event, const batchpf_outcome &o, const double *v,
                       const double *theta, const int32_t *conv, const double *qreq,
                       const batchpf_mismatch_record *hist, int hist_count,
-                      const ProcessCase &process);
+                      const batchpf_dc_state *dc, const ProcessCase &process);
+  /// dc line statuses of a case: in service at export, less its outages
+  void dcStatus(int event, int32_t *status) const;
   void shadowCompare(int event, const GpuCaseResult &res);
 };
 

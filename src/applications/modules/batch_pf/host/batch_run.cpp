@@ -53,6 +53,7 @@
 #include <mpi.h>
 
 #include "batch_path_impl.hpp"
+#include "dc_records.hpp"
 #include "gridpack/parallel/task_manager.hpp"
 #include "gridpack/timer/coarse_timer.hpp"
 
@@ -76,8 +77,9 @@ struct Chunk {
   std::vector<batchpf_case> cases;
   std::vector<batchpf_outcome> outcomes;
   std::vector<double> v, theta, qreq;
-  std::vector<int32_t> conv, hist_count;
+  std::vector<int32_t> conv, hist_count, dc_status;
   std::vector<batchpf_mismatch_record> hist;
+  std::vector<batchpf_dc_state> dc;
   batchpf_batch batch{};
   batchpf_results results{};
   int64_t ticket = 0;
@@ -126,7 +128,8 @@ void BatchPath::Impl::processGpuCase(int event, const batchpf_outcome &o,
                                      const double *v, const double *theta,
                                      const int32_t *conv, const double *qreq,
                                      const batchpf_mismatch_record *hist,
-                                     int hist_count, const ProcessCase &process)
+                                     int hist_count, const batchpf_dc_state *dc,
+                                     const ProcessCase &process)
 {
   const int n = static_cast<int>(model.buses.size());
   OutcomeRow row;
@@ -147,6 +150,7 @@ void BatchPath::Impl::processGpuCase(int event, const batchpf_outcome &o,
     r.theta.assign(theta, theta + n);
     r.qlim_conversion.assign(conv, conv + n);
     r.q_required.assign(qreq, qreq + n);
+    for (std::size_t l = 0; l < model.dc_lines.size(); l++) r.dc.push_back(dcSolution(dc[l]));
     r.known_topology = classifier && classifier->fastPathEnabled() &&
                        classes[event].island_count == 1;
     gridpack::utility::ConvergenceSummary &cs = r.convergence;
@@ -256,7 +260,8 @@ void BatchPath::Impl::shadowCompare(int event, const GpuCaseResult &res)
       return batchpf_bus_update{bus, b.type, b.g_diag, b.b_diag, b.p0, b.q0, b.qmax, b.qmin};
     };
     bool match = full.path == CasePath::Gpu &&
-                 full.slack_bus.value == classes[event].slack_bus.value;
+                 full.slack_bus.value == classes[event].slack_bus.value &&
+                 full.dc_off == classes[event].dc_off;
     for (const auto &u : fb) match = match && sameBus(u.second, busValue(fast, u.first));
     for (const auto &u : fast) match = match && sameBus(u.second, busValue(fb, u.first));
     std::map<int, batchpf_edge_update> fe, fast_edges;
@@ -289,6 +294,7 @@ void BatchPath::run(const ProcessCase &process)
   const int t_run = timer->createCategory("GPU batch: run and report");
   timer->start(t_run);
   const int n = static_cast<int>(d.model.buses.size());
+  const int nl = static_cast<int>(d.model.dc_lines.size());
   const MPI_Comm comm = static_cast<MPI_Comm>(d.world);
 
   // ---- GPU work of this rank: chunks of several batches ------------------
@@ -324,14 +330,21 @@ void BatchPath::run(const ProcessCase &process)
     ch->conv.assign(static_cast<std::size_t>(m) * n, 0);
     ch->hist.assign(static_cast<std::size_t>(m) * d.history_capacity, batchpf_mismatch_record());
     ch->hist_count.assign(m, 0);
+    ch->dc_status.assign(static_cast<std::size_t>(m) * nl, 1);
+    ch->dc.assign(static_cast<std::size_t>(m) * nl, batchpf_dc_state());
+    for (int i = 0; i < m && nl > 0; i++) {
+      d.dcStatus(ch->events[i], ch->dc_status.data() + static_cast<std::size_t>(i) * nl);
+    }
     std::memset(&ch->batch, 0, sizeof(ch->batch));
     ch->batch.struct_size = sizeof(ch->batch);
-    ch->batch.struct_version = 1;
+    ch->batch.struct_version = 2;
     ch->batch.n_cases = m;
     ch->batch.cases = ch->cases.data();
+    ch->batch.n_dc_line = nl;
+    ch->batch.dc_status = nl > 0 ? ch->dc_status.data() : nullptr;
     std::memset(&ch->results, 0, sizeof(ch->results));
     ch->results.struct_size = sizeof(ch->results);
-    ch->results.struct_version = 1;
+    ch->results.struct_version = 2;
     ch->results.n_cases = m;
     ch->results.n_bus = n;
     ch->results.outcomes = ch->outcomes.data();
@@ -342,6 +355,7 @@ void BatchPath::run(const ProcessCase &process)
     ch->results.history_capacity = d.history_capacity;
     ch->results.history = ch->hist.data();
     ch->results.history_count = ch->hist_count.data();
+    ch->results.dc_states = nl > 0 ? ch->dc.data() : nullptr;
     ch->ticket = d.acc->submit(ch->batch, ch->results);
     inflight.push_back(ch);
   };
@@ -438,7 +452,7 @@ void BatchPath::run(const ProcessCase &process)
 
   auto serialize = [&](const Packet &p, std::vector<char> *buf) {
     const Chunk &c = *p.chunk;
-    const std::array<int32_t, 3> head = {p.end - p.begin, n, d.history_capacity};
+    const std::array<int32_t, 4> head = {p.end - p.begin, n, d.history_capacity, nl};
     put(buf, head.data(), head.size());
     for (int i = p.begin; i < p.end; i++) {
       const int32_t ev = c.events[i];
@@ -451,6 +465,7 @@ void BatchPath::run(const ProcessCase &process)
       put(buf, c.theta.data() + static_cast<std::size_t>(i) * n, n);
       put(buf, c.conv.data() + static_cast<std::size_t>(i) * n, n);
       put(buf, c.qreq.data() + static_cast<std::size_t>(i) * n, n);
+      put(buf, c.dc.data() + static_cast<std::size_t>(i) * nl, static_cast<std::size_t>(nl));
     }
   };
   auto sendTo = [&](int dest, const Packet *p) {
@@ -459,7 +474,7 @@ void BatchPath::run(const ProcessCase &process)
     if (p) {
       serialize(*p, &s.buf);
     } else {
-      const std::array<int32_t, 3> head = {0, n, d.history_capacity};
+      const std::array<int32_t, 4> head = {0, n, d.history_capacity, nl};
       put(&s.buf, head.data(), head.size());
     }
     MPI_Isend(s.buf.data(), static_cast<int>(s.buf.size()), MPI_BYTE, dest,
@@ -473,7 +488,7 @@ void BatchPath::run(const ProcessCase &process)
                      c.conv.data() + static_cast<std::size_t>(i) * n,
                      c.qreq.data() + static_cast<std::size_t>(i) * n,
                      c.hist.data() + static_cast<std::size_t>(i) * d.history_capacity,
-                     c.hist_count[i], process);
+                     c.hist_count[i], c.dc.data() + static_cast<std::size_t>(i) * nl, process);
   };
   auto ownDone = [&]() {
     return !server || (next >= d.my_gpu_events.size() && inflight.empty() && ready.empty());
@@ -528,16 +543,17 @@ void BatchPath::run(const ProcessCase &process)
           std::vector<char> buf(bytes > 0 ? bytes : 1);
           MPI_Recv(buf.data(), bytes, MPI_BYTE, s, kTagPacket, comm, MPI_STATUS_IGNORE);
           request_out = false;
-          std::array<int32_t, 3> head{};
+          std::array<int32_t, 4> head{};
           const char *p = get(buf.data(), head.data(), head.size());
           if (head[0] == 0) {
             servers.erase(servers.begin() +
                           static_cast<std::ptrdiff_t>(current % servers.size()));
           } else {
-            const int nb = head[1], hc = head[2];
+            const int nb = head[1], hc = head[2], nd = head[3];
             std::vector<batchpf_mismatch_record> hist(hc);
             std::vector<double> v(nb), th(nb), q(nb);
             std::vector<int32_t> cv(nb);
+            std::vector<batchpf_dc_state> dc(static_cast<std::size_t>(nd));
             for (int i = 0; i < head[0]; i++) {
               int32_t ev = 0, hn = 0;
               batchpf_outcome o;
@@ -549,8 +565,9 @@ void BatchPath::run(const ProcessCase &process)
               p = get(p, th.data(), nb);
               p = get(p, cv.data(), nb);
               p = get(p, q.data(), nb);
+              p = get(p, dc.data(), dc.size());
               d.processGpuCase(ev, o, v.data(), th.data(), cv.data(), q.data(),
-                               hist.data(), hn, process);
+                               hist.data(), hn, dc.data(), process);
             }
             current++;
           }

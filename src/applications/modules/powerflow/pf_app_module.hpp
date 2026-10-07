@@ -253,6 +253,20 @@ class PFAppModule
     void setHVDCReference();
 
     /**
+     * Index of a two-terminal dc line in the network's dc line list
+     * @param name dc line name
+     * @return index, or -1 if no line has this name
+     */
+    int getHVDCLineIndex(const std::string &name) const;
+
+    /**
+     * Set the dc line operating points of an external solution (one per
+     * dc line) before setExternalSolution(), so that the reports see the
+     * converter injections the solution was found with
+     */
+    void setHVDCSolutions(const std::vector<HVDCSolution> &solutions);
+
+    /**
      * Write the operating point of the two-terminal dc lines
      */
     void writeHVDCSummary();
@@ -608,6 +622,7 @@ class PFAppModule
       bool switched_shunt;       // Powerflow/SwitchedShunt
       bool ltc;                  // Powerflow/LTC
       bool area_interchange;     // Powerflow/AreaInterchange
+      double hvdc_tolerance;     // Powerflow/hvdcTolerance
     };
     SolverParameters getSolverParameters() const;
 

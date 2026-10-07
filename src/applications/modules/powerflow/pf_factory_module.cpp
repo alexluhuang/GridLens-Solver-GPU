@@ -1454,6 +1454,42 @@ gridpack::powerflow::PFFactoryModule::getHVDCSolutions() const
 }
 
 /**
+ * Index of a dc line in getHVDCLines()
+ * @param name dc line name
+ * @return index, or -1 if no line has this name
+ */
+int gridpack::powerflow::PFFactoryModule::getHVDCLineIndex(
+    const std::string &name) const
+{
+  const std::string key = normalizeHVDCName(name);
+  for (size_t i = 0; i < p_hvdc_lines.size(); i++) {
+    if (p_hvdc_lines[i].name == key) return static_cast<int>(i);
+  }
+  return -1;
+}
+
+/**
+ * Operating point later solves start from (see startHVDC())
+ */
+const std::vector<gridpack::powerflow::HVDCSolution>&
+gridpack::powerflow::PFFactoryModule::getHVDCStartingPoint() const
+{
+  return p_hvdc_have_reference ? p_hvdc_reference : p_hvdc_solution;
+}
+
+/**
+ * Set the dc line operating points and the converter injections they give
+ * @param solutions one operating point per dc line
+ */
+void gridpack::powerflow::PFFactoryModule::setHVDCSolutions(
+    const std::vector<HVDCSolution> &solutions)
+{
+  if (solutions.size() != p_hvdc_lines.size()) return;
+  p_hvdc_solution = solutions;
+  applyHVDCInjections();
+}
+
+/**
  * Clear changes that were made for Q limit violations and reset
  * system to its original state
  */
@@ -2157,6 +2193,22 @@ void PFFactoryModule::exportSupersetModel(SupersetModel *model)
   for (int i = 0; i < numBranch; i++) {
     PFBranch *branch = dynamic_cast<PFBranch*>(p_network->getBranch(i).get());
     if (branch->hasLTC()) model->has_ltc = true;
+  }
+
+  // Two-terminal dc lines with their converter buses as local indices
+  model->dc_lines = p_hvdc_lines;
+  model->dc_reference = getHVDCStartingPoint();
+  model->dc_rect_bus.clear();
+  model->dc_inv_bus.clear();
+  model->dc_status.clear();
+  model->dc_found = true;
+  for (size_t i = 0; i < p_hvdc_lines.size(); i++) {
+    const std::vector<int> rect = p_network->getLocalBusIndices(p_hvdc_lines[i].rect.bus);
+    const std::vector<int> inv = p_network->getLocalBusIndices(p_hvdc_lines[i].inv.bus);
+    if (rect.empty() || inv.empty()) model->dc_found = false;
+    model->dc_rect_bus.push_back(rect.empty() ? -1 : rect[0]);
+    model->dc_inv_bus.push_back(inv.empty() ? -1 : inv[0]);
+    model->dc_status.push_back(p_hvdc_status[i] ? 1 : 0);
   }
 
   // Edges: one per directed bus pair joined by an in-service branch object

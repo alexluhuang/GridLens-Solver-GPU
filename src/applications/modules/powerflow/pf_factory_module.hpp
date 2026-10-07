@@ -271,6 +271,26 @@ class PFFactoryModule
     const std::vector<HVDCSolution>& getHVDCSolutions() const;
 
     /**
+     * Index of a dc line in getHVDCLines()
+     * @param name dc line name
+     * @return index, or -1 if no line has this name
+     */
+    int getHVDCLineIndex(const std::string &name) const;
+
+    /**
+     * Operating point later solves start from: the reference if one is
+     * set, otherwise the latest operating point
+     */
+    const std::vector<HVDCSolution>& getHVDCStartingPoint() const;
+
+    /**
+     * Set the dc line operating points, e.g. those of an external solution,
+     * and the converter injections they give
+     * @param solutions one operating point per dc line
+     */
+    void setHVDCSolutions(const std::vector<HVDCSolution> &solutions);
+
+    /**
      * Clear changes that were made for Q limit violations and reset
      * system to its original state
      */

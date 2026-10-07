@@ -287,6 +287,37 @@ bool Classifier::classifyFastGenerator(CaseIndex event, gridpack::powerflow::Con
   return true;
 }
 
+bool Classifier::dcLineIndices(const gridpack::powerflow::Contingency &c,
+                               std::vector<int32_t> *indices) const
+{
+  indices->clear();
+  bool all = true;
+  for (const std::string &name : c.p_dclines) {
+    const int l = p_app.getHVDCLineIndex(name);
+    if (l < 0) {
+      all = false;
+    } else {
+      indices->push_back(l);
+    }
+  }
+  std::sort(indices->begin(), indices->end());
+  indices->erase(std::unique(indices->begin(), indices->end()), indices->end());
+  return all;
+}
+
+bool Classifier::classifyFastDCLine(CaseIndex event, gridpack::powerflow::Contingency &c,
+                                    CaseClass *out)
+{
+  std::vector<int32_t> off;
+  if (c.p_dclines.empty() || !dcLineIndices(c, &off)) return false;   // full routine
+  out->event = event;
+  out->path = CasePath::Gpu;
+  out->fast = true;
+  out->slack_bus = BusIndex{p_base_slack};
+  out->dc_off = off;
+  return true;
+}
+
 CaseClass Classifier::classifyFull(CaseIndex event, gridpack::powerflow::Contingency &c)
 {
   auto &net = *p_network;
@@ -303,6 +334,8 @@ CaseClass Classifier::classifyFull(CaseIndex event, gridpack::powerflow::Conting
     for (int id : c.p_busid) {
       for (int l : net.getLocalBusIndices(id)) buses.push_back(l);
     }
+  } else if (c.p_type == gridpack::powerflow::DCLine) {
+    dcLineIndices(c, &out.dc_off);
   } else {
     for (std::size_t k = 0; k < c.p_from.size(); k++) {
       for (int l : net.getLocalBranchIndices(c.p_from[k], c.p_to[k])) {
@@ -354,6 +387,8 @@ CaseClass Classifier::classify(CaseIndex event, gridpack::powerflow::Contingency
     } else if (c.p_type == gridpack::powerflow::Generator && c.p_busid.size() == 1 &&
                c.p_genid.size() == 1) {
       if (classifyFastGenerator(event, c, &out)) return out;
+    } else if (c.p_type == gridpack::powerflow::DCLine) {
+      if (classifyFastDCLine(event, c, &out)) return out;
     }
   }
   return classifyFull(event, c);

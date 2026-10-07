@@ -2441,6 +2441,8 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     timer->stop(t_case_apply);
     if (gpu) {
       timer->start(t_case_inject);
+      // The converter injections the GPU solution was found with
+      if (!gpu->dc.empty()) pf_app.setHVDCSolutions(gpu->dc);
       if (known) {
         pf_app.setKnownExternalSolution(events[task_id], gpu->v, gpu->theta,
                                         gpu->qlim_conversion, gpu->q_required,

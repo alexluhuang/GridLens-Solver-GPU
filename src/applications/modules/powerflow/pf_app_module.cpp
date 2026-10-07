@@ -1702,6 +1702,27 @@ void gridpack::powerflow::PFAppModule::setHVDCReference()
 }
 
 /**
+ * Index of a two-terminal dc line in the network's dc line list
+ * @param name dc line name
+ * @return index, or -1 if no line has this name
+ */
+int gridpack::powerflow::PFAppModule::getHVDCLineIndex(
+    const std::string &name) const
+{
+  return p_factory->getHVDCLineIndex(name);
+}
+
+/**
+ * Set the dc line operating points of an external solution
+ * @param solutions one operating point per dc line
+ */
+void gridpack::powerflow::PFAppModule::setHVDCSolutions(
+    const std::vector<HVDCSolution> &solutions)
+{
+  p_factory->setHVDCSolutions(solutions);
+}
+
+/**
  * Write the operating point of the two-terminal dc lines
  */
 void gridpack::powerflow::PFAppModule::writeHVDCSummary()
@@ -2252,6 +2273,7 @@ gridpack::powerflow::PFAppModule::getSolverParameters() const
   prm.switched_shunt = p_switchedShunt;
   prm.ltc = p_ltc;
   prm.area_interchange = p_areaInterchange;
+  prm.hvdc_tolerance = p_hvdc_tolerance;
   return prm;
 }
 

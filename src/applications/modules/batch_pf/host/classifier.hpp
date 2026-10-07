@@ -35,7 +35,11 @@
  *    network splits into two islands of two or more buses and GridPACK
  *    reports ISLANDED without solving;
  *  - one generator not at the reference bus, or at a reference bus that
- *    keeps another unit online: no topology or slack change.
+ *    keeps another unit online: no topology or slack change;
+ *  - two-terminal dc lines (poles) that all exist: blocking them changes
+ *    only converter injections, which the batch engine computes itself
+ *    from the case's line statuses (dc_kernels.cuh), so no topology,
+ *    admittance or slack change.
  * Before the fast path is used, the unmodified network is checked with
  * GridPACK's own routines (one island, no lone bus, slack has a unit); if
  * that fails, every case takes the full path. With shadow validation on,
@@ -82,6 +86,7 @@ struct CaseClass {
   BusIndex slack_bus;                // local index
   std::vector<batchpf_bus_update> bus_updates;
   std::vector<batchpf_edge_update> edge_updates;
+  std::vector<int32_t> dc_off;       // dc lines taken out of service
 };
 
 class Classifier {
@@ -117,6 +122,11 @@ class Classifier {
                           CaseClass *out);
   bool classifyFastGenerator(CaseIndex event, gridpack::powerflow::Contingency &c,
                              CaseClass *out);
+  bool classifyFastDCLine(CaseIndex event, gridpack::powerflow::Contingency &c,
+                          CaseClass *out);
+  /// Indices of a contingency's dc lines; false if one is not found
+  bool dcLineIndices(const gridpack::powerflow::Contingency &c,
+                     std::vector<int32_t> *indices) const;
   void finishUpdates(const gridpack::powerflow::SupersetCaseState &state,
                      CaseClass *out) const;
   void findBridges();

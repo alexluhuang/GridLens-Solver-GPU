@@ -40,6 +40,7 @@
 #include <vector>
 
 #include "gridpack/applications/modules/powerflow/pf_app_module.hpp"
+#include "gridpack/applications/modules/powerflow/pf_hvdc.hpp"
 #include "gridpack/parallel/communicator.hpp"
 #include "gridpack/utilities/results_exporter.hpp"
 
@@ -55,6 +56,7 @@ struct GpuCaseResult {
   std::vector<double> theta;       // per local bus (rad)
   std::vector<int> qlim_conversion;
   std::vector<double> q_required;
+  std::vector<gridpack::powerflow::HVDCSolution> dc;   // per dc line, final
   gridpack::utility::ConvergenceSummary convergence;
   // The classifier showed the case leaves one island and the unmodified
   // network has no lone buses, islands or slack without a unit, so the

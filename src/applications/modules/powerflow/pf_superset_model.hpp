@@ -34,6 +34,8 @@
 
 #include <vector>
 
+#include "gridpack/applications/modules/powerflow/pf_hvdc.hpp"
+
 namespace gridpack {
 namespace powerflow {
 
@@ -80,6 +82,13 @@ struct SupersetModel {
   bool has_remote_regulation;         // any bus with remote_regulation set
   bool has_switched_shunt;            // any bus with switched_shunt set
   bool has_ltc;                       // any branch with tap changer control
+  // Two-terminal dc lines, in PFFactoryModule's order
+  std::vector<HVDCLine> dc_lines;
+  std::vector<HVDCSolution> dc_reference; // operating point solves start from
+  std::vector<int> dc_rect_bus;       // local index of each rectifier bus
+  std::vector<int> dc_inv_bus;        // local index of each inverter bus
+  std::vector<int> dc_status;         // 1 if the line is in service
+  bool dc_found;                      // every converter bus is a local bus
 };
 
 /// Absolute bus values after a contingency is applied

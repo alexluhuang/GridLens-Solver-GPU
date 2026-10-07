@@ -29,6 +29,7 @@
 #include <vector>
 #include <mpi.h>
 
+#include "dc_records.hpp"
 #include "gridpack/configuration/configuration.hpp"
 #include "gridpack/timer/coarse_timer.hpp"
 
@@ -68,20 +69,22 @@ void appendBytes(std::vector<char> *out, const T *src, std::size_t count)
 /// Serialize classification records for the all-gather
 void pack(const CaseClass &c, std::vector<char> *out)
 {
-  const std::array<int32_t, 10> head = {c.event.value, static_cast<int32_t>(c.path),
+  const std::array<int32_t, 11> head = {c.event.value, static_cast<int32_t>(c.path),
                             static_cast<int32_t>(c.reason), c.fast ? 1 : 0,
                             c.island_count, c.lone_bus ? 1 : 0,
                             c.slack_transferred ? 1 : 0, c.slack_bus.value,
                             static_cast<int32_t>(c.bus_updates.size()),
-                            static_cast<int32_t>(c.edge_updates.size())};
+                            static_cast<int32_t>(c.edge_updates.size()),
+                            static_cast<int32_t>(c.dc_off.size())};
   appendBytes(out, head.data(), head.size());
   appendBytes(out, c.bus_updates.data(), c.bus_updates.size());
   appendBytes(out, c.edge_updates.data(), c.edge_updates.size());
+  appendBytes(out, c.dc_off.data(), c.dc_off.size());
 }
 
 std::size_t unpack(const char *p, CaseClass *c)
 {
-  std::array<int32_t, 10> head{};
+  std::array<int32_t, 11> head{};
   std::memcpy(head.data(), p, sizeof(head));
   c->event = CaseIndex{head[0]};
   c->path = static_cast<CasePath>(head[1]);
@@ -98,6 +101,9 @@ std::size_t unpack(const char *p, CaseClass *c)
   c->edge_updates.resize(head[9]);
   std::memcpy(c->edge_updates.data(), p + off, head[9] * sizeof(batchpf_edge_update));
   off += head[9] * sizeof(batchpf_edge_update);
+  c->dc_off.resize(head[10]);
+  std::memcpy(c->dc_off.data(), p + off, head[10] * sizeof(int32_t));
+  off += head[10] * sizeof(int32_t);
   return off;
 }
 
@@ -134,6 +140,8 @@ batchpf_model ModelArrays::record() const
   m.dg_q = dg_q.data();
   m.dc_p = dc_p.data();
   m.dc_q = dc_q.data();
+  m.n_dc_line = static_cast<int32_t>(dc_lines.size());
+  m.dc_lines = dc_lines.empty() ? nullptr : dc_lines.data();
   return m;
 }
 
@@ -142,7 +150,16 @@ bool ModelArrays::needsInterface11() const
   auto nonzero = [](const std::vector<double> &x) {
     return std::any_of(x.begin(), x.end(), [](double y) { return y != 0.0; });
   };
-  return nonzero(dg_q) || nonzero(dc_p) || nonzero(dc_q);
+  return nonzero(dg_q) || nonzero(dc_p) || nonzero(dc_q) || !dc_lines.empty();
+}
+
+void BatchPath::Impl::dcStatus(int event, int32_t *status) const
+{
+  const std::size_t nl = model.dc_status.size();
+  std::copy(model.dc_status.begin(), model.dc_status.end(), status);
+  for (const int32_t l : classes[event].dc_off) {
+    if (l >= 0 && static_cast<std::size_t>(l) < nl) status[l] = 0;
+  }
 }
 
 batchpf_settings BatchPath::Impl::pluginSettings() const
@@ -366,7 +383,14 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   const double t0 = now();
   const gridpack::powerflow::PFAppModule::SolverParameters prm = pf_app.getSolverParameters();
   const bool controls = prm.switched_shunt || prm.ltc || prm.area_interchange;
-  d.classifier = std::make_unique<Classifier>(pf_app, network, d.model, controls);
+  // dc lines need their converter buses on every rank's network copy
+  const bool dc_missing = !d.model.dc_lines.empty() && !d.model.dc_found;
+  if (dc_missing && d.rank == 0) {
+    d.warn("a dc converter bus is not in the local network; every case uses GridPACK's "
+           "CPU loop");
+  }
+  d.classifier = std::make_unique<Classifier>(pf_app, network, d.model,
+                                              controls || dc_missing);
   if (d.rank == 0) d.info("contingency classifier fast path: " + d.classifier->fastPathNote());
   const int n = static_cast<int>(events.size());
   std::vector<char> local;
@@ -424,7 +448,7 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   // Solver rules for the GPU, from GridPACK's own settings
   std::memset(&d.params, 0, sizeof(d.params));
   d.params.struct_size = sizeof(d.params);
-  d.params.struct_version = 1;
+  d.params.struct_version = 2;
   d.params.tolerance = prm.tolerance;
   d.params.damping_factor = prm.damping_factor;
   d.params.qlim_deadband = prm.qlim_deadband;
@@ -433,6 +457,7 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
   d.params.max_controller_iterations = prm.max_controller_iterations;
   d.params.ca_qlim = ca_qlim ? 1 : 0;
   d.params.warm_start = d.settings.gpu.warm_start.value;
+  d.params.hvdc_tolerance = prm.hvdc_tolerance;
   d.history_capacity = std::max(1, prm.max_iteration);
 
   // B6 (in the plugin): one-time planning on each accelerator rank
@@ -466,6 +491,10 @@ void BatchPath::prepare(gridpack::powerflow::PFAppModule &pf_app,
     a.edge_mate.assign(d.model.edge_mate.begin(), d.model.edge_mate.end());
     a.eg = d.model.edge_g;
     a.eb = d.model.edge_b;
+    for (std::size_t l = 0; l < d.model.dc_lines.size(); l++) {
+      a.dc_lines.push_back(dcLineRecord(d.model.dc_lines[l], d.model.dc_rect_bus[l],
+                                        d.model.dc_inv_bus[l], d.model.dc_reference[l]));
+    }
     std::string why;
     try {
       if (a.needsInterface11() && d.acc->apiMinor() < 1) {
