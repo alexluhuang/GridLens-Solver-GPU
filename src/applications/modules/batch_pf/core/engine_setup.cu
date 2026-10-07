@@ -68,6 +68,7 @@ void Engine::referenceJacobian(std::vector<double> *values,
   m.theta_base = h.theta_base.data();
   m.diag_pos = p_pattern.diag_pos.data();
   m.edge_pos = p_pattern.edge_pos.data();
+  m.dc_slot = h.dc_slot.data();
   BatchView w;
   w.B = 1;
   w.type = type.data();
@@ -120,6 +121,8 @@ void Engine::plan(const batchpf_solver_params &params)
   p_rules.max_controller_iterations = params.max_controller_iterations;
   p_rules.check_nonfinite = p_config.check_nonfinite;
   p_rules.residual_limit = p_config.residual_limit;
+  p_rules.dc_lines = !p_model.dc_line.empty();
+  p_rules.hvdc_tolerance = params.hvdc_tolerance;
   p_pattern = buildPattern(p_model.n_bus, p_model.row_start, p_model.edge_col);
   referenceJacobian(&p_ref_values, &p_ref_rhs);
   p_lu = planLu(p_pattern, p_ref_values, p_config.ordering,
@@ -157,7 +160,12 @@ double Engine::bytesPerSlot() const
   const double vec = 2 * n * 8 * 3;
   const double jac = static_cast<double>(p_pattern.nnz) * 8;
   const double lu = static_cast<double>(p_lu.nnz) * 8;
-  return bus + edge + vec + jac + lu;
+  // dc lines: status and operating point per line, four values per
+  // converter bus
+  const double dc = static_cast<double>(p_model.dc_line.size()) *
+                        (sizeof(int) + sizeof(HVDCSolution)) +
+                    static_cast<double>(p_model.dc_bus.size()) * 4 * 8;
+  return bus + edge + vec + jac + lu + dc;
 }
 
 double Engine::sharedBytes() const
@@ -165,7 +173,9 @@ double Engine::sharedBytes() const
   const double idx = static_cast<double>(p_lu.dst.size() + p_lu.seg_upos.size() * 4 +
                                          p_lu.a_to_lu.size() + p_lu.lrow_col.size() * 2 +
                                          p_lu.urow_col.size() * 2) * 4;
-  const double model = (p_model.n_bus * 20.0 + p_model.n_edge * 4.0) * 8;
+  const double model = (p_model.n_bus * 22.0 + p_model.n_edge * 4.0) * 8 +
+                       static_cast<double>(p_model.dc_line.size()) *
+                           (sizeof(HVDCLineData) + sizeof(HVDCSolution));
   return idx + model + static_cast<double>(p_pattern.nnz) * 12;
 }
 
@@ -208,6 +218,11 @@ void Engine::allocate(int capacity)
     uploadModel(d.base_eb, mk, h.eb, st);
     uploadModel(d.ref_values, mk, p_ref_values, st);
     uploadModel(d.ref_rhs, mk, p_ref_rhs, st);
+    uploadModel(d.dc_line, mk, h.dc_line, st);
+    uploadModel(d.dc_ref, mk, h.dc_ref, st);
+    uploadModel(d.dc_cbus, mk, h.dc_bus, st);
+    uploadModel(d.dc_slot, mk, h.dc_slot, st);
+    uploadModel(d.dc_p, mk, h.dc_p, st);
   }
   // release the old backend before its buffers
   p_backend.reset();
@@ -223,6 +238,14 @@ void Engine::allocate(int capacity)
   }
   d.eg.allocate(mk, e, st);
   d.eb.allocate(mk, e, st);
+  const std::size_t nl = h.dc_line.size() * B;
+  const std::size_t nc = h.dc_bus.size() * B;
+  d.dc_status.allocate(mk, nl, st);
+  d.dc_sol.allocate(mk, nl, st);
+  for (Buffer<double> *x : {&d.dc_pw, &d.dc_qw, &d.dc_p0s, &d.dc_q0s}) {
+    x->allocate(mk, nc, st);
+    x->zero(st);
+  }
   d.F.allocate(mk, 2 * n, st);
   d.X.allocate(mk, 2 * n, st);
   d.J.allocate(mk, static_cast<std::size_t>(p_pattern.nnz) * B, st);
@@ -231,18 +254,20 @@ void Engine::allocate(int capacity)
   d.J.zero(st);
   for (Buffer<int> *x : {&d.m_apply, &d.m_qcheck, &d.m_eval, &d.m_fill,
                          &d.m_slack, &d.m_argp, &d.m_argq, &d.m_qviol,
-                         &d.m_status}) {
+                         &d.m_status, &d.m_dcstart, &d.m_dccheck}) {
     x->allocate(mk, B, st);
   }
-  for (Buffer<unsigned long long> *x : {&d.m_maxp, &d.m_maxq, &d.m_res, &d.m_rhs}) {
+  for (Buffer<unsigned long long> *x : {&d.m_maxp, &d.m_maxq, &d.m_res, &d.m_rhs,
+                                        &d.m_dcchange}) {
     x->allocate(mk, B, st);
   }
   for (std::vector<int> *x : {&d.h_apply, &d.h_qcheck, &d.h_eval, &d.h_fill,
                               &d.h_slack, &d.h_argp, &d.h_argq, &d.h_qviol,
-                              &d.h_status}) {
+                              &d.h_status, &d.h_dcstart, &d.h_dccheck}) {
     x->assign(B, 0);
   }
-  for (std::vector<unsigned long long> *x : {&d.h_maxp, &d.h_maxq, &d.h_res, &d.h_rhs}) {
+  for (std::vector<unsigned long long> *x : {&d.h_maxp, &d.h_maxq, &d.h_res, &d.h_rhs,
+                                             &d.h_dcchange}) {
     x->assign(B, 0);
   }
   d.gather_slots.reserve(B, dev, p_config.exchange_pinned, st);
@@ -252,6 +277,8 @@ void Engine::allocate(int capacity)
   d.out_theta.reserve(out, dev, p_config.exchange_pinned, st);
   d.out_q.reserve(out, dev, p_config.exchange_pinned, st);
   d.out_conv.reserve(out, dev, p_config.exchange_pinned, st);
+  d.u_dc_status.reserve(nl, dev, p_config.exchange_pinned, st);
+  d.out_dc.reserve(nl, dev, p_config.exchange_pinned, st);
   if (dev && d.ev_start.empty()) {
     for (int i = 0; i < PH_COUNT; i++) {
       d.ev_start.emplace_back(true);

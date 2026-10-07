@@ -17,6 +17,9 @@
  *  3. The Algorithm 2 backend (fixed pivot order) solves every member to
  *     the accuracy of KLU with full pivoting (the CPU reference backend),
  *     including members whose bus roles differ from the planning matrix.
+ *  4. The dc line steps (dc_kernels.cuh) give GridPACK's dc line model on
+ *     the GPU and the CPU, over voltages that reach every control mode,
+ *     and set the converter buses' injections as GridPACK's setSBus().
  *
  * The network is synthetic: a ring with random chords, every bus role
  * (reference, PV, PQ, isolated) and constant current and impedance loads.
@@ -25,12 +28,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <random>
 #include <string>
 #include <vector>
 
 #include "../core/backend.hpp"
+#include "../core/dc_kernels.cuh"
 #include "../core/executor.cuh"
 #include "../core/pf_kernels.cuh"
 #include "../core/planner.hpp"
@@ -255,6 +260,282 @@ double maxRelDiff(const std::vector<double> &a, const std::vector<double> &b)
   return d / scale;
 }
 
+// ---------------------------------------------------------------------
+// dc lines: two lines on five buses (1 -> 2 power order, 3 -> 4 current
+// order), converter voltages swept over the members
+// ---------------------------------------------------------------------
+
+using gridpack::powerflow::HVDCLineData;
+using gridpack::powerflow::HVDCSolution;
+
+HVDCLineData dcLine(bool power, int rect, int inv)
+{
+  HVDCLineData l{};
+  l.mdc = power ? 1 : 2;
+  l.rdc = power ? 8.0 : 5.0;
+  l.setvl = power ? 500.0 : 800.0;      // MW at the rectifier, or amps
+  l.vschd = power ? 500.0 : 400.0;
+  l.vcmod = power ? 350.0 : 0.0;
+  l.rcomp = 0.0;
+  l.delti = 0.1;
+  for (auto *c : {&l.rect, &l.inv}) {
+    c->nb = 2.0;
+    c->rc = 0.0;
+    c->xc = 10.0;
+    c->ebas = 230.0;
+    c->tr = 0.88;
+    c->tap = 1.0;
+    c->tmx = 1.1;
+    c->tmn = 0.9;
+    c->stp = 0.00625;
+  }
+  l.rect.bus = rect;
+  l.rect.anmx = 20.0;
+  l.rect.anmn = 5.0;
+  l.inv.bus = inv;
+  l.inv.anmx = 25.0;
+  l.inv.anmn = 18.0;
+  return l;
+}
+
+/// Inputs and buffers of the dc test in one memory kind
+struct DcCase {
+  int B = 0;
+  Buffer<HVDCLineData> line;
+  Buffer<HVDCSolution> ref, sol;
+  Buffer<int> cbus, slot, status, type, conv, start, chk;
+  Buffer<double> dc_p, dc_q, ql, dg_q, v, p0, q0, qmax, qmin, pw, qw, p0s, q0s;
+  Buffer<unsigned long long> change;
+  ModelView m;
+  BatchView w;
+  DcModelView dm;
+  DcBatchView dw;
+};
+
+struct DcInput {
+  std::vector<HVDCLineData> line;
+  std::vector<HVDCSolution> ref;
+  std::vector<int> cbus, slot, status, type, conv;
+  std::vector<double> dc_p, dc_q, ql, dg_q, v, p0, q0, qmax, qmin;
+};
+
+void setupDc(DcCase &d, MemoryKind k, const DcInput &in, int B)
+{
+  d.B = B;
+  const int n = static_cast<int>(in.slot.size());
+  fill(d.line, k, in.line);
+  fill(d.ref, k, in.ref);
+  fill(d.cbus, k, in.cbus);
+  fill(d.slot, k, in.slot);
+  fill(d.status, k, in.status);
+  fill(d.type, k, in.type);
+  fill(d.conv, k, in.conv);
+  fill(d.dc_p, k, in.dc_p);
+  fill(d.dc_q, k, in.dc_q);
+  fill(d.ql, k, in.ql);
+  fill(d.dg_q, k, in.dg_q);
+  fill(d.v, k, in.v);
+  fill(d.p0, k, in.p0);
+  fill(d.q0, k, in.q0);
+  fill(d.qmax, k, in.qmax);
+  fill(d.qmin, k, in.qmin);
+  fill(d.start, k, std::vector<int>(B, 1));
+  fill(d.chk, k, std::vector<int>(B, 1));
+  fill(d.change, k, std::vector<unsigned long long>(B, 0));
+  const std::size_t nl = in.line.size() * B, nc = in.cbus.size() * B;
+  d.sol.allocate(k, nl);
+  for (Buffer<double> *x : {&d.pw, &d.qw}) {
+    x->allocate(k, nc);
+    x->zero(nullptr);
+  }
+  // p0s and q0s are indexed by converter bus: take the bus rows
+  std::vector<double> p0s(nc), q0s(nc);
+  for (std::size_t c = 0; c < in.cbus.size(); c++) {
+    for (int b = 0; b < B; b++) {
+      p0s[c * B + b] = in.p0[static_cast<std::size_t>(in.cbus[c]) * B + b];
+      q0s[c * B + b] = in.q0[static_cast<std::size_t>(in.cbus[c]) * B + b];
+    }
+  }
+  fill(d.p0s, k, p0s);
+  fill(d.q0s, k, q0s);
+  d.m.n_bus = n;
+  d.m.sbase = 100.0;
+  d.m.ql = d.ql.data();
+  d.m.dg_q = d.dg_q.data();
+  d.m.dc_q = d.dc_q.data();
+  d.m.dc_slot = d.slot.data();
+  d.w.B = B;
+  d.w.type = d.type.data();
+  d.w.p0 = d.p0.data();
+  d.w.q0 = d.q0.data();
+  d.w.qmax = d.qmax.data();
+  d.w.qmin = d.qmin.data();
+  d.w.v = d.v.data();
+  d.w.conv = d.conv.data();
+  d.w.dc_q = d.qw.data();
+  d.dm.n_line = static_cast<int>(in.line.size());
+  d.dm.n_cbus = static_cast<int>(in.cbus.size());
+  d.dm.line = d.line.data();
+  d.dm.ref = d.ref.data();
+  d.dm.cbus = d.cbus.data();
+  d.dm.slot = d.slot.data();
+  d.dm.dc_p = d.dc_p.data();
+  d.dm.dc_q = d.dc_q.data();
+  d.dw.B = B;
+  d.dw.status = d.status.data();
+  d.dw.sol = d.sol.data();
+  d.dw.p = d.pw.data();
+  d.dw.q = d.qw.data();
+  d.dw.p0s = d.p0s.data();
+  d.dw.q0s = d.q0s.data();
+  d.dw.m_start = d.start.data();
+  d.dw.m_check = d.chk.data();
+  d.dw.m_change = d.change.data();
+}
+
+double bitsAsDouble(unsigned long long u)
+{
+  double x = 0.0;
+  std::memcpy(&x, &u, sizeof(x));
+  return x;
+}
+
+/// Flatten operating points for comparison
+std::vector<double> dcValues(const std::vector<HVDCSolution> &s)
+{
+  std::vector<double> out;
+  for (const HVDCSolution &x : s) {
+    for (double y : {x.id, x.vdcr, x.vdci, x.rect.p, x.rect.q, x.rect.angle, x.rect.tap,
+                     x.inv.p, x.inv.q, x.inv.angle, x.inv.tap}) {
+      out.push_back(y);
+    }
+  }
+  return out;
+}
+
+void dcLinesTest()
+{
+  const int n = 5, B = 256;
+  DcInput in;
+  in.line = {dcLine(true, 1, 2), dcLine(false, 3, 4)};
+  for (const HVDCLineData &l : in.line) {
+    in.ref.push_back(gridpack::powerflow::solveTwoTerminalDC(l, 1.0, 1.0));
+  }
+  in.cbus = {1, 2, 3, 4};
+  in.slot = {-1, 0, 1, 2, 3};
+  in.dc_p = {0.0, in.ref[0].rect.p, -in.ref[0].inv.p, in.ref[1].rect.p, -in.ref[1].inv.p};
+  in.dc_q = {0.0, in.ref[0].rect.q, in.ref[0].inv.q, in.ref[1].rect.q, in.ref[1].inv.q};
+  in.ql = {0.0, 40.0, 25.0, 10.0, 30.0};
+  in.dg_q = {0.0, 5.0, 0.0, 2.0, 0.0};
+  in.status.assign(in.line.size() * B, 1);
+  in.status[1 * B + 7] = 0;                              // member 7: line 1 out
+  const std::size_t nB = static_cast<std::size_t>(n) * B;
+  in.type.assign(nB, BATCHPF_BUS_PQ);
+  in.conv.assign(nB, 0);
+  in.v.assign(nB, 1.0);
+  in.p0.assign(nB, 0.0);
+  in.q0.assign(nB, 0.0);
+  in.qmax.assign(nB, 300.0);
+  in.qmin.assign(nB, -100.0);
+  for (int b = 0; b < B; b++) {
+    in.type[b] = BATCHPF_BUS_REF;
+    // rectifier and inverter voltages over 0.80 .. 1.10 pu
+    const double vr = 0.80 + 0.30 * (b % 16) / 15.0, vi = 0.80 + 0.30 * (b / 16) / 15.0;
+    in.v[1 * B + b] = vr;
+    in.v[2 * B + b] = vi;
+    in.v[3 * B + b] = vi;
+    in.v[4 * B + b] = vr;
+    for (int k = 1; k < n; k++) {
+      in.p0[k * B + b] = 0.1 * k - 0.25;
+      in.q0[k * B + b] = 0.05 * k;
+    }
+  }
+  in.type[2 * B + 5] = BATCHPF_BUS_ISOLATED;            // member 5: line 0 inverter cut off
+  in.conv[3 * B + 9] = 1;                                // member 9: bus 3 at its Q limit
+
+  DcCase hd, dd;
+  setupDc(hd, MemoryKind::Host, in, B);
+  setupDc(dd, MemoryKind::Device, in, B);
+  const Executor cpu(false, nullptr, 0), gpu(true, nullptr, 0);
+
+  // Start of a solve: reference, except blocked lines
+  cpu.run(B, DcStart{hd.m, hd.w, hd.dm, hd.dw}, "DcStart");
+  const std::vector<HVDCSolution> started = host(hd.sol);
+  check(started[0 * B + 5].mode == gridpack::powerflow::HVDC_BLOCKED,
+        "a line with an isolated converter bus starts blocked");
+  check(started[1 * B + 7].mode == gridpack::powerflow::HVDC_BLOCKED,
+        "a line out of service starts blocked");
+  check(dcValues({started[0]}) == dcValues({in.ref[0]}), "other lines start at the reference");
+  const std::vector<double> p0_start = host(hd.p0);
+  check(p0_start[1 * B + 0] == in.p0[1 * B + 0],
+        "the reference injection leaves the case's p0 unchanged");
+
+  // Sequential step on the CPU and the GPU against GridPACK's function
+  cpu.run(B, DcUpdate{hd.m, hd.w, hd.dm, hd.dw}, "DcUpdate");
+  gpu.run(B, DcStart{dd.m, dd.w, dd.dm, dd.dw}, "DcStart");
+  gpu.run(B, DcUpdate{dd.m, dd.w, dd.dm, dd.dw}, "DcUpdate");
+  cudaCheck(cudaDeviceSynchronize(), "dc sync");
+  const std::vector<HVDCSolution> sh = host(hd.sol), sd = host(dd.sol);
+  std::vector<HVDCSolution> direct(sh.size());
+  std::vector<int> modes(5, 0);
+  for (int l = 0; l < 2; l++) {
+    for (int b = 0; b < B; b++) {
+      const std::size_t i = static_cast<std::size_t>(l) * B + b;
+      const HVDCLineData &line = in.line[l];
+      const bool off = (l == 1 && b == 7) || (l == 0 && b == 5);
+      direct[i] = off ? gridpack::powerflow::blockedHVDCSolution()
+                      : gridpack::powerflow::solveTwoTerminalDC(
+                            line, in.v[static_cast<std::size_t>(line.rect.bus) * B + b],
+                            in.v[static_cast<std::size_t>(line.inv.bus) * B + b]);
+      modes[direct[i].mode]++;
+      check(sh[i].mode == direct[i].mode && sd[i].mode == direct[i].mode,
+            "CPU and GPU find GridPACK's control mode");
+    }
+  }
+  int distinct = 0;
+  for (int c : modes) distinct += c > 0 ? 1 : 0;
+  const double d_cpu = maxRelDiff(dcValues(direct), dcValues(sh));
+  const double d_gpu = maxRelDiff(dcValues(direct), dcValues(sd));
+  std::printf("dc lines: %d control modes reached; CPU rel. diff %.2e, GPU rel. diff %.2e\n",
+              distinct, d_cpu, d_gpu);
+  check(distinct >= 4, "the sweep reaches blocked, normal and limited modes");
+  check(d_cpu < 1e-14 && d_gpu < 1e-12, "CPU and GPU dc steps equal GridPACK's model");
+
+  // Injections as setSBus() sets them, and the change GridPACK reports
+  const std::vector<double> p0 = host(dd.p0), q0 = host(dd.q0), pw = host(dd.pw);
+  const std::vector<unsigned long long> ch = host(dd.change);
+  double worst_inj = 0.0, worst_ch = 0.0;
+  for (int b = 0; b < B; b++) {
+    std::vector<double> p(n, 0.0), q(n, 0.0);
+    double change = 0.0;
+    for (int l = 0; l < 2; l++) {
+      const std::size_t i = static_cast<std::size_t>(l) * B + b;
+      const HVDCSolution &s = direct[i], &o = started[i];
+      p[in.line[l].rect.bus] += s.rect.p;
+      q[in.line[l].rect.bus] += s.rect.q;
+      p[in.line[l].inv.bus] -= s.inv.p;
+      q[in.line[l].inv.bus] += s.inv.q;
+      change = std::max(change, std::max(std::max(std::fabs(s.rect.p - o.rect.p),
+                                                  std::fabs(s.rect.q - o.rect.q)),
+                                         std::max(std::fabs(s.inv.p - o.inv.p),
+                                                  std::fabs(s.inv.q - o.inv.q))));
+    }
+    for (int k = 1; k < n; k++) {
+      const std::size_t i = static_cast<std::size_t>(k) * B + b;
+      const double ep = in.p0[i] + (in.dc_p[k] - p[k]) / 100.0;
+      const double eq = (in.conv[i] != 0)
+                            ? (in.qmax[i] - ((in.ql[k] - in.dg_q[k]) + q[k])) / 100.0
+                            : in.q0[i] + (in.dc_q[k] - q[k]) / 100.0;
+      worst_inj = std::max(worst_inj, std::max(std::fabs(ep - p0[i]), std::fabs(eq - q0[i])));
+      worst_inj = std::max(worst_inj,
+                           std::fabs(p[k] - pw[static_cast<std::size_t>(in.slot[k]) * B + b]));
+    }
+    worst_ch = std::max(worst_ch, std::fabs(bitsAsDouble(ch[b]) - change / 100.0));
+  }
+  std::printf("dc injections: worst difference %.2e pu, change %.2e pu\n", worst_inj, worst_ch);
+  check(worst_inj < 1e-12 && worst_ch < 1e-12, "converter injections follow setSBus()");
+}
+
 }  // namespace
 
 int main()
@@ -410,6 +691,9 @@ int main()
       }
     }
   }
+
+  // 4. Two-terminal dc lines
+  dcLinesTest();
 
   if (failures == 0) {
     std::printf("No errors detected\n");

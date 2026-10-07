@@ -36,10 +36,12 @@ struct Script {
   std::vector<double> tol;      // mismatch norm of each evaluation, in order
   std::vector<int> qviol;       // conversions found by each Q-limit check
   int bad_eval = -1;            // evaluation that reports a tiny pivot
+  std::vector<double> dc;       // converter change found by each dc step (pu)
 };
 
 struct Run {
-  std::string actions;          // one letter group per step: A(pply) Q E(val)
+  std::string actions;          // one letter group per step: A(pply) Q
+                                // S(tart dc lines) D(c step) E(val)
   SlotState s;
 };
 
@@ -47,7 +49,7 @@ Run simulate(const Script &sc, const ControlRules &rules)
 {
   Run run;
   startSlot(run.s, CaseIndex{0});
-  std::size_t ne = 0, nq = 0;
+  std::size_t ne = 0, nq = 0, nd = 0;
   for (int step = 0; step < 1000 && run.s.stage != SlotState::Stage::Done; step++) {
     StepResult r;
     std::string a;
@@ -56,6 +58,12 @@ Run simulate(const Script &sc, const ControlRules &rules)
       a += "Q";
       r.qviol = nq < sc.qviol.size() ? sc.qviol[nq] : 0;
       nq++;
+    }
+    if (run.s.act_dcstart) a += "S";
+    if (run.s.act_dccheck) {
+      a += "D";
+      r.dc_change = nd < sc.dc.size() ? sc.dc[nd] : 0.0;
+      nd++;
     }
     if (run.s.act_eval) {
       a += "E";
@@ -81,6 +89,15 @@ ControlRules rules(bool pf_qlim, bool ca_qlim, int maxit = 50, int max_ctrl = 10
   r.pf_qlim = pf_qlim;
   r.ca_qlim = ca_qlim;
   r.max_controller_iterations = max_ctrl;
+  return r;
+}
+
+/// The same rules for a network with two-terminal dc lines
+ControlRules dcRules(bool pf_qlim, bool ca_qlim, int max_ctrl = 10)
+{
+  ControlRules r = rules(pf_qlim, ca_qlim, 50, max_ctrl);
+  r.dc_lines = true;
+  r.hvdc_tolerance = 1.0e-4;
   return r;
 }
 
@@ -170,6 +187,55 @@ int main()
     check(r.actions == "E AE", "health stop actions: " + r.actions);
     check(r.s.status == BATCHPF_CASE_FLAGGED, "tiny pivot is flagged");
     check((r.s.health & BATCHPF_HEALTH_SMALL_PIVOT) != 0, "pivot flag");
+  }
+  // 11. dc lines (sequential ac/dc, PFAppModule::solve() check 5): after a
+  //     converged Newton loop and before its last step, a converter change
+  //     above hvdcTolerance repeats the controller iteration
+  {
+    Script sc{{1e-1, 1e-8, 1e-2, 1e-9}, {}};
+    sc.dc = {1e-3, 1e-8};
+    const Run r = simulate(sc, dcRules(false, false));
+    check(r.actions == "E AE D E AE D A", "dc re-solve actions: " + r.actions);
+    check(r.s.ctrl_total == 2 && r.s.status == BATCHPF_CASE_CONVERGED, "dc re-solve converged");
+  }
+  // 12. Reactive limits and dc lines are checked in the same step, limits
+  //     first; either one repeats the iteration
+  {
+    Script sc{{1e-1, 1e-8, 1e-2, 1e-9}, {1, 0}};
+    sc.dc = {1e-8, 1e-8};
+    const Run r = simulate(sc, dcRules(true, false));
+    check(r.actions == "E AE QD E AE QD A", "Q-limit and dc actions: " + r.actions);
+    check(r.s.pv_to_pq == 1 && r.s.ctrl_total == 2, "conversion repeats with dc lines");
+  }
+  // 13. The driver's second solve starts the dc lines again (startHVDC)
+  {
+    Script sc{{1e-1, 1e-8, 1e-3, 1e-9}, {2}};
+    sc.dc = {1e-8, 1e-8};
+    const Run r = simulate(sc, dcRules(false, true));
+    check(r.actions == "E AE D AQ SE AE D A", "second solve restarts dc: " + r.actions);
+    check(r.s.solve_no == 2 && r.s.status == BATCHPF_CASE_CONVERGED, "second solve converged");
+  }
+  // 14. The controller limit also ends repeated dc changes
+  {
+    Script sc{{1e-1, 1e-8, 1e-2, 1e-9}, {}};
+    sc.dc = {1.0, 1.0};
+    const Run r = simulate(sc, dcRules(false, false, 2));
+    check(r.actions == "E AE D E AE D A", "dc controller limit actions: " + r.actions);
+    check(r.s.ctrl_total == 2, "no third controller iteration");
+  }
+  // 15. A failed Newton loop is not followed by a dc step
+  {
+    const Run r = simulate({{1e-1, 20.0}, {}}, dcRules(true, false));
+    check(r.actions == "E AE A", "no dc step after divergence: " + r.actions);
+    check(r.s.status == BATCHPF_CASE_DIVERGED, "diverged with dc lines");
+  }
+  // 16. A stagnation conversion still runs the dc step and repeats
+  {
+    Script sc{{1e-1, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-2, 1e-9}, {1}};
+    sc.dc = {1e-8, 1e-8};
+    const Run r = simulate(sc, dcRules(true, false));
+    check(r.actions == "E AE AE AE AE AE AE Q D E AE QD A", "stagnation with dc: " + r.actions);
+    check(r.s.status == BATCHPF_CASE_CONVERGED, "stagnation with dc converged");
   }
   if (failures == 0) {
     std::cout << "No errors detected\n";

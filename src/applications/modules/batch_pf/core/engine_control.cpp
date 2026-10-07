@@ -78,6 +78,12 @@ void endNewton(SlotState &s, const ControlRules &rules)
   if (!s.ret) {
     s.repeat = false;
     endCtrl(s, rules);
+  } else if (rules.dc_lines) {
+    // The controller checks of solve() before its last step: reactive
+    // limits unless the stagnation check handled them, then the dc lines
+    s.stage = Stage::CtrlChecks;
+    s.act_qcheck = rules.pf_qlim && !s.early;
+    s.act_dccheck = true;
   } else if (rules.pf_qlim && !s.early) {
     s.stage = Stage::CtrlQcheck;   // limits checked before the last step
     s.act_qcheck = true;
@@ -138,6 +144,7 @@ void advanceSlot(SlotState &s, const StepResult &r, const ControlRules &rules)
   if (s.stage == Stage::Done || s.stage == Stage::Free) return;
   const bool evaluated = s.act_eval;
   s.act_apply = s.act_qcheck = s.act_eval = false;
+  s.act_dcstart = s.act_dccheck = false;
   const double tol = std::max(r.maxp, r.maxq);
 
   // Health checks (B8.8): any failure stops the case on the GPU
@@ -215,12 +222,25 @@ void advanceSlot(SlotState &s, const StepResult &r, const ControlRules &rules)
       }
       endCtrl(s, rules);
       break;
+    case Stage::CtrlChecks: {
+      bool repeat = s.early;
+      if (r.qviol > 0) {
+        s.pv_to_pq += r.qviol;
+        repeat = true;
+      }
+      if (r.dc_change > rules.hvdc_tolerance) repeat = true;
+      s.repeat = repeat && s.ctrl_iter < rules.max_controller_iterations;
+      endCtrl(s, rules);
+      break;
+    }
     case Stage::CaQcheck:
       if (r.qviol > 0) {
         s.pv_to_pq += r.qviol;
         s.solve_no = 2;
         s.ctrl_iter = 0;
         startCtrl(s);
+        // The second solve() starts its dc lines again (startHVDC)
+        s.act_dcstart = rules.dc_lines;
       } else {
         finish(s, BATCHPF_CASE_CONVERGED);
       }

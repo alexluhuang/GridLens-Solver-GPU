@@ -19,6 +19,7 @@
 #include <cstring>
 #include <vector>
 
+#include "dc_kernels.cuh"
 #include "engine.hpp"
 #include "executor.cuh"
 #include "pf_kernels.cuh"
@@ -169,6 +170,17 @@ struct EngineBuffers {
   std::vector<int> h_apply, h_qcheck, h_eval, h_fill, h_slack;
   std::vector<int> h_argp, h_argq, h_qviol, h_status;
   std::vector<unsigned long long> h_maxp, h_maxq, h_res, h_rhs;
+  // two-terminal dc lines: model (M), per slot (W) and per member flags
+  Buffer<HVDCLineData> dc_line;
+  Buffer<HVDCSolution> dc_ref, dc_sol;
+  Buffer<int> dc_cbus, dc_slot, dc_status;
+  Buffer<double> dc_p, dc_pw, dc_qw, dc_p0s, dc_q0s;
+  Buffer<int> m_dcstart, m_dccheck;
+  Buffer<unsigned long long> m_dcchange;
+  std::vector<int> h_dcstart, h_dccheck;
+  std::vector<unsigned long long> h_dcchange;
+  Exchange<int> u_dc_status;
+  Exchange<HVDCSolution> out_dc;
   // exchange (class X)
   Exchange<int> u_bus_member, u_edge_member, gather_slots, fill_slots;
   Exchange<batchpf_bus_update> u_bus;
@@ -212,7 +224,40 @@ inline ModelView modelView(const ModelHost &h, EngineBuffers &d)
   m.base_eb = d.base_eb.data();
   m.diag_pos = d.diag_pos.data();
   m.edge_pos = d.edge_pos.data();
+  m.dc_slot = d.dc_slot.data();
   return m;
+}
+
+/// View of the dc line model buffers
+inline DcModelView dcModelView(const ModelHost &h, EngineBuffers &d)
+{
+  DcModelView dm;
+  dm.n_line = static_cast<int>(h.dc_line.size());
+  dm.n_cbus = static_cast<int>(h.dc_bus.size());
+  dm.line = d.dc_line.data();
+  dm.ref = d.dc_ref.data();
+  dm.cbus = d.dc_cbus.data();
+  dm.slot = d.dc_slot.data();
+  dm.dc_p = d.dc_p.data();
+  dm.dc_q = d.dc_q.data();
+  return dm;
+}
+
+/// View of the per-slot dc line buffers
+inline DcBatchView dcBatchView(EngineBuffers &d, int B)
+{
+  DcBatchView dw;
+  dw.B = B;
+  dw.status = d.dc_status.data();
+  dw.sol = d.dc_sol.data();
+  dw.p = d.dc_pw.data();
+  dw.q = d.dc_qw.data();
+  dw.p0s = d.dc_p0s.data();
+  dw.q0s = d.dc_q0s.data();
+  dw.m_start = d.m_dcstart.data();
+  dw.m_check = d.m_dccheck.data();
+  dw.m_change = d.m_dcchange.data();
+  return dw;
 }
 
 /// View of the working buffers for the kernels
@@ -239,6 +284,7 @@ inline BatchView batchView(EngineBuffers &d, int B, const batchpf_solver_params 
   w.J = d.J.data();
   w.conv = d.conv.data();
   w.qreq = d.qreq.data();
+  w.dc_q = d.dc_qw.data();
   w.m_apply = d.m_apply.data();
   w.m_qcheck = d.m_qcheck.data();
   w.m_eval = d.m_eval.data();

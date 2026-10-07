@@ -80,6 +80,9 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   std::vector<double> g(n), b(n), p0(n), q0(n), qmax(n), qmin(n), v(n), th(n), thw(n);
   std::vector<double> ql(n), ip(n), iq(n), yp(n), yq(n), pinj(n), qinj(n), qreq(n);
   std::vector<double> dg_q(n), dc_q(n);
+  // Converter injections as exported (the base solution's); no per-member
+  // dc state, so every bus reads the model's value
+  std::vector<int> dc_slot(n, -1);
   for (int k = 0; k < n; k++) {
     const auto &s = model.buses[k];
     type[k] = s.type;
@@ -114,6 +117,7 @@ void kernelParity(gridpack::powerflow::PFAppModule &app,
   m.ql = ql.data();
   m.dg_q = dg_q.data();
   m.dc_q = dc_q.data();
+  m.dc_slot = dc_slot.data();
   m.ip = ip.data();
   m.iq = iq.data();
   m.yp = yp.data();

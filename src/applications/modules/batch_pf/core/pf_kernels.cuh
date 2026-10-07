@@ -53,6 +53,7 @@ struct ModelView {
   const double *ql = nullptr;
   const double *dg_q = nullptr;   // DG Q on the loads, not part of ql
   const double *dc_q = nullptr;   // dc converter Q drawn, part of q0
+  const int *dc_slot = nullptr;   // position among converter buses, or -1
   const double *ip = nullptr;
   const double *iq = nullptr;
   const double *yp = nullptr;
@@ -97,6 +98,8 @@ struct BatchView {
   double *J = nullptr;       // nnz x B Jacobian values
   int *conv = nullptr;       // n x B Q-limit conversion: 0, +1, -1
   double *qreq = nullptr;    // n x B reactive requirement at conversion
+  const double *dc_q = nullptr;   // converter buses x B: dc converter Q
+                                  // drawn now (MVAr), see dc_kernels.cuh
   // per member (B entries)
   const int *m_apply = nullptr;
   const int *m_qcheck = nullptr;
@@ -483,7 +486,9 @@ struct QlimCheck {
     if (!w.m_qcheck[bm]) return;
     if (w.type[i] != BATCHPF_BUS_PV) return;
     const double v = w.v[i];
-    const double qfix = (m.ql[k] - m.dg_q[k]) + m.dc_q[k];
+    const int c = m.dc_slot[k];
+    const double qdc = (c >= 0) ? w.dc_q[static_cast<int64_t>(c) * w.B + bm] : m.dc_q[k];
+    const double qfix = (m.ql[k] - m.dg_q[k]) + qdc;
     double ql = qfix;
     ql += m.iq[k] * v - m.yq[k] * v * v;
     const double q_required = w.qinj[i] * m.sbase + ql;

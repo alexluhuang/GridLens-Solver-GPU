@@ -28,6 +28,22 @@
 namespace gridpack {
 namespace batchpf {
 
+namespace {
+
+/// dc line statuses of a batch (interface 1.1), or nullptr
+const int32_t *dcStatus(const batchpf_batch &b)
+{
+  return b.struct_size >= sizeof(batchpf_batch) ? b.dc_status : nullptr;
+}
+
+/// Buffer for final dc operating points (interface 1.1), or nullptr
+batchpf_dc_state *dcStates(const batchpf_results &r)
+{
+  return r.struct_size >= sizeof(batchpf_results) ? r.dc_states : nullptr;
+}
+
+}  // namespace
+
 Engine::Engine(ModelHost model, EngineConfig config, Logger logger)
     : p_model(std::move(model)), p_config(std::move(config)),
       p_log(logger), p_buf(std::make_unique<EngineBuffers>())
@@ -61,6 +77,10 @@ void Engine::checkJob(const EngineJob &job) const
       results.outcomes == nullptr || results.v == nullptr ||
       results.theta == nullptr) {
     throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "invalid results record");
+  }
+  if (dcStatus(batch) != nullptr &&
+      batch.n_dc_line != static_cast<int32_t>(p_model.dc_line.size())) {
+    throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "dc line statuses do not match the model");
   }
 }
 
@@ -135,7 +155,9 @@ void Engine::runStream(const std::function<EngineJob *()> &next,
       std::vector<MemberIndex> light;
       for (int b = 0; b < p_B; b++) {
         const SlotState &s = p_slots[b];
-        if (busy(s) && !s.act_eval && (s.act_apply || s.act_qcheck)) light.emplace_back(b);
+        if (busy(s) && !s.act_eval && (s.act_apply || s.act_qcheck || s.act_dccheck)) {
+          light.emplace_back(b);
+        }
       }
       if (light.empty()) break;
       step(true);
@@ -231,6 +253,29 @@ void Engine::fillSlots(const std::vector<MemberIndex> &slots, const std::vector<
   ex.run(static_cast<int64_t>(ne), ApplyEdgeUpdates{w, u}, "ApplyEdgeUpdates");
   ex.run(static_cast<int64_t>(p_model.n_bus) * nfill, InitState{m, w, fs, nfill},
          "InitState");
+  if (!p_model.dc_line.empty()) {
+    // Line statuses of each case (all in service unless the batch lists
+    // them), the converter buses' starting injections, then startHVDC()
+    const int nl = static_cast<int>(p_model.dc_line.size());
+    for (std::size_t i = 0; i < slots.size(); i++) {
+      const int32_t *status = dcStatus(*cases[i].first->batch);
+      const std::size_t c = static_cast<std::size_t>(cases[i].second.value);
+      for (int l = 0; l < nl; l++) {
+        d.u_dc_status.host()[i * nl + l] = (status == nullptr || status[c * nl + l] != 0) ? 1 : 0;
+      }
+    }
+    d.u_dc_status.toDevice(slots.size() * nl, st);
+    std::fill(d.h_dcstart.begin(), d.h_dcstart.end(), 0);
+    for (const MemberIndex slot : slots) d.h_dcstart[slot.value] = 1;
+    d.m_dcstart.upload(d.h_dcstart.data(), p_B, st);
+    const DcModelView dm = dcModelView(p_model, d);
+    const DcBatchView dw = dcBatchView(d, p_B);
+    ex.run(static_cast<int64_t>(nl) * nfill,
+           FillDcStatus{dm, dw, fs, nfill, d.u_dc_status.device()}, "FillDcStatus");
+    ex.run(static_cast<int64_t>(dm.n_cbus) * nfill, CaptureDcStart{w, dm, dw, fs, nfill},
+           "CaptureDcStart");
+    ex.run(p_B, DcStart{m, w, dm, dw}, "DcStart");
+  }
   if (dev) {
     cudaCheck(cudaEventRecord(d.ev_stop[PH_MATERIALIZE].get(), st), "event");
   } else {
@@ -259,20 +304,27 @@ void Engine::step(bool light)
   const cudaStream_t st = p_config.stream;
   const Executor ex(dev, st, p_config.threads_per_block);
   const int B = p_B;
+  const bool has_dc = !p_model.dc_line.empty();
   bool any_apply = false, any_q = false, any_eval = false;
+  bool any_dcstart = false, any_dccheck = false;
   for (int b = 0; b < B; b++) {
     const SlotState &s = p_slots[b];
     // A light step runs only the slots that need no evaluation
     if (light && s.act_eval) {
       d.h_apply[b] = d.h_qcheck[b] = d.h_eval[b] = 0;
+      d.h_dcstart[b] = d.h_dccheck[b] = 0;
       continue;
     }
     d.h_apply[b] = s.act_apply ? 1 : 0;
     d.h_qcheck[b] = s.act_qcheck ? 1 : 0;
     d.h_eval[b] = s.act_eval ? 1 : 0;
+    d.h_dcstart[b] = s.act_dcstart ? 1 : 0;
+    d.h_dccheck[b] = s.act_dccheck ? 1 : 0;
     any_apply = any_apply || s.act_apply;
     any_q = any_q || s.act_qcheck;
     any_eval = any_eval || s.act_eval;
+    any_dcstart = any_dcstart || s.act_dcstart;
+    any_dccheck = any_dccheck || s.act_dccheck;
   }
   std::fill(d.h_maxp.begin(), d.h_maxp.end(), 0ULL);
   std::fill(d.h_maxq.begin(), d.h_maxq.end(), 0ULL);
@@ -293,6 +345,12 @@ void Engine::step(bool light)
   d.m_argq.upload(d.h_argq.data(), B, st);
   d.m_qviol.upload(d.h_qviol.data(), B, st);
   d.m_status.upload(d.h_status.data(), B, st);
+  if (has_dc) {
+    std::fill(d.h_dcchange.begin(), d.h_dcchange.end(), 0ULL);
+    d.m_dcstart.upload(d.h_dcstart.data(), B, st);
+    d.m_dccheck.upload(d.h_dccheck.data(), B, st);
+    d.m_dcchange.upload(d.h_dcchange.data(), B, st);
+  }
 
   const ModelView m = modelView(p_model, d);
   const BatchView w = batchView(d, B, p_params);
@@ -317,7 +375,16 @@ void Engine::step(bool light)
   }
 
   if (any_apply) phase(PH_UPDATE, [&] { ex.run(nB, ApplyStep{w}, "ApplyStep"); });
-  if (any_q) phase(PH_QLIM, [&] { ex.run(nB, QlimCheck{m, w}, "QlimCheck"); });
+  // Controller checks: reactive limits, then the dc lines (dc_kernels.cuh)
+  if (any_q || any_dcstart || any_dccheck) {
+    const DcModelView dm = dcModelView(p_model, d);
+    const DcBatchView dw = dcBatchView(d, B);
+    phase(PH_QLIM, [&] {
+      if (any_q) ex.run(nB, QlimCheck{m, w}, "QlimCheck");
+      if (any_dcstart) ex.run(B, DcStart{m, w, dm, dw}, "DcStart");
+      if (any_dccheck) ex.run(B, DcUpdate{m, w, dm, dw}, "DcUpdate");
+    });
+  }
   if (any_eval) {
     phase(PH_MISMATCH, [&] {
       ex.run(nB, Mismatch{m, w}, "Mismatch");
@@ -351,6 +418,7 @@ void Engine::step(bool light)
   d.m_status.download(d.h_status.data(), B, st);
   d.m_res.download(d.h_res.data(), B, st);
   d.m_rhs.download(d.h_rhs.data(), B, st);
+  if (has_dc) d.m_dcchange.download(d.h_dcchange.data(), B, st);
   if (dev) cudaCheck(cudaStreamSynchronize(st), "step");
 
   // telemetry totals
@@ -397,6 +465,7 @@ void Engine::step(bool light)
     r.member_status = d.h_status[b];
     r.residual = bitsToDouble(d.h_res[b]);
     r.rhs_norm = bitsToDouble(d.h_rhs[b]);
+    r.dc_change = has_dc ? bitsToDouble(d.h_dcchange[b]) : 0.0;
   }
 }
 
@@ -424,6 +493,14 @@ void Engine::finishSlots(const std::vector<MemberIndex> &slots,
   d.out_theta.toHost(len, st);
   d.out_conv.toHost(len, st);
   d.out_q.toHost(len, st);
+  const int nl = static_cast<int>(p_model.dc_line.size());
+  if (nl > 0) {
+    ex.run(static_cast<int64_t>(nl) * cnt,
+           GatherDc{dcModelView(p_model, d), dcBatchView(d, p_B), d.gather_slots.device(),
+                    d.out_dc.deviceMutable()},
+           "GatherDc");
+    d.out_dc.toHost(static_cast<std::size_t>(nl) * cnt, st);
+  }
   if (dev) cudaCheck(cudaStreamSynchronize(st), "gather");
   for (int li = 0; li < cnt; li++) {
     SlotState &s = p_slots[slots[li].value];
@@ -441,6 +518,11 @@ void Engine::finishSlots(const std::vector<MemberIndex> &slots,
     }
     if (results.q_required) {
       std::copy(d.out_q.host() + src, d.out_q.host() + src + n, results.q_required + off);
+    }
+    if (batchpf_dc_state *dc = dcStates(results)) {
+      const std::size_t lsrc = static_cast<std::size_t>(li) * nl;
+      const std::size_t loff = static_cast<std::size_t>(c) * nl;
+      for (int l = 0; l < nl; l++) dc[loff + l] = dcState(d.out_dc.host()[lsrc + l]);
     }
     if (results.history && results.history_count && results.history_capacity > 0) {
       const int cap = results.history_capacity;

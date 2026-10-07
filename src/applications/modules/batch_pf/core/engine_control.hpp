@@ -17,6 +17,7 @@
  * GridPACK's sequence for one case (guide 5.3.3, 6.2):
  *
  *   solve():
+ *     dc lines start from the reference operating point (startHVDC)
  *     repeat (controller iterations, bounded):
  *       F0 = mismatch, J0, X = J0 \ F0; tol0 = |F0|; iter = 0
  *       while |F| > tolerance and iter < limit:
@@ -25,8 +26,10 @@
  *           if any bus converts, leave the loop ("early")
  *         if |F| > 100 tol0: diverged
  *       iter == limit: diverged
- *       if converged: check Q limits (unless early); repeat if a bus
- *         converted and the controller limit allows
+ *       if converged: check Q limits (unless early), then re-solve the dc
+ *         lines; repeat if a bus converted (or early) or a converter
+ *         injection changed by more than hvdcTolerance, and the
+ *         controller limit allows
  *       if not repeating: x -= X (the last step is applied)
  *   driver: if solve() succeeded and Contingency_analysis/qlim is on,
  *     check Q limits at the final state; if any bus converts, solve again.
@@ -53,6 +56,8 @@ struct ControlRules {
   int max_controller_iterations = 10;
   bool check_nonfinite = true;
   double residual_limit = 0.0;    // 0 = no residual check
+  bool dc_lines = false;          // the network has two-terminal dc lines
+  double hvdc_tolerance = 1.0e-6; // Powerflow/hvdcTolerance (pu)
 };
 
 /// What the last step produced for one slot
@@ -62,6 +67,7 @@ struct StepResult {
   int argp = -1;                  // bus of maxp
   int argq = -1;
   int qviol = 0;                  // buses converted by a Q-limit check
+  double dc_change = 0.0;         // largest dc converter P or Q change (pu)
   int member_status = 0;          // BATCHPF_MEMBER_* from the backend
   double residual = 0.0;          // |J X - F| (if checked)
   double rhs_norm = 0.0;          // |F|
@@ -78,12 +84,14 @@ struct IterationRecord {
 /// State of one slot
 struct SlotState {
   enum class Stage { Free, StartCtrl, NewtonIter, StagnationQcheck,
-                     CtrlQcheck, FinalApply, CaQcheck, Done };
+                     CtrlQcheck, CtrlChecks, FinalApply, CaQcheck, Done };
   Stage stage = Stage::Free;
   CaseIndex case_idx;
   // actions of the next step, run in this order
   bool act_apply = false;         // x -= X
   bool act_qcheck = false;        // reactive-limit check
+  bool act_dcstart = false;       // dc lines back to their starting point
+  bool act_dccheck = false;       // sequential ac/dc step
   bool act_eval = false;          // mismatch, Jacobian, factor, solve
   int solve_no = 1;               // 2 after the driver's extra check
   int ctrl_iter = 0;
