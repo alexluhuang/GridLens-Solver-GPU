@@ -2,7 +2,7 @@
 
 Repository `/home/alh360/Documents/GridLens-Solver-GPU`, branch
 `feature/gpu-batch-n1`. The remote branch is at `d62432ec` (the user's
-timer commit); the 13 commits after it are local and not pushed.
+timer commit); the commits after it are local and not pushed.
 
 ## Instructions that still apply
 
