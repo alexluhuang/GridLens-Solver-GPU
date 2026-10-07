@@ -26,6 +26,14 @@ functionality appears in the develop branch.
       contingencyDCLines, FullHVDCN1 auto-generation and a dc_line column
       in _contingencies.csv; dc lines start each contingency from the
       base-case operating point
+  - GPU batch contingency analysis
+    - Two-terminal dc lines and dc pole outages on the GPU path, with
+      GridPACK's sequential method and dc line model evaluated per case
+      (plugin interface 1.1)
+    - Distributed generation and dc converter draw in the GPU
+      reactive-limit check, as in PFBus::chkQlim()
+    - Test network with dc lines and distributed generation generated from
+      the public 240-bus WECC case, and --full-hvdc-n1 in the parity harness
   - Documentation
     - docs/markdown/WECC_COMPATIBILITY.md describes these changes and the
       DG and dc line models
@@ -47,6 +55,15 @@ functionality appears in the develop branch.
     - Linear solver exceptions overflowed a fixed-size message buffer and
       aborted the run; the network-file error message had a mismatched
       format string
+    - Log and report lines of the power flow and contingency analysis were
+      formatted without bounds; a diverging case printed mismatches too
+      long for the buffer and aborted the run. They are now bounded
+    - Removing a contingency restores the dc converter injections, so a
+      solve no longer leaves its converter state in the network
+  - GPU batch contingency analysis
+    - Outages that isolate the reference bus were solved on the GPU and
+      reported as converged; they now take GridPACK's CPU loop, which
+      reports its solver failure
 
 ## [3.7.0]
 - Added

@@ -41,6 +41,10 @@ The changes are in these commits on top of `develop`:
 
 This note and the change log entry are in the commit that follows them.
 
+On `feature/wecc-gpu-merged` the same changes are replayed on top of the GPU
+batch contingency branch (`feature/gpu-batch-n1`), with the first commit
+split in five; section 8 describes how the GPU path models DG and dc lines.
+
 ## 1. Parser and error-handling fixes
 
 ### 1.1 Comment stripping with several quoted fields
@@ -375,6 +379,95 @@ the dc lines: control mode, current, and P, Q and angle at each converter.
   injections; dynamic simulation reads loads directly.
 * KLU is a serial solver; multi-process runs need SuperLU_DIST or MUMPS.
 
+## 8. GPU batch contingency path (`feature/wecc-gpu-merged`)
+
+The GPU branch solves eligible contingency cases together on the GPU with
+one shared Jacobian pattern (its `docs/gpu_n1` and
+`modules/batch_pf/README.md`). Merging the two branches needed seven small
+textual resolutions and four changes for cases the GPU path did not know
+about.
+
+### 8.1 Textual resolutions
+
+| Where | Resolution |
+|---|---|
+| `powerflow/CMakeLists.txt`, `pf_factory_module.hpp` | Install and include both `pf_hvdc.hpp` and `pf_superset_model.hpp` (full `gridpack/...` include paths) |
+| `pf_factory_module.cpp` | Union of the standard includes |
+| `pf_components.cpp` (`serialWrite`, `saveData`, `saveDataAlsotoOrg`) | The GPU branch's run-time Jacobian layout switch (`if (!p_largeMatrix)` instead of `#ifndef LARGE_MATRIX`) with this branch's `getFixedPowerDemand()`, so reported generator output includes DG and converters |
+| `ca_driver.cpp` (`csv_delta` rows) | The GPU branch's direct component reads (`readBuses()`) with `contingencyTypeName()` |
+
+### 8.2 Two-terminal dc lines on the GPU
+
+A dc line enters the ac equations only through the power its converters
+draw, so the GPU path keeps one Jacobian pattern for every case (Zhou et al.
+2017) and solves the dc lines sequentially (Khan and Bhowmick, ch. 3.3.2),
+as `PFAppModule::solve()` does:
+
+* The numeric converter model moved into `pf_hvdc.hpp` as inline functions
+  on plain data that compile as GPU device functions too
+  (`gridpack::hvdc_model` interface target). CPU results on the large case
+  are byte-identical to before the move.
+* Each case starts its lines at the base-case operating point, blocked if
+  out of service or if a converter bus is isolated, and re-solves them after
+  each converged Newton loop, with the reactive-limit check and before the
+  last step. A change above `hvdcTolerance` repeats the controller
+  iteration; the contingency driver's second solve starts the lines again
+  (`core/dc_kernels.cuh`, `core/engine_control.cpp`).
+* A dc pole outage changes neither admittances nor topology. The classifier
+  sends it to the GPU with the indices of the blocked lines; batches carry
+  each case's line statuses.
+* The final dc operating points return with each result and are set in
+  GridPACK before its reports, so slack output, flows and checks see the
+  converter injections the solution was found with.
+* Removing a contingency now also restores the converter injections, as it
+  restores switched shunts and taps; before, a solve left its converter
+  state in the network for the next caller.
+
+### 8.3 Reactive-limit demand
+
+GridPACK's `chkQlim()` compares the generators' limits with the bus demand
+of `getFixedPowerDemand()`: loads less their DG plus dc converter draw
+(Kundur 6.4: the limits belong to the generators; other devices at the bus
+are demand, and the constant-power DG model of Meena et al. is a negative
+load). The GPU check used raw loads. It now receives DG Q (`dg_q`) and the
+converter Q of the case as separate fields and forms the same demand.
+
+### 8.4 Labels and interface version
+
+`contingencyTypeName()` labels every row, including the convergence rows
+written for missing GPU outcomes. The plugin interface is version 1.1: DG,
+dc line and dc state records are appended to the model, solver, batch and
+results records, and callers built for 1.0 still work. With a plugin older
+than 1.1, networks with DG or dc lines use the CPU loop.
+
+### 8.5 Results
+
+* **Large planning case** (2,010 cases: every branch and generator outage
+  within three buses of a converter, 1,500 sampled elsewhere, and every pole
+  outage; tolerance 1e-4): 1,655 cases on the GPU and 355 radial islands on
+  the CPU path, identical on Algorithm 2 and cuDSS. Every shadow re-solve
+  agrees in status, PV/PQ sets and classification (largest voltage
+  difference 3e-7 pu). Against the CPU path, 54 million flow rows and
+  240,000 violation rows agree within 1e-3 or one printed digit except in
+  two cases, where the dc change at the deciding controller iteration was
+  1.000e-04 pu, the `hvdcTolerance` itself: one path took one more
+  sequential step, which moves converter-bus flows by 0.01 MVA (the
+  tolerance) and the final Newton count by one. A tighter `hvdcTolerance`
+  than the Newton tolerance (for example 1e-5 with 1e-4) makes such ties
+  rare. Without shadow re-solves (the production setting) the study takes
+  188.2 s on the CPU path, 25.7 s with Algorithm 2 and 45.4 s with cuDSS at
+  16 processes, with the same statuses and summary counts.
+* **Every input file.** Full N-1 parity with every dc pole outage on all
+  31 RAW files in `data_sets/raw` (v23 to v36), the public test network and
+  three external validation grids up to 10,000 buses passes on Algorithm 2
+  and cuDSS (`docs/gpu_n1/validation.md`).
+* **Public test network** (`batch_pf/test/make_dc_case.py`: the 240-bus
+  WECC case with a power-order, a current-order and a blocked dc line, DG
+  on 27 loads and one DG unit out of service): full N-1 with both pole
+  outages matches the CPU path on the CPU reference, Algorithm 2 and cuDSS
+  backends (largest shadow voltage difference 4e-14 pu);
+  `ctest -R ca_dc_dg`.
+
 ## References
 
 * P. Kundur, *Power System Stability and Control*, McGraw-Hill, Sec. 6.4
@@ -386,3 +479,11 @@ the dc lines: control mode, current, and P, Q and angle at each converter.
   doi:10.1109/ISTEMS60181.2024.10560356.
 * Siemens PTI, *PSS/E Program Operation Manual* (RAW file format, versions 33
   to 36).
+* G. Zhou, R. Bo, L. Chien, X. Zhang, F. Shi, C. Xu and Y. Feng, "GPU-Based
+  Batch LU-Factorization Solver for Concurrent Analysis of Massive Power
+  Flows," *IEEE Trans. Power Systems*, 32(6), 2017,
+  doi:10.1109/TPWRS.2017.2662322.
+* M. D'Orto, S. Sjöblom, L. S. Chien, L. Axner and J. Gong, "Comparing
+  Different Approaches for Solving Large Scale Power-Flow Problems With the
+  Newton-Raphson Method," *IEEE Access*, 9, 2021,
+  doi:10.1109/ACCESS.2021.3072338.
