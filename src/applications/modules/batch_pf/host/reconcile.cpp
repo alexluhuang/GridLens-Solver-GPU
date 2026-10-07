@@ -20,18 +20,6 @@
 namespace gridpack {
 namespace batchpf {
 
-namespace {
-
-/// Consecutive rows of one part file that belong to one event
-struct Run {
-  long event = 0;
-  int part = 0;
-  std::streamoff offset = 0;
-  std::streamoff length = 0;
-};
-
-}  // namespace
-
 OutcomeCoverage checkOutcomeCoverage(int expected, const std::vector<int> &indices)
 {
   OutcomeCoverage result;
@@ -51,50 +39,60 @@ OutcomeCoverage checkOutcomeCoverage(int expected, const std::vector<int> &indic
   return result;
 }
 
+std::vector<PartRun> scanPartRuns(const std::string &path, int part, std::size_t *rows)
+{
+  std::vector<PartRun> runs;
+  std::ifstream in(path.c_str(), std::ios::in | std::ios::binary);
+  if (!in) return runs;
+  std::string line;
+  std::streamoff pos = 0;
+  bool unterminated = false;
+  while (std::getline(in, line)) {
+    // getline drops the newline; a last row without one ends the file
+    unterminated = in.eof();
+    const std::streamoff size =
+        static_cast<std::streamoff>(line.size()) + (unterminated ? 0 : 1);
+    if (!line.empty()) {
+      char *end = nullptr;
+      long event = std::strtol(line.c_str(), &end, 10);
+      // a row without an event index stays with the rows before it
+      if (end == line.c_str() && !runs.empty()) event = runs.back().event;
+      if (!runs.empty() && runs.back().event == event) {
+        runs.back().length += size;
+      } else {
+        PartRun r;
+        r.event = event;
+        r.part = part;
+        r.offset = pos;
+        r.length = size;
+        runs.push_back(r);
+      }
+      (*rows)++;
+    } else if (!runs.empty()) {
+      runs.back().length += size;   // keep blank lines where they were
+    }
+    pos += size;
+  }
+  // The last run reaches the end of the file
+  if (unterminated && !runs.empty()) runs.back().add_newline = true;
+  return runs;
+}
+
 std::size_t appendPartsByEvent(const std::vector<std::string> &parts, std::ostream &out)
 {
-  std::vector<Run> runs;
+  std::vector<PartRun> runs;
   std::size_t rows = 0;
   const int nparts = static_cast<int>(parts.size());
   for (int p = 0; p < nparts; p++) {
-    std::ifstream in(parts[p].c_str(), std::ios::in | std::ios::binary);
-    if (!in) continue;
-    std::string line;
-    std::streamoff pos = 0;
-    while (std::getline(in, line)) {
-      // getline drops the newline; a last row without one ends the file
-      const std::streamoff size =
-          static_cast<std::streamoff>(line.size()) + (in.eof() ? 0 : 1);
-      if (!line.empty()) {
-        char *end = nullptr;
-        long event = std::strtol(line.c_str(), &end, 10);
-        // a row without an event index stays with the rows before it
-        if (end == line.c_str() && !runs.empty() && runs.back().part == p) {
-          event = runs.back().event;
-        }
-        if (!runs.empty() && runs.back().part == p && runs.back().event == event) {
-          runs.back().length += size;
-        } else {
-          Run r;
-          r.event = event;
-          r.part = p;
-          r.offset = pos;
-          r.length = size;
-          runs.push_back(r);
-        }
-        rows++;
-      } else if (!runs.empty() && runs.back().part == p) {
-        runs.back().length += size;   // keep blank lines where they were
-      }
-      pos += size;
-    }
+    const std::vector<PartRun> mine = scanPartRuns(parts[p], p, &rows);
+    runs.insert(runs.end(), mine.begin(), mine.end());
   }
   std::stable_sort(runs.begin(), runs.end(),
-                   [](const Run &a, const Run &b) { return a.event < b.event; });
+                   [](const PartRun &a, const PartRun &b) { return a.event < b.event; });
 
   std::vector<std::unique_ptr<std::ifstream>> files(nparts);
   std::vector<char> buf(1 << 20);
-  for (const Run &r : runs) {
+  for (const PartRun &r : runs) {
     std::unique_ptr<std::ifstream> &in = files[r.part];
     if (!in) {
       in = std::make_unique<std::ifstream>(parts[r.part].c_str(),

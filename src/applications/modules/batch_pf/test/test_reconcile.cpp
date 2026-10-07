@@ -4,6 +4,7 @@
  */
 #include "../host/reconcile.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <exception>
@@ -51,6 +52,28 @@ void check(const Scratch &scratch, const std::vector<std::string> &contents,
   const auto rows = gridpack::batchpf::appendPartsByEvent(parts, out);
   if (rows != expected_rows || out.str() != expected) {
     throw std::runtime_error("rows were lost or reordered within an event");
+  }
+  // The parallel writer lays out the runs of every part, stable-sorted by
+  // event, and copies each to its place: the same bytes and row count
+  std::vector<gridpack::batchpf::PartRun> runs;
+  std::size_t scanned = 0;
+  for (std::size_t p = 0; p < parts.size(); p++) {
+    const auto mine = gridpack::batchpf::scanPartRuns(parts[p], static_cast<int>(p), &scanned);
+    runs.insert(runs.end(), mine.begin(), mine.end());
+  }
+  std::stable_sort(runs.begin(), runs.end(),
+                   [](const auto &a, const auto &b) { return a.event < b.event; });
+  std::string laid_out;
+  for (const auto &r : runs) {
+    std::ifstream in(parts[r.part], std::ios::binary);
+    std::string bytes(static_cast<std::size_t>(r.length), '\0');
+    in.seekg(r.offset);
+    in.read(&bytes[0], r.length);
+    laid_out += bytes;
+    if (r.add_newline) laid_out += '\n';
+  }
+  if (scanned != expected_rows || laid_out != expected) {
+    throw std::runtime_error("the scanned runs do not give the merged file");
   }
 }
 

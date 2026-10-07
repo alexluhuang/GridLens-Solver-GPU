@@ -35,6 +35,7 @@ include_directories(BEFORE ${GRIDPACK_INCLUDE_DIRS})
 add_executable(ca.x
    ca_driver.cpp
    ca_main.cpp
+   ca_parallel_write.cpp
    ca_parquet.cpp
 )
 

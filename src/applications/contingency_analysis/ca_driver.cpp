@@ -34,6 +34,7 @@
 #include "gridpack/utilities/results_exporter.hpp"
 #include "ca_driver.hpp"
 #include "ca_rows.hpp"
+#include "ca_parallel_write.hpp"
 #include "ca_parquet.hpp"
 #include "gridpack/applications/modules/batch_pf/host/batch_path.hpp"
 #include "gridpack/applications/modules/batch_pf/host/reconcile.hpp"
@@ -2757,75 +2758,44 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       printf("[parquet] wrote %ld rows to %s/ (%ld files)\n", written, flowsDir.c_str(), files);
     }
   }
+  // The tables are written by all ranks at once, each copying its own part
+  // file's rows into place (ca_parallel_write.hpp): event order on the batch
+  // path (guide R5), rank order otherwise, byte for byte as rank 0 alone
+  // wrote them before
+  const MPI_Comm writeComm = static_cast<MPI_Comm>(world);
+  auto writeTable = [&](const char *suffix, const char *header, const char *tag,
+                        const char *outName) {
+    std::ostringstream oss;
+    oss << outputFile << suffix << world.rank() << ".part";
+    const std::string outFile = outputFile + outName;
+    const long long rows = gridpack::contingency_analysis::writePartsInParallel(
+        writeComm, outFile, header, oss.str(), gpuPath.active());
+    if (world.rank() == 0) printf("[%s] wrote %lld rows to %s\n", tag, rows, outFile.c_str());
+  };
   if (wantBusSidecar) {
     world.sync();
+    if (outputFormat == "csv_flat") {
+      writeTable("_flat.",
+                 "event_idx,contingency,from_bus,to_bus,circuit_id,"
+                 "p_from_mw,q_from_mvar,mva_from,rate_mva,loading_percent,"
+                 "viol,v_from_pu,v_to_pu,ang_from_deg,ang_to_deg\n",
+                 "csv_flat",
+                 "_flat.csv");
+    }
+    if (outputFormat == "csv_delta") {
+      writeTable("_delta.",
+                 "event_idx,contingency,type,from_bus,to_bus,ckt,"
+                 "base_kv_from,base_kv_to,area_from,area_to,base_rate_mva,cont_rate_mva,"
+                 "base_p_mw,cont_p_mw,base_q_mvar,cont_q_mvar,"
+                 "base_mva,cont_mva,base_loading_pct,cont_loading_pct,"
+                 "v_from_base,v_from_cont,v_to_base,v_to_cont,"
+                 "ang_from_base,ang_from_cont,ang_to_base,ang_to_cont,"
+                 // ",cont_event_facility" here if re-enabling the column
+                 "d_v_base,d_v_cont,d_angle_base,d_angle_cont\n",
+                 "csv_delta",
+                 "_delta.csv");
+    }
     if (world.rank() == 0) {
-      const size_t BUFSZ = 1 << 20;
-      std::vector<char> buf(BUFSZ);
-
-      auto concatParts = [&](const char *suffix, const char *header,
-                             const char *tag, const char *outName) {
-        std::string outFile = outputFile + outName;
-        std::ofstream fout(outFile.c_str(),
-                           std::ios::out | std::ios::trunc | std::ios::binary);
-        fout << header;
-        size_t rows = 0;
-        if (gpuPath.active()) {
-          // batch path: rows in event order (guide R5)
-          std::vector<std::string> parts;
-          for (int p = 0; p < world.size(); p++) {
-            std::ostringstream oss;
-            oss << outputFile << suffix << p << ".part";
-            parts.push_back(oss.str());
-          }
-          rows = gridpack::batchpf::appendPartsByEvent(parts, fout);
-          for (const std::string &part : parts) std::remove(part.c_str());
-        }
-        for (int p = 0; p < world.size() && !gpuPath.active(); p++) {
-          std::ostringstream oss;
-          oss << outputFile << suffix << p << ".part";
-          std::string part = oss.str();
-          std::ifstream fin(part.c_str(), std::ios::in | std::ios::binary);
-          if (!fin) continue;
-          while (fin) {
-            fin.read(&buf[0], BUFSZ);
-            std::streamsize got = fin.gcount();
-            if (got > 0) {
-              fout.write(&buf[0], got);
-              for (std::streamsize k = 0; k < got; k++) {
-                if (buf[k] == '\n') rows++;
-              }
-            }
-          }
-          fin.close();
-          std::remove(part.c_str());
-        }
-        fout.close();
-        printf("[%s] wrote %zu rows to %s\n", tag, rows, outFile.c_str());
-      };
-
-      if (outputFormat == "csv_flat") {
-        concatParts("_flat.",
-                    "event_idx,contingency,from_bus,to_bus,circuit_id,"
-                    "p_from_mw,q_from_mvar,mva_from,rate_mva,loading_percent,"
-                    "viol,v_from_pu,v_to_pu,ang_from_deg,ang_to_deg\n",
-                    "csv_flat",
-                    "_flat.csv");
-      }
-      if (outputFormat == "csv_delta") {
-        concatParts("_delta.",
-                    "event_idx,contingency,type,from_bus,to_bus,ckt,"
-                    "base_kv_from,base_kv_to,area_from,area_to,base_rate_mva,cont_rate_mva,"
-                    "base_p_mw,cont_p_mw,base_q_mvar,cont_q_mvar,"
-                    "base_mva,cont_mva,base_loading_pct,cont_loading_pct,"
-                    "v_from_base,v_from_cont,v_to_base,v_to_cont,"
-                    "ang_from_base,ang_from_cont,ang_to_base,ang_to_cont,"
-                    // ",cont_event_facility" here if re-enabling the column
-                    "d_v_base,d_v_cont,d_angle_base,d_angle_cont\n",
-                    "csv_delta",
-                    "_delta.csv");
-      }
-
       // Bus metadata sidecar (deduped by bus_id, first writer wins).
       std::string busFile = outputFile + "_buses.csv";
       std::ofstream bout(busFile.c_str(),
@@ -2858,53 +2828,15 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       printf("[buses] wrote %zu rows to %s\n", bus_rows, busFile.c_str());
     }
   }
-  // Concat per-rank _violations.<rank>.part into <outputFile>_violations.csv.
-  // Runs for every outputFormat; ranks that emitted zero rows simply have no
-  // .part file to include.
+  // <outputFile>_violations.csv from the per-rank parts, for every
+  // outputFormat; a rank that emitted no rows has no part file.
   if (violPart.is_open()) violPart.close();
   world.sync();
-  if (world.rank() == 0) {
-    const size_t BUFSZ = 1 << 20;
-    std::vector<char> buf(BUFSZ);
-    std::string outFile = outputFile + "_violations.csv";
-    std::ofstream fout(outFile.c_str(),
-                       std::ios::out | std::ios::trunc | std::ios::binary);
-    fout << "event_idx,contingency,type,element,mva_or_vpu,rate_or_limit,"
-            "loading_percent,base_mva,delta,severity\n";
-    size_t rows = 0;
-    if (gpuPath.active()) {
-      // batch path: rows in event order (guide R5)
-      std::vector<std::string> parts;
-      for (int p = 0; p < world.size(); p++) {
-        std::ostringstream oss;
-        oss << outputFile << "_violations." << p << ".part";
-        parts.push_back(oss.str());
-      }
-      rows = gridpack::batchpf::appendPartsByEvent(parts, fout);
-      for (const std::string &part : parts) std::remove(part.c_str());
-    }
-    for (int p = 0; p < world.size() && !gpuPath.active(); p++) {
-      std::ostringstream oss;
-      oss << outputFile << "_violations." << p << ".part";
-      std::string part = oss.str();
-      std::ifstream fin(part.c_str(), std::ios::in | std::ios::binary);
-      if (!fin) continue;
-      while (fin) {
-        fin.read(&buf[0], BUFSZ);
-        std::streamsize got = fin.gcount();
-        if (got > 0) {
-          fout.write(&buf[0], got);
-          for (std::streamsize k = 0; k < got; k++) {
-            if (buf[k] == '\n') rows++;
-          }
-        }
-      }
-      fin.close();
-      std::remove(part.c_str());
-    }
-    fout.close();
-    printf("[violations] wrote %zu rows to %s\n", rows, outFile.c_str());
-  }
+  writeTable("_violations.",
+             "event_idx,contingency,type,element,mva_or_vpu,rate_or_limit,"
+             "loading_percent,base_mva,delta,severity\n",
+             "violations",
+             "_violations.csv");
 
   // Aggregate skip count across ranks for diagnostics.
   if (deltaRows) {

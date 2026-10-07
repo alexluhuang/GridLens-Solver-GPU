@@ -51,6 +51,7 @@ endif()
 add_executable(ca.x
    ca_driver.cpp
    ca_main.cpp
+   ca_parallel_write.cpp
    ca_parquet.cpp
 )
 
@@ -208,6 +209,8 @@ install(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_driver.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_driver.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ca_parallel_write.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ca_parallel_write.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_parquet.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_parquet.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ca_rows.hpp
