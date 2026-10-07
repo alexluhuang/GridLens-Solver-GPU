@@ -113,6 +113,8 @@ class Accelerator {
   bool wait(int64_t ticket, int timeout_ms);
   batchpf_diagnostics diagnostics();
 
+  /// Minor version of the plugin interface the loaded plugin implements
+  uint32_t apiMinor() const noexcept { return p_api.api_minor; }
   const std::string &pluginFile() const noexcept { return p_file; }
   const std::string &pluginVersion() const noexcept { return p_version; }
   const std::string &buildInfo() const noexcept { return p_build; }

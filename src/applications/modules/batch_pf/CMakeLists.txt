@@ -74,9 +74,12 @@ target_compile_options(gridpack_batchpf_warnings INTERFACE
 # -------------------------------------------------------------
 # Host library linked into ca.x: settings resolver (B14), accelerator
 # loader (B13), host platform layer (B9-H) and the GridPACK adapter layer
-# (classifier, export, batch scheduling, state injection). No CUDA.
+# (classifier, export, batch scheduling, state injection). No CUDA. The dc
+# line record conversion in common/ is compiled into both sides of the
+# plugin interface.
 # -------------------------------------------------------------
 add_library(gridpack_batchpf_host STATIC
+  common/dc_records.cpp
   host/accelerator.cpp
   host/batch_path.cpp
   host/batch_run.cpp
@@ -91,6 +94,8 @@ target_compile_features(gridpack_batchpf_host PUBLIC cxx_std_17)
 # warning settings above apply to the new code only (risk R-24)
 target_include_directories(gridpack_batchpf_host SYSTEM PRIVATE
   ${GridPACK_SOURCE_DIR} ${GA_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+target_include_directories(gridpack_batchpf_host PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/common)
 # GridPACK exposes its dependencies through variables, not targets, so the
 # host library links what ca.x links (exception EX-CM-02)
 target_link_libraries(gridpack_batchpf_host
@@ -98,6 +103,7 @@ target_link_libraries(gridpack_batchpf_host
     gridpack::batchpf_interface
   PRIVATE
     gridpack_batchpf_warnings
+    gridpack::hvdc_model
     gridpack_powerflow_module
     gridpack_configuration
     gridpack_parallel
@@ -158,6 +164,7 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
   # The plugin's code is an object library so the unit tests can link the
   # same objects; the plugin adds its C entry points.
   add_library(gridpack_batchpf_core_objects OBJECT
+    common/dc_records.cpp
     core/backend_alg2.cu
     core/backend_cpu.cpp
     core/backend_plugin.cpp
@@ -170,9 +177,13 @@ if (GRIDPACK_BATCHPF_HAVE_CUDA)
     core/session.cpp
   )
   target_compile_features(gridpack_batchpf_core_objects PUBLIC cxx_std_17 cuda_std_17)
+  # The engine headers, which the unit tests include, use the dc records
+  target_include_directories(gridpack_batchpf_core_objects PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/common)
   target_link_libraries(gridpack_batchpf_core_objects
     PUBLIC
       gridpack::batchpf_interface
+      gridpack::hvdc_model
       CUDA::cudart_static
       SuiteSparse::KLU
       Microsoft.GSL::GSL

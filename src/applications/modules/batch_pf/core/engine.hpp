@@ -44,6 +44,7 @@
 
 #include "backend.hpp"
 #include "common.hpp"
+#include "dc_records.hpp"
 #include "engine_control.hpp"
 #include "gridpack/batchpf/batchpf_plugin.h"
 #include "planner.hpp"
@@ -69,6 +70,12 @@ struct ModelHost {
   std::vector<int> bus_type, row_start, edge_col, edge_mate, edge_row;
   std::vector<double> g, b, p0, q0, v_init, theta_init, v_base, theta_base;
   std::vector<double> ql, ip, iq, yp, yq, qmax, qmin, eg, eb;
+  // Distributed generation and two-terminal dc lines (interface 1.1)
+  std::vector<double> dg_q, dc_p, dc_q;  // per bus: DG Q, converter P and Q in p0/q0
+  std::vector<HVDCLineData> dc_line;     // converter buses are local indices
+  std::vector<HVDCSolution> dc_ref;      // operating point every solve starts from
+  std::vector<int> dc_bus;               // converter buses, ascending
+  std::vector<int> dc_slot;              // per bus: position in dc_bus, or -1
 };
 
 /// Copy and check a model record from ca.x

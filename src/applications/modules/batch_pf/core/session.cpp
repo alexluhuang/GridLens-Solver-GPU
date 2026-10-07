@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <exception>
 #include <iterator>
@@ -265,9 +266,15 @@ int Session::chooseCapacity(int64_t expected_cases)
 int Session::plan(const batchpf_solver_params &params, int64_t expected_cases)
 {
   if (!p_model) throw Error(BATCHPF_ERR_STATE, "plan() called before set_model()");
-  if (params.struct_size < sizeof(batchpf_solver_params)) {
+  // A caller built for interface 1.0 passes the record without
+  // hvdc_tolerance, which then defaults to the Newton tolerance as in GridPACK
+  if (params.struct_size < offsetof(batchpf_solver_params, hvdc_tolerance)) {
     throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "invalid solver parameter record");
   }
+  batchpf_solver_params prm{};
+  std::memcpy(&prm, &params, std::min<std::size_t>(params.struct_size, sizeof(prm)));
+  if (params.struct_size < sizeof(prm)) prm.hvdc_tolerance = prm.tolerance;
+  prm.struct_size = sizeof(prm);
   if (p_on_device) cudaCheck(cudaSetDevice(p_settings.device), "cudaSetDevice");
   const auto t0 = std::chrono::steady_clock::now();
   p_backend = chooseBackend(p_settings.backend);
@@ -290,7 +297,7 @@ int Session::plan(const batchpf_solver_params &params, int64_t expected_cases)
   cfg.telemetry = p_settings.telemetry;
   cfg.profiler_ranges = p_settings.profiler_ranges != 0;
   p_engine = std::make_unique<Engine>(*p_model, cfg, p_log);
-  p_engine->plan(params);
+  p_engine->plan(prm);
   p_capacity = chooseCapacity(expected_cases);
   const BackendCaps caps = p_engine->backendCaps();
   {

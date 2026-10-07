@@ -14,6 +14,7 @@
  * trust them.
  */
 
+#include <algorithm>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -28,9 +29,53 @@
 namespace gridpack {
 namespace batchpf {
 
+namespace {
+
+/**
+ * Distributed generation and dc lines of a 1.1 record. Converter buses must
+ * be local buses; dc_slot maps each converter bus to its position.
+ */
+void copyDcModel(const batchpf_model &m, ModelHost *h)
+{
+  const std::size_t n = static_cast<std::size_t>(m.n_bus);
+  auto optional = [n](const double *p) {
+    if (p == nullptr) return std::vector<double>(n, 0.0);
+    const gsl::span<const double> values(p, gsl::narrow<gsl::index>(n));
+    return std::vector<double>(values.begin(), values.end());
+  };
+  h->dg_q = optional(m.dg_q);
+  h->dc_p = optional(m.dc_p);
+  h->dc_q = optional(m.dc_q);
+  if (m.n_dc_line < 0 || (m.n_dc_line > 0 && m.dc_lines == nullptr)) {
+    throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "invalid dc line list");
+  }
+  const gsl::span<const batchpf_dc_line> lines(
+      m.dc_lines, gsl::narrow<gsl::index>(m.n_dc_line));
+  std::vector<int> buses;
+  for (const batchpf_dc_line &r : lines) {
+    if (r.rect.bus < 0 || r.rect.bus >= m.n_bus || r.inv.bus < 0 ||
+        r.inv.bus >= m.n_bus) {
+      throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "dc converter bus out of range");
+    }
+    h->dc_line.push_back(dcLineData(r));
+    h->dc_ref.push_back(dcSolution(r.reference));
+    buses.push_back(r.rect.bus);
+    buses.push_back(r.inv.bus);
+  }
+  std::sort(buses.begin(), buses.end());
+  buses.erase(std::unique(buses.begin(), buses.end()), buses.end());
+  h->dc_bus = buses;
+  for (std::size_t c = 0; c < buses.size(); c++) {
+    h->dc_slot[static_cast<std::size_t>(buses[c])] = static_cast<int>(c);
+  }
+}
+
+}  // namespace
+
 ModelHost copyModel(const batchpf_model &m)
 {
-  if (m.struct_size < sizeof(batchpf_model) || m.n_bus <= 0 || m.n_edge < 0) {
+  // Callers built for interface 1.0 pass the record without the 1.1 fields
+  if (m.struct_size < offsetof(batchpf_model, dg_q) || m.n_bus <= 0 || m.n_edge < 0) {
     throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "invalid model record");
   }
   ModelHost h;
@@ -101,6 +146,11 @@ ModelHost copyModel(const batchpf_model &m)
   if (h.base_slack < 0) {
     throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "model has no reference bus");
   }
+  h.dg_q.assign(n, 0.0);
+  h.dc_p.assign(n, 0.0);
+  h.dc_q.assign(n, 0.0);
+  h.dc_slot.assign(n, -1);
+  if (m.struct_size >= sizeof(batchpf_model)) copyDcModel(m, &h);
   return h;
 }
 

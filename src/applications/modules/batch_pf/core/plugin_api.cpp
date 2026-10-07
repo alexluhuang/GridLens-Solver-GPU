@@ -43,7 +43,7 @@ struct batchpf_session {
 
 namespace {
 
-const char *const kPluginVersion = "gridpack_batchpf_core 1.0.0";
+const char *const kPluginVersion = "gridpack_batchpf_core 1.1.0";
 
 std::string buildInfo()
 {

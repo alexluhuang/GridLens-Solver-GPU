@@ -47,7 +47,7 @@ extern "C" {
 /* Interface version implemented by this header */
 enum {
   BATCHPF_API_MAJOR = 1,
-  BATCHPF_API_MINOR = 0
+  BATCHPF_API_MINOR = 1
 };
 
 /* Status codes. Expected outcomes such as a case that does not converge are
@@ -142,6 +142,16 @@ enum {
   BATCHPF_HEALTH_STAGNATION = 32
 };
 
+/* Control mode of a two-terminal dc line (interface 1.1); the same order as
+ * GridPACK's HVDCMode */
+enum {
+  BATCHPF_DC_BLOCKED = 0,
+  BATCHPF_DC_NORMAL = 1,            /* rectifier holds the order */
+  BATCHPF_DC_INV_GAMMA_MIN = 2,     /* inverter at minimum extinction angle */
+  BATCHPF_DC_CURRENT_MODE = 3,      /* power order switched to current order */
+  BATCHPF_DC_RECT_ALPHA_MIN = 4     /* rectifier at minimum firing angle */
+};
+
 /* Messages from the plugin go to ca.x's log through this callback */
 typedef void (*batchpf_log_fn)(void *user, int32_t level, const char *message);
 
@@ -204,6 +214,62 @@ typedef struct batchpf_device_info {
   char backend_version[64];
 } batchpf_device_info;
 
+/* One converter of a two-terminal dc line (interface 1.1): PSS/E fields NB,
+ * ANMX, ANMN, RC, XC, EBAS, TR, TAP, TMX, TMN, STP, with the ac bus as a
+ * local index */
+typedef struct batchpf_dc_converter {
+  int32_t bus;                  /* local bus index */
+  int32_t reserved;
+  double nb;                    /* bridges in series */
+  double anmx;                  /* angle limits, degrees */
+  double anmn;
+  double rc;                    /* commutating resistance per bridge, ohms */
+  double xc;                    /* commutating reactance per bridge, ohms */
+  double ebas;                  /* primary base ac voltage, kV */
+  double tr;                    /* transformer ratio */
+  double tap;                   /* tap setting and limits */
+  double tmx;
+  double tmn;
+  double stp;
+} batchpf_dc_converter;
+
+/* Operating point of one converter */
+typedef struct batchpf_dc_converter_state {
+  double angle;                 /* firing or extinction angle, degrees */
+  double tap;
+  double p;                     /* MW, drawn (rectifier) or sent (inverter) */
+  double q;                     /* MVAr absorbed */
+  int32_t limited;              /* angle held at a limit */
+  int32_t reserved;
+} batchpf_dc_converter_state;
+
+/* Operating point of a dc line */
+typedef struct batchpf_dc_state {
+  int32_t mode;                 /* BATCHPF_DC_* */
+  int32_t limited;              /* an angle could not stay inside its limits */
+  double id;                    /* dc current, kA */
+  double vdcr;                  /* dc voltages at the rectifier and inverter, kV */
+  double vdci;
+  batchpf_dc_converter_state rect;
+  batchpf_dc_converter_state inv;
+} batchpf_dc_state;
+
+/* A two-terminal dc line: PSS/E fields MDC, RDC, SETVL, VSCHD, VCMOD, RCOMP,
+ * DELTI, and the operating point each solve starts from (the base case) */
+typedef struct batchpf_dc_line {
+  int32_t mdc;                  /* 0 blocked, 1 power, 2 current order */
+  int32_t reserved;
+  double rdc;                   /* ohms */
+  double setvl;                 /* MW (>0 metered at the rectifier) or A */
+  double vschd;                 /* kV */
+  double vcmod;                 /* kV */
+  double rcomp;                 /* ohms */
+  double delti;                 /* fraction of the order */
+  batchpf_dc_converter rect;
+  batchpf_dc_converter inv;
+  batchpf_dc_state reference;
+} batchpf_dc_line;
+
 /* The superset model (I-4). All arrays are read during set_model() only. */
 typedef struct batchpf_model {
   uint32_t struct_size;
@@ -233,6 +299,14 @@ typedef struct batchpf_model {
   const int32_t *edge_mate;     /* n_edge, index of the reverse edge */
   const double *edge_g;         /* n_edge, off-diagonal admittance */
   const double *edge_b;
+  /* Appended in interface 1.1 (struct_version 2). NULL arrays mean zeros. */
+  const double *dg_q;           /* n_bus, in-service distributed generation */
+                               /* Q on the loads (MVAr), not part of ql */
+  const double *dc_p;           /* n_bus, dc converter power drawn (MW, */
+  const double *dc_q;           /* MVAr) that p0 and q0 include */
+  int32_t n_dc_line;
+  int32_t reserved2;
+  const batchpf_dc_line *dc_lines;  /* n_dc_line */
 } batchpf_model;
 
 /* Newton and controller rules, copied from GridPACK's settings */
@@ -248,6 +322,8 @@ typedef struct batchpf_solver_params {
   int32_t ca_qlim;              /* Contingency_analysis/qlim: extra check */
   int32_t warm_start;           /* BATCHPF_WARM_START_* */
   int32_t reserved;
+  /* Appended in interface 1.1 (struct_version 2) */
+  double hvdc_tolerance;        /* Powerflow/hvdcTolerance (pu) */
 } batchpf_solver_params;
 
 /* A bus value changed by a contingency (absolute values) */
@@ -289,6 +365,11 @@ typedef struct batchpf_batch {
   int32_t n_cases;
   int32_t reserved;
   const batchpf_case *cases;
+  /* Appended in interface 1.1 (struct_version 2) */
+  int32_t n_dc_line;            /* entries per case in dc_status */
+  int32_t reserved2;
+  const int32_t *dc_status;     /* n_cases * n_dc_line: 1 in service, 0 out */
+                               /* of service; NULL = every line in service */
 } batchpf_batch;
 
 /* Outcome of one case (I-7) */
@@ -336,6 +417,9 @@ typedef struct batchpf_results {
   int32_t reserved;
   batchpf_mismatch_record *history;
   int32_t *history_count;       /* n_cases */
+  /* Appended in interface 1.1 (struct_version 2) */
+  batchpf_dc_state *dc_states;  /* optional: n_cases * n_dc_line final dc */
+                               /* operating points, case-major */
 } batchpf_results;
 
 /* Totals collected by the plugin (guide section 8.12) */

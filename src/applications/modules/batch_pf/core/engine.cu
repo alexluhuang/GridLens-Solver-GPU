@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <deque>
 #include <memory>
@@ -50,11 +51,12 @@ void Engine::checkJob(const EngineJob &job) const
 {
   const batchpf_batch &batch = *job.batch;
   const batchpf_results &results = *job.results;
-  if (batch.struct_size < sizeof(batchpf_batch) || batch.n_cases < 0 ||
+  // Interface 1.0 callers pass the records without the dc line fields
+  if (batch.struct_size < offsetof(batchpf_batch, n_dc_line) || batch.n_cases < 0 ||
       (batch.n_cases > 0 && batch.cases == nullptr)) {
     throw Error(BATCHPF_ERR_INVALID_ARGUMENT, "invalid batch record");
   }
-  if (results.struct_size < sizeof(batchpf_results) ||
+  if (results.struct_size < offsetof(batchpf_results, dc_states) ||
       results.n_cases < batch.n_cases || results.n_bus != p_model.n_bus ||
       results.outcomes == nullptr || results.v == nullptr ||
       results.theta == nullptr) {
