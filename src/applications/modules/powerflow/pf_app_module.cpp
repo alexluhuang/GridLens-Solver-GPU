@@ -201,7 +201,7 @@ void gridpack::powerflow::PFAppModule::readNetwork(
           }
           if (filetype != PTI23 && !p_no_print) {
             char ioBuf2[128];
-            sprintf(ioBuf2, "Auto-detected PSS/E v%d format from RAW file header\n", ver);
+            snprintf(ioBuf2, sizeof(ioBuf2), "Auto-detected PSS/E v%d format from RAW file header\n", ver);
             printf("%s", ioBuf2);
           }
         }
@@ -244,8 +244,8 @@ void gridpack::powerflow::PFAppModule::readNetwork(
     gridpack::parser::PTI23_parser<PFNetwork> parser(network);
 #ifdef USE_GOSS
     char sbuf[256], sbuf2[256];
-    sprintf(sbuf,"{ \"simulation_id\": \"%s\"}",simID.c_str());
-    sprintf(sbuf2,"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
+    snprintf(sbuf, sizeof(sbuf),"{ \"simulation_id\": \"%s\"}",simID.c_str());
+    snprintf(sbuf2, sizeof(sbuf2),"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
     p_goss_client.publish(networkFile,sbuf,sbuf2);
     std::vector<std::string> fileVec = p_goss_client.subscribeFileAsVector(std::string(sbuf2));
     parser.parse(fileVec);
@@ -274,8 +274,8 @@ void gridpack::powerflow::PFAppModule::readNetwork(
     gridpack::parser::PTI33_parser<PFNetwork> parser(network);
 #ifdef USE_GOSS
     char sbuf[256], sbuf2[256];
-    sprintf(sbuf,"{ \"simulation_id\": \"%s\"}",simID.c_str());
-    sprintf(sbuf2,"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
+    snprintf(sbuf, sizeof(sbuf),"{ \"simulation_id\": \"%s\"}",simID.c_str());
+    snprintf(sbuf2, sizeof(sbuf2),"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
     p_goss_client.publish(networkFile,sbuf,sbuf2);
     std::vector<std::string> fileVec = p_goss_client.subscribeFileAsVector(std::string(sbuf2));
     parser.parse(fileVec);
@@ -289,8 +289,8 @@ void gridpack::powerflow::PFAppModule::readNetwork(
     gridpack::parser::PTI34_parser<PFNetwork> parser(network);
 #ifdef USE_GOSS
     char sbuf[256], sbuf2[256];
-    sprintf(sbuf,"{ \"simulation_id\": \"%s\"}",simID.c_str());
-    sprintf(sbuf2,"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
+    snprintf(sbuf, sizeof(sbuf),"{ \"simulation_id\": \"%s\"}",simID.c_str());
+    snprintf(sbuf2, sizeof(sbuf2),"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
     p_goss_client.publish(networkFile,sbuf,sbuf2);
     std::vector<std::string> fileVec = p_goss_client.subscribeFileAsVector(std::string(sbuf2));
     parser.parse(fileVec);
@@ -304,8 +304,8 @@ void gridpack::powerflow::PFAppModule::readNetwork(
     gridpack::parser::PTI35_parser<PFNetwork> parser(network);
 #ifdef USE_GOSS
     char sbuf[256], sbuf2[256];
-    sprintf(sbuf,"{ \"simulation_id\": \"%s\"}",simID.c_str());
-    sprintf(sbuf2,"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
+    snprintf(sbuf, sizeof(sbuf),"{ \"simulation_id\": \"%s\"}",simID.c_str());
+    snprintf(sbuf2, sizeof(sbuf2),"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
     p_goss_client.publish(networkFile,sbuf,sbuf2);
     std::vector<std::string> fileVec = p_goss_client.subscribeFileAsVector(std::string(sbuf2));
     parser.parse(fileVec);
@@ -319,8 +319,8 @@ void gridpack::powerflow::PFAppModule::readNetwork(
     gridpack::parser::PTI36_parser<PFNetwork> parser(network);
 #ifdef USE_GOSS
     char sbuf[256], sbuf2[256];
-    sprintf(sbuf,"{ \"simulation_id\": \"%s\"}",simID.c_str());
-    sprintf(sbuf2,"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
+    snprintf(sbuf, sizeof(sbuf),"{ \"simulation_id\": \"%s\"}",simID.c_str());
+    snprintf(sbuf2, sizeof(sbuf2),"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
     p_goss_client.publish(networkFile,sbuf,sbuf2);
     std::vector<std::string> fileVec = p_goss_client.subscribeFileAsVector(std::string(sbuf2));
     parser.parse(fileVec);
@@ -334,8 +334,8 @@ void gridpack::powerflow::PFAppModule::readNetwork(
     gridpack::parser::MAT_parser<PFNetwork> parser(network);
 #ifdef USE_GOSS
     char sbuf[256], sbuf2[256];
-    sprintf(sbuf,"{ \"simulation_id\": \"%s\"}",simID.c_str());
-    sprintf(sbuf2,"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
+    snprintf(sbuf, sizeof(sbuf),"{ \"simulation_id\": \"%s\"}",simID.c_str());
+    snprintf(sbuf2, sizeof(sbuf2),"reply.%s.%s\n",filename.c_str(),p_simID.c_str());
     p_goss_client.publish(networkFile,sbuf,sbuf2);
     std::vector<std::string> fileVec = p_goss_client.subscribeFileAsVector(std::string(sbuf2));
     parser.parse(fileVec);
@@ -358,9 +358,9 @@ void gridpack::powerflow::PFAppModule::readNetwork(
   char ioBuf[128];
 
   if (!p_no_print) {
-    sprintf(ioBuf,"\nMaximum number of iterations: %d\n",p_max_iteration);
+    snprintf(ioBuf, sizeof(ioBuf),"\nMaximum number of iterations: %d\n",p_max_iteration);
     p_busIO->header(ioBuf);
-    sprintf(ioBuf,"\nConvergence tolerance: %f\n",p_tolerance);
+    snprintf(ioBuf, sizeof(ioBuf),"\nConvergence tolerance: %f\n",p_tolerance);
     p_busIO->header(ioBuf);
   }
 
@@ -513,7 +513,7 @@ bool gridpack::powerflow::PFAppModule::solve()
     bool qlim_handled_early = false;  // Track if Q limits were handled during stagnation
 
     if (!p_no_print) {
-      sprintf(ioBuf," Controller iteration = %d \n", ctrl_iter);
+      snprintf(ioBuf, sizeof(ioBuf)," Controller iteration = %d \n", ctrl_iter);
       p_busIO->header(ioBuf);
     }
 
@@ -555,7 +555,7 @@ bool gridpack::powerflow::PFAppModule::solve()
     timer->stop(t_vmap);
     gridpack::ComplexType tol_org = PQ->normInfinity();
     if (!p_no_print) {
-      sprintf(ioBuf,"\n----------test Iteration 0, before PF solve, Tol: %12.6e \n", real(tol_org));
+      snprintf(ioBuf, sizeof(ioBuf),"\n----------test Iteration 0, before PF solve, Tol: %12.6e \n", real(tol_org));
       p_busIO->header(ioBuf);
     }
 
@@ -626,7 +626,7 @@ bool gridpack::powerflow::PFAppModule::solve()
     int t_updt = timer->createCategory("Powerflow: Bus Update");
     int iter = 0;
     if (!p_no_print) {
-      sprintf(ioBuf,"\nIteration %d Tol: %12.6e\n",iter+1,real(tol));
+      snprintf(ioBuf, sizeof(ioBuf),"\nIteration %d Tol: %12.6e\n",iter+1,real(tol));
       p_busIO->header(ioBuf);
     }
 
@@ -690,7 +690,7 @@ bool gridpack::powerflow::PFAppModule::solve()
 
       tol = PQ->normInfinity();
       if (!p_no_print) {
-        sprintf(ioBuf,"\nIteration %d Tol: %12.6e\n",iter+1,real(tol));
+        snprintf(ioBuf, sizeof(ioBuf),"\nIteration %d Tol: %12.6e\n",iter+1,real(tol));
         p_busIO->header(ioBuf);
       }
       iter++;
@@ -752,7 +752,7 @@ bool gridpack::powerflow::PFAppModule::solve()
         p_convergence.perIteration.push_back(minfo);
 
         if (!p_no_print) {
-          sprintf(ioBuf, "  max dP = %12.6f MW at bus %d, max dQ = %12.6f MVAr at bus %d\n",
+          snprintf(ioBuf, sizeof(ioBuf), "  max dP = %12.6f MW at bus %d, max dQ = %12.6f MVAr at bus %d\n",
                   minfo.maxPMismatch, minfo.maxPBus,
                   minfo.maxQMismatch, minfo.maxQBus);
           p_busIO->header(ioBuf);
@@ -766,7 +766,7 @@ bool gridpack::powerflow::PFAppModule::solve()
           p_factory->setQlimDeadband(p_qlim_deadband);
           if (!p_factory->checkQlimViolations()) {
             if (!p_no_print) {
-              sprintf(ioBuf,"Stagnation detected at iter %d, Qlim violations found\n", iter);
+              snprintf(ioBuf, sizeof(ioBuf),"Stagnation detected at iter %d, Qlim violations found\n", iter);
               p_busIO->header(ioBuf);
             }
             qlim_handled_early = true;
@@ -783,7 +783,7 @@ bool gridpack::powerflow::PFAppModule::solve()
       if (real(tol) > 100.0*real(tol_org)) {
         ret = false;
         if (!p_no_print) {
-          sprintf(ioBuf,"\n-------------current iteration tol bigger than 100 times of original tol, power flow diverge\n");
+          snprintf(ioBuf, sizeof(ioBuf),"\n-------------current iteration tol bigger than 100 times of original tol, power flow diverge\n");
           p_busIO->header(ioBuf);
         }
         break;
@@ -801,17 +801,17 @@ bool gridpack::powerflow::PFAppModule::solve()
     }
     if (!p_no_print) {
       if (ret) {
-        sprintf(ioBuf, "\nPower flow converged in %d iterations\n", iter);
+        snprintf(ioBuf, sizeof(ioBuf), "\nPower flow converged in %d iterations\n", iter);
       } else {
-        sprintf(ioBuf, "\nPower flow did NOT converge after %d iterations\n", iter);
+        snprintf(ioBuf, sizeof(ioBuf), "\nPower flow did NOT converge after %d iterations\n", iter);
       }
       p_busIO->header(ioBuf);
       if (!p_convergence.perIteration.empty()) {
-        sprintf(ioBuf, "Largest P mismatch: %12.6f MW   at bus %d\n",
+        snprintf(ioBuf, sizeof(ioBuf), "Largest P mismatch: %12.6f MW   at bus %d\n",
                 p_convergence.finalMismatch.maxPMismatch,
                 p_convergence.finalMismatch.maxPBus);
         p_busIO->header(ioBuf);
-        sprintf(ioBuf, "Largest Q mismatch: %12.6f MVAr at bus %d\n",
+        snprintf(ioBuf, sizeof(ioBuf), "Largest Q mismatch: %12.6f MVAr at bus %d\n",
                 p_convergence.finalMismatch.maxQMismatch,
                 p_convergence.finalMismatch.maxQBus);
         p_busIO->header(ioBuf);
@@ -832,7 +832,7 @@ bool gridpack::powerflow::PFAppModule::solve()
     // Must be done before Q-limit check since voltage adjustments affect Q.
     bool ireg_ok = p_factory->adjustRemoteRegulation();
     if (!ireg_ok && !p_no_print) {
-      sprintf(ioBuf, "IREG: remote voltage regulation adjustments applied (ctrl iter %d)\n",
+      snprintf(ioBuf, sizeof(ioBuf), "IREG: remote voltage regulation adjustments applied (ctrl iter %d)\n",
               ctrl_iter);
       p_busIO->header(ioBuf);
     }
@@ -846,7 +846,7 @@ bool gridpack::powerflow::PFAppModule::solve()
       if (!p_factory->checkQlimViolations()) {
         // Violations found, PV->PQ changes made — need to re-solve
         if (!p_no_print) {
-          sprintf(ioBuf,"Qlim violations found at controller iter %d\n", ctrl_iter);
+          snprintf(ioBuf, sizeof(ioBuf),"Qlim violations found at controller iter %d\n", ctrl_iter);
           p_busIO->header(ioBuf);
         }
         if (ctrl_iter < max_ctrl_iter) {
@@ -864,7 +864,7 @@ bool gridpack::powerflow::PFAppModule::solve()
     if (p_switchedShunt) {
       if (!p_factory->checkSwitchedShuntViolations()) {
         if (!p_no_print) {
-          sprintf(ioBuf,"Switched shunt adjustments made at controller iter %d\n", ctrl_iter);
+          snprintf(ioBuf, sizeof(ioBuf),"Switched shunt adjustments made at controller iter %d\n", ctrl_iter);
           p_busIO->header(ioBuf);
         }
         if (ctrl_iter < max_ctrl_iter) {
@@ -877,7 +877,7 @@ bool gridpack::powerflow::PFAppModule::solve()
     if (p_ltc) {
       if (!p_factory->checkLTCViolations()) {
         if (!p_no_print) {
-          sprintf(ioBuf,"LTC tap adjustments made at controller iter %d\n", ctrl_iter);
+          snprintf(ioBuf, sizeof(ioBuf),"LTC tap adjustments made at controller iter %d\n", ctrl_iter);
           p_busIO->header(ioBuf);
         }
         if (ctrl_iter < max_ctrl_iter) {
@@ -916,7 +916,7 @@ bool gridpack::powerflow::PFAppModule::solve()
     // Check if max controller iterations reached
     if (ctrl_repeat && ctrl_iter >= max_ctrl_iter) {
       if (!p_no_print) {
-        sprintf(ioBuf,"Max controller iterations (%d) reached, accepting current solution\n", max_ctrl_iter);
+        snprintf(ioBuf, sizeof(ioBuf),"Max controller iterations (%d) reached, accepting current solution\n", max_ctrl_iter);
         p_busIO->header(ioBuf);
       }
       ctrl_repeat = false;
@@ -952,7 +952,7 @@ bool gridpack::powerflow::PFAppModule::solve()
       if (fabs(error) > area_ptol[ia]) {
         ai_ok = false;
         if (!p_no_print) {
-          sprintf(ioBuf, "Area %d: export=%.2f MW, desired=%.2f MW, error=%.2f MW (tol=%.2f)\n",
+          snprintf(ioBuf, sizeof(ioBuf), "Area %d: export=%.2f MW, desired=%.2f MW, error=%.2f MW (tol=%.2f)\n",
                   area_num[ia], actual, area_pdes[ia], error, area_ptol[ia]);
           p_busIO->header(ioBuf);
         }
@@ -972,7 +972,7 @@ bool gridpack::powerflow::PFAppModule::solve()
             sbus->setGeneratorRealPower(gens[0], pg_new,
                 p_network->getBusData(lids[0]).get());
             if (!p_no_print) {
-              sprintf(ioBuf, "  Adjusting bus %d gen %s: Pg %.2f -> %.2f MW\n",
+              snprintf(ioBuf, sizeof(ioBuf), "  Adjusting bus %d gen %s: Pg %.2f -> %.2f MW\n",
                       isw, gens[0].c_str(), pg_old, pg_new);
               p_busIO->header(ioBuf);
             }
@@ -984,7 +984,7 @@ bool gridpack::powerflow::PFAppModule::solve()
       ai_repeat = true;
       ctrl_iter = 0;  // Reset controller iteration count for next pass
     } else if (!ai_ok && !p_no_print) {
-      sprintf(ioBuf, "Max area interchange iterations (%d) reached\n", max_ai_iter);
+      snprintf(ioBuf, sizeof(ioBuf), "Max area interchange iterations (%d) reached\n", max_ai_iter);
       p_busIO->header(ioBuf);
     }
   }
@@ -1985,29 +1985,29 @@ void gridpack::powerflow::PFAppModule::writeRTPRDiagnostics(
     scaled = gtotal + gen_scale*(gtotal-pmin);
   }
   char sbuf[128];
-  sprintf(sbuf,"Total Generation:         %16.4f\n",gtotal);
+  snprintf(sbuf, sizeof(sbuf),"Total Generation:         %16.4f\n",gtotal);
   p_busIO->header(sbuf);
-  sprintf(sbuf,"  Minimum Generation:     %16.4f\n",pmin);
+  snprintf(sbuf, sizeof(sbuf),"  Minimum Generation:     %16.4f\n",pmin);
   p_busIO->header(sbuf);
-  sprintf(sbuf,"  Maximum Generation:     %16.4f\n",pmax);
+  snprintf(sbuf, sizeof(sbuf),"  Maximum Generation:     %16.4f\n",pmax);
   p_busIO->header(sbuf);
-  sprintf(sbuf,"  Generator Scale Factor: %16.4f\n",gen_scale);
+  snprintf(sbuf, sizeof(sbuf),"  Generator Scale Factor: %16.4f\n",gen_scale);
   p_busIO->header(sbuf);
-  sprintf(sbuf,"  Scaled Generation:      %16.4f\n",scaled);
+  snprintf(sbuf, sizeof(sbuf),"  Scaled Generation:      %16.4f\n",scaled);
   p_busIO->header(sbuf);
   p_busIO->header("\nIndividual Scaled Generators\n");
-  sprintf(sbuf,"\n     Bus ID   Status Area Zone     Real Power   Scaled Power"
+  snprintf(sbuf, sizeof(sbuf),"\n     Bus ID   Status Area Zone     Real Power   Scaled Power"
       "           Pmin           Pmax\n\n");
   p_busIO->header(sbuf);
   p_busIO->write("src_gen");
-  sprintf(sbuf,"\nTotal Load:               %16.4f\n",ltotal);
+  snprintf(sbuf, sizeof(sbuf),"\nTotal Load:               %16.4f\n",ltotal);
   p_busIO->header(sbuf);
-  sprintf(sbuf,"  Load Scale Factor:      %16.4f\n",load_scale);
+  snprintf(sbuf, sizeof(sbuf),"  Load Scale Factor:      %16.4f\n",load_scale);
   p_busIO->header(sbuf);
-  sprintf(sbuf,"  Scaled Load:            %16.4f\n",load_scale*ltotal);
+  snprintf(sbuf, sizeof(sbuf),"  Scaled Load:            %16.4f\n",load_scale*ltotal);
   p_busIO->header(sbuf);
   p_busIO->header("\nIndividual Scaled Loads\n");
-  sprintf(sbuf,"\n     Bus ID   Status Area Zone     Real Power   Scaled Power"
+  snprintf(sbuf, sizeof(sbuf),"\n     Bus ID   Status Area Zone     Real Power   Scaled Power"
       " Reactive Power   Scaled Power\n\n");
   p_busIO->header(sbuf);
   p_busIO->write("sink_load");
@@ -2029,10 +2029,10 @@ std::vector<std::string> gridpack::powerflow::PFAppModule::getContingencyFailure
   for (i=0; i<nsize; i++) {
     std::string string;
     if (violations[i].bus_violation) {
-      sprintf(sbuf,"     Bus voltage violation on bus %d",violations[i].bus1);
+      snprintf(sbuf, sizeof(sbuf),"     Bus voltage violation on bus %d",violations[i].bus1);
       string = sbuf;
     } else if (violations[i].line_violation) {
-      sprintf(sbuf,"     Branch overload violation on branch [%d,%d] for line %s",
+      snprintf(sbuf, sizeof(sbuf),"     Branch overload violation on branch [%d,%d] for line %s",
           violations[i].bus1,violations[i].bus2,violations[i].tag);
       string = sbuf;
     }

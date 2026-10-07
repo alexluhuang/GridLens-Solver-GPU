@@ -208,7 +208,7 @@ bool gridpack::powerflow::PFFactoryModule::checkLoneBus(std::ofstream *stream)
       }
     }
     if (!ok) {
-      sprintf(buf,"\nLone bus %d found\n",bus->getOriginalIndex());
+      snprintf(buf, sizeof(buf),"\nLone bus %d found\n",bus->getOriginalIndex());
       p_saveIsolatedStatus.push_back(bus->isIsolated());
       p_loneBusIndices.push_back(i);
       bus->setIsolated(true);
@@ -370,7 +370,7 @@ int gridpack::powerflow::PFFactoryModule::detectIslands(std::ofstream *stream)
   for (i = 0; i < islands.size(); i++) {
     if (i == largestIsland) continue;  // Keep main island
 
-    sprintf(buf, "\nIsland %d detected with %d buses (marking as isolated):\n",
+    snprintf(buf, sizeof(buf), "\nIsland %d detected with %d buses (marking as isolated):\n",
             i + 1, (int)islands[i].size());
     printf("%s", buf);
     if (stream != NULL) *stream << buf;
@@ -380,7 +380,7 @@ int gridpack::powerflow::PFFactoryModule::detectIslands(std::ofstream *stream)
       gridpack::powerflow::PFBus *bus =
         dynamic_cast<gridpack::powerflow::PFBus*>(p_network->getBus(localIdx).get());
 
-      sprintf(buf, "  Bus %d\n", bus->getOriginalIndex());
+      snprintf(buf, sizeof(buf), "  Bus %d\n", bus->getOriginalIndex());
       printf("%s", buf);
       if (stream != NULL) *stream << buf;
 
@@ -391,7 +391,7 @@ int gridpack::powerflow::PFFactoryModule::detectIslands(std::ofstream *stream)
     }
   }
 
-  sprintf(buf, "\nNetwork split into %d islands. Main island has %d buses.\n",
+  snprintf(buf, sizeof(buf), "\nNetwork split into %d islands. Main island has %d buses.\n",
           p_islandCount, largestSize);
   printf("%s", buf);
   if (stream != NULL) *stream << buf;
@@ -2024,7 +2024,7 @@ bool PFFactoryModule::checkLoneBusAt(std::vector<int> buses)
       }
     }
     if (!ok) {
-      sprintf(buf,"\nLone bus %d found\n",bus->getOriginalIndex());
+      snprintf(buf, sizeof(buf),"\nLone bus %d found\n",bus->getOriginalIndex());
       p_saveIsolatedStatus.push_back(bus->isIsolated());
       p_loneBusIndices.push_back(i);
       bus->setIsolated(true);

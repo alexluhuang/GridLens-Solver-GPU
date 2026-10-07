@@ -254,7 +254,7 @@ std::vector<gridpack::powerflow::Contingency>
         // Create contingency for this branch
         gridpack::powerflow::Contingency contingency;
         char name_buf[64];
-        sprintf(name_buf, "BR_%d_%d_%s", from_bus, to_bus,
+        snprintf(name_buf, sizeof(name_buf), "BR_%d_%d_%s", from_bus, to_bus,
                 utils.clean2Char(ckt_id).c_str());
         contingency.p_name = name_buf;
         contingency.p_type = Branch;
@@ -292,7 +292,7 @@ std::vector<gridpack::powerflow::Contingency>
         // Create contingency for this generator
         gridpack::powerflow::Contingency contingency;
         char name_buf[64];
-        sprintf(name_buf, "GN_%d_%s", bus_id,
+        snprintf(name_buf, sizeof(name_buf), "GN_%d_%s", bus_id,
                 utils.clean2Char(gen_id).c_str());
         contingency.p_name = name_buf;
         contingency.p_type = Generator;
@@ -436,7 +436,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     = gridpack::utility::Configuration::configuration();
   if (argc >= 2 && argv[1] != NULL) {
     char inputfile[256];
-    sprintf(inputfile,"%s",argv[1]);
+    snprintf(inputfile, sizeof(inputfile),"%s",argv[1]);
     config->open(inputfile,world);
   } else {
     config->open("input.xml",world);
@@ -2370,19 +2370,19 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
     std::string fname = events[task_id].p_name;
     size_t end = fname.find_last_not_of(' ');
     if (end != std::string::npos) fname = fname.substr(0, end + 1);
-    sprintf(sbuf,"%s.out",fname.c_str());
+    snprintf(sbuf, sizeof(sbuf),"%s.out",fname.c_str());
     // Open a new file, based on the contingency name, to store results from
     // this particular contingency calculation
     if (print_calcs) pf_app.open(sbuf);
     // Write out information to the top of the output file providing some
     // information on the contingency
-    sprintf(sbuf,"\nRunning task on %d processes\n",task_comm.size());
+    snprintf(sbuf, sizeof(sbuf),"\nRunning task on %d processes\n",task_comm.size());
     if (print_calcs) pf_app.writeHeader(sbuf);
     if (events[task_id].p_type == Branch) {
       int nlines = events[task_id].p_from.size();
       int j;
       for (j=0; j<nlines; j++) {
-        sprintf(sbuf," Line: (from) %d (to) %d (line) \'%s\'\n",
+        snprintf(sbuf, sizeof(sbuf)," Line: (from) %d (to) %d (line) \'%s\'\n",
             events[task_id].p_from[j],events[task_id].p_to[j],
             events[task_id].p_ckt[j].c_str());
         if (print_calcs) printf("p[%d] Line: (from) %d (to) %d (line) \'%s\'\n",
@@ -2394,7 +2394,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       int nbus = events[task_id].p_busid.size();
       int j;
       for (j=0; j<nbus; j++) {
-        sprintf(sbuf," Generator: (bus) %d (generator ID) \'%s\'\n",
+        snprintf(sbuf, sizeof(sbuf)," Generator: (bus) %d (generator ID) \'%s\'\n",
             events[task_id].p_busid[j],events[task_id].p_genid[j].c_str());
         if (print_calcs) printf("p[%d] Generator: (bus) %d (generator ID) \'%s\'\n",
             pf_network->communicator().rank(),
@@ -2497,7 +2497,7 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
           localContingencies.push_back(ctResult);
         }
         recordConv(task_id, "SLACK_OVERLOAD", std::string());
-        sprintf(sbuf,"\nInsufficient generation capacity for contingency %s\n",
+        snprintf(sbuf, sizeof(sbuf),"\nInsufficient generation capacity for contingency %s\n",
             events[task_id].p_name.c_str());
         if (print_calcs) pf_app.print(sbuf);
         addFailedStatColumns(task_id);
@@ -2539,15 +2539,15 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         recordConv(task_id, "OK", std::string());
       // Include results of violation checks in output
       if (ok) {
-        sprintf(sbuf,"\nNo violation for contingency %s\n",
+        snprintf(sbuf, sizeof(sbuf),"\nNo violation for contingency %s\n",
             events[task_id].p_name.c_str());
       }
       // Report bus voltage violations
       if (!ok1) {
-        sprintf(sbuf,"\nBus Violation for contingency %s\n",
+        snprintf(sbuf, sizeof(sbuf),"\nBus Violation for contingency %s\n",
             events[task_id].p_name.c_str());
       } else if (!ok) {
-        sprintf(sbuf,"\nNo Bus Violation for contingency %s\n",
+        snprintf(sbuf, sizeof(sbuf),"\nNo Bus Violation for contingency %s\n",
             events[task_id].p_name.c_str());
       }
       if (print_calcs) pf_app.print(sbuf);
@@ -2555,13 +2555,13 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
       // Report branch overload violations
       if (!ok2) {
         // Keep in step with the row format in PFBranch::serialWrite("flow").
-        sprintf(sbuf,"\nBranch Violation for contingency %s\n"
+        snprintf(sbuf, sizeof(sbuf),"\nBranch Violation for contingency %s\n"
             "  From Bus    To Bus   CKT       P_from       Q_from"
             "     MVA_from         P_to         Q_to       MVA_to"
             "       Rate   Loading%%\n",
             events[task_id].p_name.c_str());
       } else if (!ok) {
-        sprintf(sbuf,"\nNo Branch Violation for contingency %s\n",
+        snprintf(sbuf, sizeof(sbuf),"\nNo Branch Violation for contingency %s\n",
             events[task_id].p_name.c_str());
       }
 
@@ -2682,13 +2682,13 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
         recordConv(task_id, st, std::string());
       }
       if (islandDetected) {
-        sprintf(sbuf,"\nIslanding detected for contingency %s (%d islands)\n",
+        snprintf(sbuf, sizeof(sbuf),"\nIslanding detected for contingency %s (%d islands)\n",
             events[task_id].p_name.c_str(), islandCount);
       } else if (!contingencyFound) {
-        sprintf(sbuf,"\nNo valid slack bus for contingency %s\n",
+        snprintf(sbuf, sizeof(sbuf),"\nNo valid slack bus for contingency %s\n",
             events[task_id].p_name.c_str());
       } else {
-        sprintf(sbuf,"\nDivergent for contingency %s\n",
+        snprintf(sbuf, sizeof(sbuf),"\nDivergent for contingency %s\n",
             events[task_id].p_name.c_str());
       }
       if (print_calcs) pf_app.print(sbuf);
