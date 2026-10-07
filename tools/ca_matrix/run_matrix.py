@@ -127,7 +127,7 @@ def main():
                              "    </GPUBatch>\n")
                 with open(os.path.join(work, "input.xml"), "w") as f:
                     f.write(TEMPLATE.format(
-                        gpu=block, raw=net, solver="klu", output_format="csv_flat",
+                        gpu=block, raw=net, solver="klu", output_format="csv_flat", qlim="true",
                         contingencies="    <FullBranchN1>true</FullBranchN1>\n"
                                       "    <FullGeneratorN1>true</FullGeneratorN1>"))
                 quiet = wait_until_quiet()

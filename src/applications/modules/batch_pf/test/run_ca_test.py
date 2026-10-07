@@ -50,14 +50,14 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
     <printCalcFiles>false</printCalcFiles>
     <writeStats>false</writeStats>
 {contingencies}
-    <qlim>true</qlim>
+    <qlim>{qlim}</qlim>
     <outputFormat>{output_format}</outputFormat>
 {gpu}  </Contingency_analysis>
   <Powerflow>
     <networkConfiguration>{raw}</networkConfiguration>
     <maxIteration>50</maxIteration>
     <tolerance>1.0e-6</tolerance>
-    <qlim>true</qlim>
+    <qlim>{qlim}</qlim>
     <LinearSolver>
       <PETScOptions>-ksp_type preonly -pc_type lu -pc_factor_mat_solver_type {solver}</PETScOptions>
     </LinearSolver>
@@ -82,7 +82,7 @@ FILES = ["ca_results_convergence.csv", "ca_results_delta.csv",
 
 def run(cax, workdir, raw, gpu_lines, solver, env=None, launcher=(),
         execution=None, output_format="csv_delta", contingency_list=None,
-        full_hvdc=False):
+        full_hvdc=False, qlim=True):
     os.makedirs(workdir, exist_ok=True)
     shutil.copy(raw, workdir)
     gpu = ""
@@ -101,7 +101,8 @@ def run(cax, workdir, raw, gpu_lines, solver, env=None, launcher=(),
         if full_hvdc:
             contingencies += "\n    <FullHVDCN1>true</FullHVDCN1>"
         f.write(TEMPLATE.format(gpu=gpu, raw=os.path.basename(raw), solver=solver,
-                                output_format=output_format, contingencies=contingencies))
+                                output_format=output_format, contingencies=contingencies,
+                                qlim="true" if qlim else "false"))
     e = dict(os.environ)
     if env:
         e.update(env)
@@ -150,6 +151,16 @@ def event_rows(path, presorted=False):
         process.wait()
 
 
+def last_digit(x, y):
+    """One unit in the last printed digit if both numbers are printed in the
+    same fixed-point format (same number of decimals), else 0"""
+    x, y = x.strip(), y.strip()
+    if any("." not in t or "e" in t.lower() for t in (x, y)):
+        return 0.0
+    decimals = len(x.split(".")[1])
+    return 10.0 ** -decimals if decimals == len(y.split(".")[1]) else 0.0
+
+
 def compare_table(a, b, name, nkey, tol, errors, b_in_event_order=True):
     # GPU-path files are in event order; CPU-path files are sorted first
     with event_rows(os.path.join(a, name)) as (ha, ga), \
@@ -183,7 +194,10 @@ def compare_table(a, b, name, nkey, tol, errors, b_in_event_order=True):
                         difference = abs(float(x) - float(y))
                         if not math.isfinite(difference):
                             difference = math.inf
-                        if not difference <= tol:
+                        # A value printed with fixed decimals on a rounding
+                        # boundary can differ by one unit of its last digit
+                        # when the solutions agree to many more digits
+                        if not difference <= max(tol, 1.000001 * last_digit(x, y)):
                             worst = max(worst, difference)
                     except ValueError:
                         errors.append("%s: text differs at %s" % (name, key))
@@ -212,6 +226,23 @@ def equivalent_voltage_tie(a, b, key, left, right, tol):
             return False
         extreme = min(values) if key == "worst_voltage_low" else max(values)
         if any(abs(extreme - item["v_pu"]) > voltage_tol for item in (left, right)):
+            return False
+    return True
+
+
+def equivalent_voltage_case_tie(a, b, left, right, tol):
+    """Both named cases must reach the reported voltage at the bus in both tables."""
+    candidates = {left["contingency"], right["contingency"]}
+    voltage_tol = min(tol, 1e-6)
+    for directory in (a, b):
+        found = set()
+        with open(os.path.join(directory, FILES[2])) as table:
+            for row in csv.DictReader(table):
+                if (row["type"] == "voltage" and row["element"] == str(left["bus_id"])
+                        and row["contingency"] in candidates
+                        and abs(float(row["mva_or_vpu"]) - left["v_pu"]) <= voltage_tol):
+                    found.add(row["contingency"])
+        if found != candidates:
             return False
     return True
 
@@ -262,6 +293,17 @@ def compare(a, b, tol, errors, allow_unsolved=True, output_format="csv_delta",
                     and equivalent_voltage_tie(a, b, key, va, vb, tol)):
                 print("Equivalent worst-voltage tie:", key, va["bus_id"], vb["bus_id"])
                 vb["bus_id"] = va["bus_id"]
+            # Two cases can leave the same bus at the same extreme voltage
+            # (a generator and its only branch); the first in completion
+            # order is retained. Accept the other name only if BOTH cases
+            # attain that voltage at that bus in BOTH violation tables.
+            if (va.get("contingency") != vb.get("contingency")
+                    and same({k: v for k, v in va.items() if k != "contingency"},
+                             {k: v for k, v in vb.items() if k != "contingency"})
+                    and equivalent_voltage_case_tie(a, b, va, vb, tol)):
+                print("Equivalent worst-voltage case tie:", key,
+                      sorted({va["contingency"], vb["contingency"]}))
+                vb["contingency"] = va["contingency"]
         worst_a, worst_b = left.get("worst_loading") or {}, right.get("worst_loading") or {}
         if (worst_a.get("contingency") != worst_b.get("contingency")
                 and same({k: v for k, v in worst_a.items() if k != "contingency"},
@@ -327,6 +369,12 @@ def complete(workdir, expected, errors):
     for row in rows(os.path.join(workdir, FILES[0]))[1:]:
         if row[10] == "MISSING":
             errors.append("case %s has no outcome" % row[0])
+
+
+def gpu_reported(workdir):
+    """Cases reported from a GPU solution (path gpu in the outcome table)"""
+    return sum(1 for row in csv.DictReader(open(os.path.join(workdir, "ca_results_gpu_outcomes.csv")))
+               if row["path"] == "gpu")
 
 
 def shadow(workdir, errors, require_sets=False):
@@ -419,6 +467,8 @@ def main():
     ap.add_argument("--contingency-list", help="Optional existing XML list for a repeatable sample")
     ap.add_argument("--full-hvdc-n1", action="store_true",
                     help="Also outage every two-terminal dc line (pole) in service")
+    ap.add_argument("--qlim", choices=("true", "false"), default="true",
+                    help="Reactive limits in both the power flow and the contingency loop")
     args = ap.parse_args()
     errors = []
     args.ranks = default_ranks() if args.ranks == "auto" else int(args.ranks)
@@ -431,7 +481,7 @@ def main():
         ap.error("--shadow-fraction must be between zero and one")
     invoke = functools.partial(run, launcher=launcher, execution=args.accelerator_ranks,
                                output_format=args.output_format, contingency_list=args.contingency_list,
-                               full_hvdc=args.full_hvdc_n1)
+                               full_hvdc=args.full_hvdc_n1, qlim=args.qlim == "true")
     stock = os.path.join(args.workdir, "stock")
     code, _ = invoke(args.stock_cax or args.cax, stock, args.raw, None, args.solver)
     if code != 0:
@@ -460,13 +510,16 @@ def main():
             complete(test, expected, errors)
             if args.require_reported_state:
                 reported_state(test, errors)
-            if fraction > 0:
+            # Every case can take the CPU path (an outage list GridPACK
+            # must solve itself); then there is nothing to shadow
+            shadowed = fraction > 0 and gpu_reported(test) > 0
+            if shadowed:
                 shadow(test, errors, args.require_shadow_sets)
             if args.expect_batch_at_most is not None:
                 capacities = re.findall(r"backend \w+ \([^\n]+\), batch size (\d+)", out)
                 if not capacities or any(int(b) > args.expect_batch_at_most for b in capacities):
                     errors.append("effective batch exceeds the expected admission limit")
-            if fraction > 0 and "shadow validation" not in out:
+            if shadowed and "shadow validation" not in out:
                 errors.append("no shadow validation summary in the log")
             if args.mode == "benchmark":
                 with open(os.path.join(stock, "timing.json")) as f:

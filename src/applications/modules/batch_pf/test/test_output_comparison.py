@@ -7,7 +7,8 @@ import tempfile
 import unittest
 import sys
 
-from run_ca_test import compare_table, equivalent_voltage_tie, reported_state
+from run_ca_test import (compare_table, equivalent_voltage_case_tie, equivalent_voltage_tie,
+                         reported_state)
 
 
 class ReportedStateTests(unittest.TestCase):
@@ -87,6 +88,11 @@ class TableComparisonTests(unittest.TestCase):
         self.assertTrue(self.compare([[1, 2, 1.0]], [[1, 2, 1.01]]))
         self.assertTrue(self.compare([[1, 2, 1.0]], [[1, 3, 1.0]]))
 
+    def test_one_printed_digit_on_a_rounding_boundary_passes(self):
+        self.assertEqual(self.compare([[1, 2, "5.99"]], [[1, 2, "6.00"]]), [])
+        self.assertTrue(self.compare([[1, 2, "5.99"]], [[1, 2, "6.01"]]))
+        self.assertTrue(self.compare([[1, 2, "1.0"]], [[1, 2, "1.01"]]))
+
     def test_equal_malformed_or_duplicate_rows_fail(self):
         self.assertTrue(self.compare([[1, 2]], [[1, 2]]))
         rows = [[1, 2, 1.0], [1, 2, 1.0]]
@@ -130,6 +136,36 @@ class VoltageTieTests(unittest.TestCase):
     def test_both_candidates_must_be_the_global_extreme(self):
         self.write(self.a, [(1, 0.4), (2, 0.4), (3, 0.3)])
         self.assertFalse(self.tied())
+
+
+class VoltageCaseTieTests(unittest.TestCase):
+    """Two outages leaving the same bus at the same extreme voltage"""
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.a, self.b = Path(self.directory.name) / "a", Path(self.directory.name) / "b"
+        self.a.mkdir()
+        self.b.mkdir()
+        self.left = dict(contingency="branch", bus_id=7, v_pu=0.7)
+        self.right = dict(contingency="generator", bus_id=7, v_pu=0.7)
+        for directory in (self.a, self.b):
+            self.write(directory, [("branch", 0.7), ("generator", 0.7)])
+
+    def write(self, directory, values):
+        with (directory / "ca_results_violations.csv").open("w") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["contingency", "type", "element", "mva_or_vpu"])
+            for case, value in values:
+                writer.writerow([case, "voltage", 7, value])
+
+    def test_both_cases_at_the_voltage_in_both_tables_pass(self):
+        self.assertTrue(equivalent_voltage_case_tie(self.a, self.b, self.left, self.right, 1e-3))
+
+    def test_a_case_missing_or_at_another_voltage_fails(self):
+        self.write(self.b, [("branch", 0.7)])
+        self.assertFalse(equivalent_voltage_case_tie(self.a, self.b, self.left, self.right, 1e-3))
+        self.write(self.b, [("branch", 0.7), ("generator", 0.7001)])
+        self.assertFalse(equivalent_voltage_case_tie(self.a, self.b, self.left, self.right, 1e-3))
 
 
 if __name__ == "__main__":

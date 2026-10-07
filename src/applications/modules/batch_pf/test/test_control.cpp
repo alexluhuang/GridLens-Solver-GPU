@@ -36,7 +36,7 @@ struct Script {
   std::vector<double> tol;      // mismatch norm of each evaluation, in order
   std::vector<int> qviol;       // conversions found by each Q-limit check
   int bad_eval = -1;            // evaluation that reports a tiny pivot
-  std::vector<double> dc;       // converter change found by each dc step (pu)
+  std::vector<double> dc{};     // converter change found by each dc step (pu)
 };
 
 struct Run {
