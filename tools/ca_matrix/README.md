@@ -1,14 +1,15 @@
 # Contingency analysis test matrix
 
 Runs full N-1 studies over several networks, solve paths and rank counts,
-and reports two things for each run, both against the optimized CPU path of
-the same network and rank count:
+and reports two things, both against the optimized CPU path of the same
+network:
 
-- **accuracy**: absolute and percentage differences of utilization, power
-  and bus values over all result rows, and the share of rows more than 1%
-  off;
-- **runtime**: each step of the pipeline, with its absolute and percentage
-  difference.
+- **accuracy**, tested at 16 ranks: absolute and percentage differences of
+  utilization, power and bus values over all result rows, and the share of
+  rows more than 1% off;
+- **runtime**: each step of the pipeline at every rank count, with its
+  absolute and percentage difference from optimized CPU at the same rank
+  count.
 
 The four solve paths:
 
@@ -46,8 +47,9 @@ Run these from the top of the repository.
    ```sh
    N=MemphisCase2026_Mar7.RAW,Texas7k_20210804.RAW,ACTIVSg10k.RAW
    for R in 4 8 16; do
-     tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/run_matrix.py --program stock --networks $N --paths cpu --ranks $R --repeat 2 --keep"
-     tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/run_matrix.py --program ours --networks $N --paths cpu,alg2,cudss --ranks $R --repeat 2 --keep"
+     K=$([ $R = 16 ] && echo --keep)   # tables are needed only at 16 ranks (step 4)
+     tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/run_matrix.py --program stock --networks $N --paths cpu --ranks $R --repeat 2 $K"
+     tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/run_matrix.py --program ours --networks $N --paths cpu,alg2,cudss --ranks $R --repeat 2 $K"
    done
    ```
 
@@ -74,8 +76,10 @@ Run these from the top of the repository.
    tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/compare_runs.py"
    ```
 
-   Each kept run's result table is matched row by row with the optimized
-   CPU run of the same network and rank count. For utilization, complex
+   Accuracy is tested at 16 ranks only (`--ranks` to choose another
+   count): a case's results do not depend on the rank count. Each kept
+   16-rank run's result table is matched row by row with the optimized CPU
+   run of the same network. For utilization, complex
    power, real power, reactive power, bus voltage and bus angle it prints
    the mean and largest absolute difference, the mean and largest
    percentage difference, and the percentage of rows more than 1% away from

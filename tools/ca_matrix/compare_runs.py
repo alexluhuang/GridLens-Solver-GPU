@@ -5,10 +5,14 @@
 #     found in the LICENSE file in the top level directory of this
 #     distribution.
 #
-"""Accuracy of every kept run against the optimized CPU run of the same
-network and rank count (inside the container, through run.sh).
+"""Accuracy of every kept 16-rank run against the optimized CPU run of the
+same network (inside the container, through run.sh).
 
-  python3 /src/tools/ca_matrix/compare_runs.py [--engine gpu|cpu] [--rows]
+  python3 /src/tools/ca_matrix/compare_runs.py [--engine gpu|cpu] [--rows] [--ranks 16]
+
+Only runs at one rank count are compared (--ranks, default 16): a case's
+results do not depend on how many ranks share the cases, so testing
+accuracy at one rank count is enough, and accuracy.csv has no rank column.
 
 The csv_flat tables of the two runs are matched row by row on (case,
 from bus, to bus, circuit). For each variable below, over all matched rows:
@@ -206,12 +210,18 @@ def main():
                     help="largest GPU memory the comparison may use (default 16)")
     ap.add_argument("--rows", action="store_true",
                     help="also write every matched row's differences (large)")
+    ap.add_argument("--ranks", type=int, default=16,
+                    help="rank count whose runs are compared (default 16); results do not "
+                         "depend on the rank count, so one is enough")
     args = ap.parse_args()
     engine = gpu_engine(args.gpu_memory_gb) if args.engine == "gpu" else "streaming"
     out = os.path.join(MATRIX, "out")
     report = []
+    ranks = str(args.ranks)
     for group in sorted(os.listdir(out)):
-        program, _, ranks = group.rpartition("-r")
+        program, _, group_ranks = group.rpartition("-r")
+        if group_ranks != ranks:
+            continue
         for name in sorted(os.listdir(os.path.join(out, group))):
             run = os.path.join(out, group, name)
             if "-run" in name or not has_table(run):
@@ -221,15 +231,15 @@ def main():
                 continue
             reference = os.path.join(out, "ours-r" + ranks, network + "_cpu")
             if not has_table(reference):
-                print("%s, %s ranks, %s %s: no optimized CPU run to compare with" % (
-                    network, ranks, program, label))
+                print("%s, %s %s: no optimized CPU run to compare with" % (
+                    network, program, label))
                 continue
             start = time.monotonic()
             rows_dir = (os.path.join(MATRIX, "accuracy_rows", "%s-%s" % (group, name))
                         if args.rows else None)
             result = compare(reference, run, engine, rows_dir)
-            print("%s, %s ranks, %s %s vs optimized CPU (%.4f s to compare)" % (
-                network, ranks, program, label, time.monotonic() - start))
+            print("%s, %s %s vs optimized CPU (%.4f s to compare)" % (
+                network, program, label, time.monotonic() - start))
             print("    %-22s %14s %14s %14s %14s %14s" % (
                 "variable", "mean abs diff", "max abs diff", "mean % diff", "max % diff",
                 "% rows > 1%"))
@@ -242,7 +252,7 @@ def main():
                 first["rows compared"], first["rows only in CPU run"],
                 first["rows only in this run"]))
             for r in result:
-                report.append(dict({"network": network, "ranks": int(ranks), "program": program,
+                report.append(dict({"network": network, "program": program,
                                     "path": label}, **r))
     if report:
         with open(os.path.join(MATRIX, "accuracy.csv"), "w", newline="") as f:
@@ -250,7 +260,10 @@ def main():
             w.writeheader()
             for r in report:
                 w.writerow({k: ("%.4f" % v if isinstance(v, float) else v) for k, v in r.items()})
-        print("written to matrix/accuracy.csv")
+        print("written to matrix/accuracy.csv (runs at %s ranks)" % ranks)
+    else:
+        print("no runs at %s ranks with kept tables (run_matrix.py --ranks %s --keep)" % (
+            ranks, ranks))
     return 0
 
 
