@@ -13,10 +13,43 @@
     <LTC>false</LTC>
     <writeStats>false</writeStats>
     <outputFormat>csv_flat</outputFormat>
-    <outputFile>wecc_test</outputFile>
+    <outputFile>_test</outputFile>
+    <GPUBatch>
+      <enabled>on</enabled>                                 <!-- auto, on, off. default: auto. auto: GPU if found, else CPU. off: CPU -->
+      <onUnavailable>error</onUnavailable>                  <!-- fallback, error. default: fallback. no GPU with enabled=on: fallback uses CPU, error stops -->
+      <backend>alg2</backend>                               <!-- auto, alg2, cudss, cpu_reference. default: auto. auto: fastest at startup. cpu_reference: testing -->
+      <batchSize>512</batchSize>                            <!-- auto, 1-65536. default: auto. cases solved together. auto: chosen at startup -->
+      <warmStart>base_case</warmStart>                      <!-- base_case, raw. default: base_case. start from base-case solution or network file -->
+      <shadowFraction>0</shadowFraction>                    <!-- 0-1. default: 0. share of GPU cases re-solved on CPU to check -->
+      <!-- <pluginPath>DIR</pluginPath> -->                 <!-- directory. default: GRIDPACK_BATCHPF_PLUGIN_PATH, else next to ca.x -->
+      <device>0</device>                                    <!-- 0-1023. default: 0. GPU index -->
+      <!-- <maxValidatedBatch>2048</maxValidatedBatch> -->  <!-- 1-65536. default: 2048 (tested limit). batch size cap -->
+      <backfill>true</backfill>               <!-- true, false. default: true. refill finished slots immediately -->
+      <threadsPerBlock>auto</threadsPerBlock> <!-- auto, 32-1024 in steps of 32. default: auto -->
+      <memoryProfile>auto</memoryProfile>     <!-- auto, unified, coherent, discrete. default: auto (detected) -->
+      <!-- <memoryHeadroomGB>12</memoryHeadroomGB> -->  <!-- >= 0. default: 10% of memory if unified, else 5%. kept free -->
+      <maxMemoryGB>0</maxMemoryGB>            <!-- >= 0. default: 0 (no cap). GPU memory cap -->
+      <formulation>superset</formulation>     <!-- superset only -->
+      <plannerOrdering>amd</plannerOrdering>  <!-- amd, colamd. default: amd. factorization order -->
+      <pivotTolerance>0.001</pivotTolerance>  <!-- 0-1. default: 0.001. pivoting threshold for that order -->
+      <solvePlacement>gpu</solvePlacement>    <!-- gpu, host. default: gpu. host: alg2 solves on CPU (testing) -->
+      <refinementSteps>0</refinementSteps>    <!-- 0-100. default: 0. extra accuracy passes (cudss) -->
+      <health>                                <!-- failed checks send the case to CPU -->
+        <residualLimit>1e-6</residualLimit>   <!-- 0-1. default: 1e-6. linear solve error limit. 0: off -->
+        <pivotLimit>1e-12</pivotLimit>        <!-- 0-1. default: 1e-12. near-zero pivot limit -->
+        <checkNonFinite>true</checkNonFinite> <!-- true, false. default: true. catch NaN or infinity -->
+      </health>
+      <telemetry>summary</telemetry>          <!-- off, summary, detailed. default: summary. GPU log detail -->
+      <profilerRanges>false</profilerRanges>  <!-- true, false. default: false. NVTX markers for profilers -->
+    </GPUBatch>
+    <Execution>
+      <acceleratorRanks>auto</acceleratorRanks>  <!-- auto, rank list (e.g. 0,8). default: auto (one rank per GPU) -->
+      <cpuBinding>auto</cpuBinding>           <!-- auto, none, performance_first. default: auto. none: mpiexec placement -->
+      <logLevel>info</logLevel>               <!-- error, warn, info, debug. default: info -->
+    </Execution>
   </Contingency_analysis>
   <Powerflow>
-    <networkConfiguration>30HS2ap_v34.raw</networkConfiguration>
+    <networkConfiguration>network.raw</networkConfiguration>
     <initStart>warm</initStart>
     <SwitchedShunt>false</SwitchedShunt>
     <qlim>true</qlim>
