@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ContingencyList>
+  <Contingency_analysis>
+    <Contingencies>
+      <Contingency>
+        <contingencyType>Line</contingencyType>
+        <contingencyName>BR_33_34_1</contingencyName>
+        <contingencyLineBuses>33 34</contingencyLineBuses>
+        <contingencyLineNames>1</contingencyLineNames>
+      </Contingency>
+    </Contingencies>
+  </Contingency_analysis>
+</ContingencyList>

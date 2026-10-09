@@ -447,8 +447,10 @@ depends on rounding:
 | Alg 2 | diverged on the GPU at 50 steps; GridPACK's re-solve gives the optimized CPU result | 50 + 44 | 9.958e-5 |
 | cuDSS | converged on the GPU | 47 | 9.912e-5 |
 
-Running this case alone (`matrix/probe_1068`) gives the same four
-outcomes, so it does not depend on the order of cases. The stock and
+Running this case alone at one process (the contingency list
+`docs/gpu_n1/reproductions/memphis-case-1068.xml` with `FullBranchN1` and
+`FullGeneratorN1` off) gives the same four outcomes, so it does not depend
+on the order of cases. The stock and
 optimized CPU traces agree to seven digits for twelve steps and first
 differ in the seventh digit at step 13, a rounding-level difference,
 most likely from the optimized build's changed per-bus demand arithmetic
