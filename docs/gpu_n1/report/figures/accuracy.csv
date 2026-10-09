@@ -1,0 +1,121 @@
+network,program,path,variable,rows compared,rows only in CPU run,rows only in this run,mean abs diff,max abs diff,mean % diff,max % diff,% rows over 1%,rows with CPU value 0
+private network,ours,alg2,utilization (%),1040117280,0,0,0.0000,0.2200,0.0000,0.7299,0.0000,98095210
+private network,ours,alg2,complex power (MVA),1040117280,0,0,0.0000,0.0646,0.0000,0.6344,0.0000,77750417
+private network,ours,alg2,real power (MW),1040117280,0,0,0.0000,0.0118,0.0000,0.2469,0.0000,108925262
+private network,ours,alg2,reactive power (MVAr),1040117280,0,0,0.0000,0.1047,0.0000,7.6923,0.0000,82915715
+private network,ours,alg2,bus voltage (pu),2080234560,0,0,0.0000,0.0005,0.0000,0.0514,0.0000,4
+private network,ours,alg2,bus angle (deg),2080234560,0,0,0.0000,0.0040,0.0000,0.3448,0.0000,967
+private network,ours,cudss,utilization (%),1040117280,0,0,0.0000,0.2200,0.0000,0.6446,0.0000,98095210
+private network,ours,cudss,complex power (MVA),1040117280,0,0,0.0000,0.0646,0.0000,0.6344,0.0000,77750417
+private network,ours,cudss,real power (MW),1040117280,0,0,0.0000,0.0118,0.0000,0.2469,0.0000,108925262
+private network,ours,cudss,reactive power (MVAr),1040117280,0,0,0.0000,0.1047,0.0000,7.6923,0.0000,82915715
+private network,ours,cudss,bus voltage (pu),2080234560,0,0,0.0000,0.0005,0.0000,0.0514,0.0000,4
+private network,ours,cudss,bus angle (deg),2080234560,0,0,0.0000,0.4856,0.0000,2.8777,0.0000,967
+ACTIVSg10k,ours,alg2,utilization (%),149328391,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,36335711
+ACTIVSg10k,ours,alg2,complex power (MVA),149328391,0,0,0.0000,0.0001,0.0000,0.0021,0.0000,8762787
+ACTIVSg10k,ours,alg2,real power (MW),149328391,0,0,0.0000,0.0001,0.0000,0.0021,0.0000,8762895
+ACTIVSg10k,ours,alg2,reactive power (MVAr),149328391,0,0,0.0000,0.0001,0.0000,0.0110,0.0000,9202835
+ACTIVSg10k,ours,alg2,bus voltage (pu),298656782,0,0,0.0000,0.0000,0.0000,0.0001,0.0000,0
+ACTIVSg10k,ours,alg2,bus angle (deg),298656782,0,0,0.0000,0.0001,0.0000,0.0003,0.0000,0
+ACTIVSg10k,ours,cudss,utilization (%),149328391,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,36335711
+ACTIVSg10k,ours,cudss,complex power (MVA),149328391,0,0,0.0000,0.0001,0.0000,0.0021,0.0000,8762787
+ACTIVSg10k,ours,cudss,real power (MW),149328391,0,0,0.0000,0.0001,0.0000,0.0021,0.0000,8762895
+ACTIVSg10k,ours,cudss,reactive power (MVAr),149328391,0,0,0.0000,0.0001,0.0000,0.0110,0.0000,9202835
+ACTIVSg10k,ours,cudss,bus voltage (pu),298656782,0,0,0.0000,0.0000,0.0000,0.0001,0.0000,0
+ACTIVSg10k,ours,cudss,bus angle (deg),298656782,0,0,0.0000,0.0001,0.0000,0.0003,0.0000,0
+Base_Florida_42GW,ours,alg2,utilization (%),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,17185
+Base_Florida_42GW,ours,alg2,complex power (MVA),73165215,0,0,0.0000,0.0001,0.0000,0.0001,0.0000,17185
+Base_Florida_42GW,ours,alg2,real power (MW),73165215,0,0,0.0000,0.0001,0.0000,0.0003,0.0000,17277
+Base_Florida_42GW,ours,alg2,reactive power (MVAr),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,138226
+Base_Florida_42GW,ours,alg2,bus voltage (pu),146330430,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_Florida_42GW,ours,alg2,bus angle (deg),146330430,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_Florida_42GW,ours,cudss,utilization (%),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,17185
+Base_Florida_42GW,ours,cudss,complex power (MVA),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,17185
+Base_Florida_42GW,ours,cudss,real power (MW),73165215,0,0,0.0000,0.0001,0.0000,0.0003,0.0000,17277
+Base_Florida_42GW,ours,cudss,reactive power (MVAr),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,138226
+Base_Florida_42GW,ours,cudss,bus voltage (pu),146330430,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_Florida_42GW,ours,cudss,bus angle (deg),146330430,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_MIOHIN_76GW,ours,alg2,utilization (%),250679100,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,49168
+Base_MIOHIN_76GW,ours,alg2,complex power (MVA),250679100,0,0,0.0000,0.0001,0.0000,0.0007,0.0000,49168
+Base_MIOHIN_76GW,ours,alg2,real power (MW),250679100,0,0,0.0000,0.0001,0.0000,0.0019,0.0000,66642
+Base_MIOHIN_76GW,ours,alg2,reactive power (MVAr),250679100,0,0,0.0000,0.0001,0.0000,0.0035,0.0000,595564
+Base_MIOHIN_76GW,ours,alg2,bus voltage (pu),501358200,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_MIOHIN_76GW,ours,alg2,bus angle (deg),501358200,0,0,0.0000,0.0001,0.0000,0.0002,0.0000,0
+Base_MIOHIN_76GW,ours,cudss,utilization (%),250679100,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,49168
+Base_MIOHIN_76GW,ours,cudss,complex power (MVA),250679100,0,0,0.0000,0.0001,0.0000,0.0010,0.0000,49168
+Base_MIOHIN_76GW,ours,cudss,real power (MW),250679100,0,0,0.0000,0.0001,0.0000,0.0007,0.0000,66642
+Base_MIOHIN_76GW,ours,cudss,reactive power (MVAr),250679100,0,0,0.0000,0.0001,0.0000,0.0009,0.0000,595564
+Base_MIOHIN_76GW,ours,cudss,bus voltage (pu),501358200,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_MIOHIN_76GW,ours,cudss,bus angle (deg),501358200,0,0,0.0000,0.0001,0.0000,0.0002,0.0000,0
+MemphisCase2026_Mar7,ours,alg2,utilization (%),1861158,0,0,0.0000,0.0100,0.0000,0.1416,0.0000,2799
+MemphisCase2026_Mar7,ours,alg2,complex power (MVA),1861158,0,0,0.0000,0.0058,0.0000,0.0195,0.0000,2799
+MemphisCase2026_Mar7,ours,alg2,real power (MW),1861158,0,0,0.0000,0.0007,0.0000,0.0394,0.0000,2814
+MemphisCase2026_Mar7,ours,alg2,reactive power (MVAr),1861158,0,0,0.0000,0.0118,0.0000,3.3333,0.0001,4189
+MemphisCase2026_Mar7,ours,alg2,bus voltage (pu),3722316,0,0,0.0000,0.0000,0.0000,0.0024,0.0000,0
+MemphisCase2026_Mar7,ours,alg2,bus angle (deg),3722316,0,0,0.0000,0.0007,0.0000,0.0014,0.0000,0
+MemphisCase2026_Mar7,ours,cudss,utilization (%),1861158,0,0,0.0003,22.0600,0.0013,195.5674,0.0099,2799
+MemphisCase2026_Mar7,ours,cudss,complex power (MVA),1861158,0,0,0.0003,50.5881,0.0013,195.6748,0.0099,2799
+MemphisCase2026_Mar7,ours,cudss,real power (MW),1861158,0,0,0.0002,13.3659,0.0015,749.5258,0.0103,2814
+MemphisCase2026_Mar7,ours,cudss,reactive power (MVAr),1861158,0,0,0.0007,68.3516,0.0151,3529.2383,0.0105,4189
+MemphisCase2026_Mar7,ours,cudss,bus voltage (pu),3722316,0,0,0.0000,0.1440,0.0010,13.2850,0.0104,0
+MemphisCase2026_Mar7,ours,cudss,bus angle (deg),3722316,0,0,0.0003,3.8329,0.0007,7.6443,0.0104,0
+Texas7k_20210804,ours,alg2,utilization (%),74701440,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,3525112
+Texas7k_20210804,ours,alg2,complex power (MVA),74701440,0,0,0.0000,0.0001,0.0000,0.0001,0.0000,3525099
+Texas7k_20210804,ours,alg2,real power (MW),74701440,0,0,0.0000,0.0001,0.0000,0.0008,0.0000,3542545
+Texas7k_20210804,ours,alg2,reactive power (MVAr),74701440,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,3525170
+Texas7k_20210804,ours,alg2,bus voltage (pu),149402880,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2
+Texas7k_20210804,ours,alg2,bus angle (deg),149402880,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,298
+Texas7k_20210804,ours,cudss,utilization (%),74701440,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,3525112
+Texas7k_20210804,ours,cudss,complex power (MVA),74701440,0,0,0.0000,0.0001,0.0000,0.0004,0.0000,3525099
+Texas7k_20210804,ours,cudss,real power (MW),74701440,0,0,0.0000,0.0001,0.0000,0.0008,0.0000,3542545
+Texas7k_20210804,ours,cudss,reactive power (MVAr),74701440,0,0,0.0000,0.0001,0.0000,0.0023,0.0000,3525170
+Texas7k_20210804,ours,cudss,bus voltage (pu),149402880,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2
+Texas7k_20210804,ours,cudss,bus angle (deg),149402880,0,0,0.0000,0.0001,0.0000,0.0009,0.0000,298
+Wisconsin_1664,ours,alg2,utilization (%),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2145
+Wisconsin_1664,ours,alg2,complex power (MVA),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2145
+Wisconsin_1664,ours,alg2,real power (MW),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2152
+Wisconsin_1664,ours,alg2,reactive power (MVAr),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2217
+Wisconsin_1664,ours,alg2,bus voltage (pu),10668638,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Wisconsin_1664,ours,alg2,bus angle (deg),10668638,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,12085
+Wisconsin_1664,ours,cudss,utilization (%),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2145
+Wisconsin_1664,ours,cudss,complex power (MVA),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2145
+Wisconsin_1664,ours,cudss,real power (MW),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2152
+Wisconsin_1664,ours,cudss,reactive power (MVAr),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2217
+Wisconsin_1664,ours,cudss,bus voltage (pu),10668638,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Wisconsin_1664,ours,cudss,bus angle (deg),10668638,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,12085
+ACTIVSg10k,stock,cpu,utilization (%),149328391,0,0,0.0000,1.3700,0.0000,7.5559,0.0000,36335711
+ACTIVSg10k,stock,cpu,complex power (MVA),149328391,0,0,0.0000,1.7759,0.0000,7.5716,0.0000,8762787
+ACTIVSg10k,stock,cpu,real power (MW),149328391,0,0,0.0000,0.1988,0.0000,4.1006,0.0000,8762895
+ACTIVSg10k,stock,cpu,reactive power (MVAr),149328391,0,0,0.0000,4.7627,0.0000,440.3295,0.0001,9202835
+ACTIVSg10k,stock,cpu,bus voltage (pu),298656782,0,0,0.0000,0.0222,0.0000,2.1557,0.0000,0
+ACTIVSg10k,stock,cpu,bus angle (deg),298656782,0,0,0.0000,0.1389,0.0000,0.4581,0.0000,0
+Base_Florida_42GW,stock,cpu,utilization (%),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,17185
+Base_Florida_42GW,stock,cpu,complex power (MVA),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,17185
+Base_Florida_42GW,stock,cpu,real power (MW),73165215,0,0,0.0000,0.0001,0.0000,0.0001,0.0000,17277
+Base_Florida_42GW,stock,cpu,reactive power (MVAr),73165215,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,138226
+Base_Florida_42GW,stock,cpu,bus voltage (pu),146330430,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_Florida_42GW,stock,cpu,bus angle (deg),146330430,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_MIOHIN_76GW,stock,cpu,utilization (%),250679100,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,49168
+Base_MIOHIN_76GW,stock,cpu,complex power (MVA),250679100,0,0,0.0000,0.0001,0.0000,0.0007,0.0000,49168
+Base_MIOHIN_76GW,stock,cpu,real power (MW),250679100,0,0,0.0000,0.0001,0.0000,0.0016,0.0000,66642
+Base_MIOHIN_76GW,stock,cpu,reactive power (MVAr),250679100,0,0,0.0000,0.0001,0.0000,0.0113,0.0000,595564
+Base_MIOHIN_76GW,stock,cpu,bus voltage (pu),501358200,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Base_MIOHIN_76GW,stock,cpu,bus angle (deg),501358200,0,0,0.0000,0.0001,0.0000,0.0002,0.0000,0
+MemphisCase2026_Mar7,stock,cpu,utilization (%),1859820,1338,0,0.0000,0.0000,0.0000,0.0000,0.0000,2799
+MemphisCase2026_Mar7,stock,cpu,complex power (MVA),1859820,1338,0,0.0000,0.0001,0.0000,0.0000,0.0000,2799
+MemphisCase2026_Mar7,stock,cpu,real power (MW),1859820,1338,0,0.0000,0.0000,0.0000,0.0000,0.0000,2814
+MemphisCase2026_Mar7,stock,cpu,reactive power (MVAr),1859820,1338,0,0.0000,0.0000,0.0000,0.0000,0.0000,4189
+MemphisCase2026_Mar7,stock,cpu,bus voltage (pu),3719640,2676,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+MemphisCase2026_Mar7,stock,cpu,bus angle (deg),3719640,2676,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Texas7k_20210804,stock,cpu,utilization (%),74701440,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,3525112
+Texas7k_20210804,stock,cpu,complex power (MVA),74701440,0,0,0.0000,0.0001,0.0000,0.0004,0.0000,3525099
+Texas7k_20210804,stock,cpu,real power (MW),74701440,0,0,0.0000,0.0001,0.0000,0.0008,0.0000,3542545
+Texas7k_20210804,stock,cpu,reactive power (MVAr),74701440,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,3525170
+Texas7k_20210804,stock,cpu,bus voltage (pu),149402880,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2
+Texas7k_20210804,stock,cpu,bus angle (deg),149402880,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,298
+Wisconsin_1664,stock,cpu,utilization (%),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2145
+Wisconsin_1664,stock,cpu,complex power (MVA),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2145
+Wisconsin_1664,stock,cpu,real power (MW),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2152
+Wisconsin_1664,stock,cpu,reactive power (MVAr),5334319,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,2217
+Wisconsin_1664,stock,cpu,bus voltage (pu),10668638,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,0
+Wisconsin_1664,stock,cpu,bus angle (deg),10668638,0,0,0.0000,0.0000,0.0000,0.0000,0.0000,12085
