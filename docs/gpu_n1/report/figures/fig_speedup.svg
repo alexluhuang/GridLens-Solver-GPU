@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="390" viewBox="0 0 750 390" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="750" height="390" fill="#fcfcfb"/>
+<text x="16.0" y="26.0" font-size="15" text-anchor="start" fill="#0b0b0b" font-weight="600">Speedup over stock GridPACK at 16 processes (times faster)</text>
+<rect x="60.0" y="37.0" width="10" height="10" rx="2" fill="#eb6834"/>
+<text x="74.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Optimized CPU</text>
+<rect x="168.5" y="37.0" width="10" height="10" rx="2" fill="#1baf7a"/>
+<text x="182.5" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Alg 2</text>
+<rect x="225.0" y="37.0" width="10" height="10" rx="2" fill="#eda100"/>
+<text x="239.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">cuDSS</text>
+<line x1="60.0" y1="320.0" x2="720.0" y2="320.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="54.0" y="324.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">0</text>
+<line x1="60.0" y1="268.0" x2="720.0" y2="268.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="54.0" y="272.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">2</text>
+<line x1="60.0" y1="216.0" x2="720.0" y2="216.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="54.0" y="220.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">4</text>
+<line x1="60.0" y1="164.0" x2="720.0" y2="164.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="54.0" y="168.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">6</text>
+<line x1="60.0" y1="112.0" x2="720.0" y2="112.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="54.0" y="116.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">8</text>
+<line x1="60.0" y1="60.0" x2="720.0" y2="60.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="54.0" y="64.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">10</text>
+<line x1="60.0" y1="294.0" x2="720.0" y2="294.0" stroke="#52514e" stroke-width="1"/>
+<path d="M75.0,320.0 v-28.9 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v28.9 z" fill="#eb6834"><title>MemphisCase2026_Mar7, Optimized CPU: 1.27x</title></path>
+<path d="M101.0,320.0 v-27.1 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v27.1 z" fill="#1baf7a"><title>MemphisCase2026_Mar7, Alg 2: 1.20x</title></path>
+<text x="113.0" y="284.9" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">1.2</text>
+<path d="M127.0,320.0 v-24.4 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v24.4 z" fill="#eda100"><title>MemphisCase2026_Mar7, cuDSS: 1.09x</title></path>
+<text x="139.0" y="287.6" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">1.1</text>
+<text x="113.0" y="336.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="400">Memphis</text>
+<path d="M185.0,320.0 v-33.5 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v33.5 z" fill="#eb6834"><title>Wisconsin_1664, Optimized CPU: 1.44x</title></path>
+<path d="M211.0,320.0 v-61.7 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v61.7 z" fill="#1baf7a"><title>Wisconsin_1664, Alg 2: 2.53x</title></path>
+<text x="223.0" y="250.3" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">2.5</text>
+<path d="M237.0,320.0 v-51.1 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v51.1 z" fill="#eda100"><title>Wisconsin_1664, cuDSS: 2.12x</title></path>
+<text x="249.0" y="260.9" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">2.1</text>
+<text x="223.0" y="336.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="400">Wisconsin</text>
+<path d="M295.0,320.0 v-33.4 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v33.4 z" fill="#eb6834"><title>Base_Florida_42GW, Optimized CPU: 1.44x</title></path>
+<path d="M321.0,320.0 v-200.5 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v200.5 z" fill="#1baf7a"><title>Base_Florida_42GW, Alg 2: 7.87x</title></path>
+<text x="333.0" y="111.5" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">7.9</text>
+<path d="M347.0,320.0 v-195.8 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v195.8 z" fill="#eda100"><title>Base_Florida_42GW, cuDSS: 7.68x</title></path>
+<text x="359.0" y="116.2" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">7.7</text>
+<text x="333.0" y="336.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="400">Florida</text>
+<path d="M405.0,320.0 v-32.6 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v32.6 z" fill="#eb6834"><title>Texas7k_20210804, Optimized CPU: 1.41x</title></path>
+<path d="M431.0,320.0 v-161.9 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v161.9 z" fill="#1baf7a"><title>Texas7k_20210804, Alg 2: 6.38x</title></path>
+<text x="443.0" y="150.1" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">6.4</text>
+<path d="M457.0,320.0 v-165.5 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v165.5 z" fill="#eda100"><title>Texas7k_20210804, cuDSS: 6.52x</title></path>
+<text x="469.0" y="146.5" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">6.5</text>
+<text x="443.0" y="336.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="400">Texas7k</text>
+<path d="M515.0,320.0 v-30.7 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v30.7 z" fill="#eb6834"><title>ACTIVSg10k, Optimized CPU: 1.34x</title></path>
+<path d="M541.0,320.0 v-232.4 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v232.4 z" fill="#1baf7a"><title>ACTIVSg10k, Alg 2: 9.09x</title></path>
+<text x="553.0" y="79.6" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">9.1</text>
+<path d="M567.0,320.0 v-228.1 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v228.1 z" fill="#eda100"><title>ACTIVSg10k, cuDSS: 8.93x</title></path>
+<text x="579.0" y="83.9" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">8.9</text>
+<text x="553.0" y="336.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="400">ACTIVSg10k</text>
+<path d="M625.0,320.0 v-32.1 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v32.1 z" fill="#eb6834"><title>Base_MIOHIN_76GW, Optimized CPU: 1.39x</title></path>
+<path d="M651.0,320.0 v-181.2 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v181.2 z" fill="#1baf7a"><title>Base_MIOHIN_76GW, Alg 2: 7.12x</title></path>
+<text x="663.0" y="130.8" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">7.1</text>
+<path d="M677.0,320.0 v-219.7 a4.0,4.0 0 0 1 4.0,-4.0 h16.0 a4.0,4.0 0 0 1 4.0,4.0 v219.7 z" fill="#eda100"><title>Base_MIOHIN_76GW, cuDSS: 8.60x</title></path>
+<text x="689.0" y="92.3" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">8.6</text>
+<text x="663.0" y="336.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="400">MIOHIN</text>
+<text x="60.0" y="370.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">The darker rule marks 1x (as fast as stock).</text>
+</svg>

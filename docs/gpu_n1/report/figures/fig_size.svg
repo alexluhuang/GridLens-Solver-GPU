@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="426" viewBox="0 0 750 426" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="750" height="426" fill="#fcfcfb"/>
+<text x="16.0" y="26.0" font-size="15" text-anchor="start" fill="#0b0b0b" font-weight="600">Time per contingency case at 16 processes (ms, log scale) against network size</text>
+<rect x="70.0" y="37.0" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="84.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Stock GridPACK</text>
+<rect x="185.0" y="37.0" width="10" height="10" rx="2" fill="#eb6834"/>
+<text x="199.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Optimized CPU</text>
+<rect x="293.5" y="37.0" width="10" height="10" rx="2" fill="#1baf7a"/>
+<text x="307.5" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Alg 2</text>
+<rect x="350.0" y="37.0" width="10" height="10" rx="2" fill="#eda100"/>
+<text x="364.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">cuDSS</text>
+<line x1="70.0" y1="366.0" x2="630.0" y2="366.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="64.0" y="370.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1</text>
+<line x1="70.0" y1="216.0" x2="630.0" y2="216.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="64.0" y="220.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">10</text>
+<line x1="70.0" y1="66.0" x2="630.0" y2="66.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="64.0" y="70.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">100</text>
+<text x="70.0" y="382.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0</text>
+<text x="182.0" y="382.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">6,000</text>
+<text x="294.0" y="382.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">12,000</text>
+<text x="406.0" y="382.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">18,000</text>
+<text x="518.0" y="382.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">24,000</text>
+<text x="630.0" y="382.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">30,000</text>
+<text x="350.0" y="402.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="400">buses</text>
+<polyline points="88.5,295.3 101.1,282.6 175.6,196.0 195.4,185.4 256.7,167.8 260.3,151.8" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="88.5" cy="295.3" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>Stock GridPACK, 993 buses: 2.962 ms per case</title></circle>
+<circle cx="101.1" cy="282.6" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>Stock GridPACK, 1664 buses: 3.597 ms per case</title></circle>
+<circle cx="175.6" cy="196.0" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>Stock GridPACK, 5658 buses: 13.588 ms per case</title></circle>
+<circle cx="195.4" cy="185.4" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>Stock GridPACK, 6717 buses: 15.994 ms per case</title></circle>
+<circle cx="256.7" cy="167.8" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>Stock GridPACK, 10000 buses: 20.944 ms per case</title></circle>
+<circle cx="260.3" cy="151.8" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>Stock GridPACK, 10192 buses: 26.779 ms per case</title></circle>
+<polyline points="88.5,310.7 101.1,306.4 175.6,219.7 195.4,207.7 256.7,186.7 260.3,173.2 623.2,81.7" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="88.5" cy="310.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>Optimized CPU, 993 buses: 2.338 ms per case</title></circle>
+<circle cx="101.1" cy="306.4" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>Optimized CPU, 1664 buses: 2.497 ms per case</title></circle>
+<circle cx="175.6" cy="219.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>Optimized CPU, 5658 buses: 9.441 ms per case</title></circle>
+<circle cx="195.4" cy="207.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>Optimized CPU, 6717 buses: 11.362 ms per case</title></circle>
+<circle cx="256.7" cy="186.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>Optimized CPU, 10000 buses: 15.677 ms per case</title></circle>
+<circle cx="260.3" cy="173.2" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>Optimized CPU, 10192 buses: 19.276 ms per case</title></circle>
+<circle cx="623.2" cy="81.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>Optimized CPU, 29637 buses: 78.570 ms per case</title></circle>
+<polyline points="88.5,306.9 101.1,343.0 175.6,330.4 195.4,306.2 256.7,311.6 260.3,279.7 623.2,219.2" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="88.5" cy="306.9" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>Alg 2, 993 buses: 2.478 ms per case</title></circle>
+<circle cx="101.1" cy="343.0" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>Alg 2, 1664 buses: 1.423 ms per case</title></circle>
+<circle cx="175.6" cy="330.4" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>Alg 2, 5658 buses: 1.727 ms per case</title></circle>
+<circle cx="195.4" cy="306.2" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>Alg 2, 6717 buses: 2.506 ms per case</title></circle>
+<circle cx="256.7" cy="311.6" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>Alg 2, 10000 buses: 2.304 ms per case</title></circle>
+<circle cx="260.3" cy="279.7" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>Alg 2, 10192 buses: 3.760 ms per case</title></circle>
+<circle cx="623.2" cy="219.2" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>Alg 2, 29637 buses: 9.523 ms per case</title></circle>
+<polyline points="88.5,301.0 101.1,331.6 175.6,328.9 195.4,307.5 256.7,310.5 260.3,292.0 623.2,217.5" fill="none" stroke="#eda100" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="88.5" cy="301.0" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>cuDSS, 993 buses: 2.713 ms per case</title></circle>
+<circle cx="101.1" cy="331.6" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>cuDSS, 1664 buses: 1.696 ms per case</title></circle>
+<circle cx="175.6" cy="328.9" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>cuDSS, 5658 buses: 1.768 ms per case</title></circle>
+<circle cx="195.4" cy="307.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>cuDSS, 6717 buses: 2.453 ms per case</title></circle>
+<circle cx="256.7" cy="310.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>cuDSS, 10000 buses: 2.346 ms per case</title></circle>
+<circle cx="260.3" cy="292.0" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>cuDSS, 10192 buses: 3.113 ms per case</title></circle>
+<circle cx="623.2" cy="217.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>cuDSS, 29637 buses: 9.772 ms per case</title></circle>
+</svg>
