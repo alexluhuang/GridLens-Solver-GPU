@@ -35,7 +35,7 @@ matrix/accuracy.csv. With --rows, every matched row's values and
 differences are also written to matrix/accuracy_rows/<run>/.
 
 Memory stays bounded however large the tables are. Each table is first
-converted to Parquet (ca_results_flat.parquet/ next to it, reused later,
+converted to Parquet (flat.parquet/ next to it, reused later,
 and kept when the CSV tables are deleted), split into groups of cases of a
 few million rows. The groups are then compared one at a time, with Polars'
 multi-threaded CPU engine (default) or on the GPU with Polars' cuDF engine,
@@ -57,9 +57,8 @@ import time
 import polars as pl
 
 MATRIX = "/src/matrix"
-FLAT = "ca_results_flat.csv"
-CACHE = "ca_results_flat.parquet"
-ROWS_PER_GROUP = 8_000_000
+CACHE = "flat.parquet"
+GROUPS = 40   # groups of cases per network; each is compared on its own
 KEYS = ["event_idx", "from_bus", "to_bus", "circuit_id"]
 SCHEMA = {"event_idx": pl.Int32, "contingency": pl.Utf8, "from_bus": pl.Int32,
           "to_bus": pl.Int32, "circuit_id": pl.Utf8, "p_from_mw": pl.Float64,
@@ -76,31 +75,38 @@ VARIABLES = [("utilization (%)", ["loading_percent"]),
 COLUMNS = sorted({c for _, cols in VARIABLES for c in cols})
 
 
-def cases_per_group(reference):
-    """Group size in cases, from the reference table's rows per case"""
-    path = os.path.join(reference, FLAT)
-    cached = glob.glob(os.path.join(reference, CACHE, "group_size=*"))
+def output_file(run, suffix):
+    """A run's output table <outputFile><suffix>, whatever its outputFile prefix"""
+    found = sorted(glob.glob(os.path.join(run, "*" + suffix)))
+    return found[0] if found else None
+
+
+def group_size(run):
+    """Cases per group: the run's case count split into GROUPS groups. Every
+    run of a network lists the same cases, so all of them split alike."""
+    cached = glob.glob(os.path.join(run, CACHE, "group_size=*"))
     if cached:
         return int(cached[0].rsplit("=", 1)[1])
-    with open(os.path.join(reference, "ca_results_contingencies.csv")) as f:
+    with open(output_file(run, "_contingencies.csv")) as f:
         cases = max(1, sum(1 for _ in f) - 1)
-    with open(path) as f:
-        f.readline()
-        sample = [len(f.readline()) for _ in range(1000)]
-    rows = os.path.getsize(path) / max(1.0, sum(sample) / max(1, len(sample)))
-    return max(1, int(ROWS_PER_GROUP / max(1.0, rows / cases)))
+    return max(1, -(-cases // GROUPS))
 
 
-def parquet_copy(run, group_size):
+def parquet_copy(run, size=None):
     """Parquet copy of a run's table, split into groups of cases"""
+    size = size or group_size(run)
     cache = os.path.join(run, CACHE)
-    marker = os.path.join(cache, "group_size=%d" % group_size)
+    marker = os.path.join(cache, "group_size=%d" % size)
     if os.path.exists(marker):
         return cache
+    flat = output_file(run, "_flat.csv")
+    if flat is None:
+        raise RuntimeError("%s: no table and no Parquet copy for %d cases per group"
+                           % (run, size))
     shutil.rmtree(cache, ignore_errors=True)
-    (pl.scan_csv(os.path.join(run, FLAT), schema=SCHEMA, quote_char='"')
+    (pl.scan_csv(flat, schema=SCHEMA, quote_char='"')
      .select(KEYS + COLUMNS)
-     .with_columns((pl.col("event_idx") // group_size).alias("group"))
+     .with_columns((pl.col("event_idx") // size).alias("group"))
      .sink_parquet(pl.PartitionBy(cache, key="group", include_key=False),
                    mkdir=True, engine="streaming"))
     open(marker, "w").close()
@@ -159,7 +165,7 @@ def group_stats(ref_dir, run_dir, engine, rows_out):
 
 
 def compare(reference, run, engine, rows_dir):
-    size = cases_per_group(reference)
+    size = group_size(reference)
     ref_groups = groups(parquet_copy(reference, size))
     run_groups = groups(parquet_copy(run, size))
     total = {}
@@ -198,7 +204,7 @@ def compare(reference, run, engine, rows_dir):
 
 
 def has_table(run):
-    return os.path.exists(os.path.join(run, FLAT)) or os.path.isdir(os.path.join(run, CACHE))
+    return output_file(run, "_flat.csv") is not None or os.path.isdir(os.path.join(run, CACHE))
 
 
 def main():

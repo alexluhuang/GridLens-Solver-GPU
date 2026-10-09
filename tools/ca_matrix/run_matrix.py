@@ -31,9 +31,11 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 MATRIX = "/src/matrix"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, "/src/src/applications/modules/batch_pf/test")
 from run_ca_test import TEMPLATE, default_ranks  # noqa: E402
 
@@ -46,6 +48,71 @@ STEPS = ["CA: Read Network", "CA: Base Case", "CA: Case List and Output Setup",
          "CA: Solve and Report Cases", "CA: Merge Output Files", "CA case: Apply Outage",
          "CA case: CPU Solve", "CA case: Inject GPU Result", "CA case: Check and Report",
          "CA case: Write Table Rows", "CA case: Restore Network"]
+
+
+def from_template(template, path, net):
+    """The template input with only the solve path, outputFile and
+    networkConfiguration changed. The CPU paths switch the GPU block off
+    (stock GridPACK ignores it); the GPU paths switch it on with their backend."""
+    text = template
+    def put(tag, value, within=None):
+        nonlocal text
+        pattern = re.compile(r"(<%s>)[^<]*(</%s>)" % (tag, tag))
+        region = text
+        if within:
+            m = re.search(r"<%s>.*?</%s>" % (within, within), text, re.S)
+            if not m:
+                raise SystemExit("template has no <%s> block" % within)
+            region = m.group(0)
+        if len(pattern.findall(region)) != 1:
+            raise SystemExit("template must have exactly one <%s>%s" % (
+                tag, " in <%s>" % within if within else ""))
+        changed = pattern.sub(lambda m: m.group(1) + value + m.group(2), region)
+        text = text.replace(region, changed) if within else changed
+    put("enabled", "on" if PATHS[path] else "off", "GPUBatch")
+    if PATHS[path]:
+        put("backend", PATHS[path], "GPUBatch")
+    put("outputFile", os.path.splitext(net)[0])
+    put("networkConfiguration", net)
+    return text
+
+
+class MemoryWatch:
+    """Peak memory of this container while a run is going (cgroup counters:
+    all memory including file cache, and program memory alone)"""
+    def __init__(self):
+        self.peak_total = self.peak_anon = 0
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+
+    @staticmethod
+    def _read():
+        try:
+            with open("/sys/fs/cgroup/memory.current") as f:
+                total = int(f.read())
+            anon = 0
+            with open("/sys/fs/cgroup/memory.stat") as f:
+                for line in f:
+                    if line.startswith("anon "):
+                        anon = int(line.split()[1])
+            return total, anon
+        except OSError:
+            return 0, 0
+
+    def _loop(self):
+        while not self._stop.is_set():
+            total, anon = self._read()
+            self.peak_total = max(self.peak_total, total)
+            self.peak_anon = max(self.peak_anon, anon)
+            self._stop.wait(0.5)
+
+    def __enter__(self):
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._thread.join()
 
 
 def runnable_tasks():
@@ -94,6 +161,12 @@ def main():
     ap.add_argument("--repeat", type=int, default=1)
     ap.add_argument("--batch", type=int, default=512, help="GPU batch size")
     ap.add_argument("--keep", action="store_true", help="keep the first repeat's tables")
+    ap.add_argument("--resume", action="store_true",
+                    help="skip runs already in results.jsonl that finished, with their "
+                         "compact table when --keep")
+    ap.add_argument("--template", help="input file to start from (e.g. "
+                    "/src/test_runs/input.xml); only the solve path, outputFile and "
+                    "networkConfiguration are changed, and --batch and --start are unused")
     ap.add_argument("--start", choices=("base_case", "file"), default="base_case",
                     help="GPU paths: start each case from the solved base case (production "
                          "default) or, like the CPU paths, from the network file's voltages "
@@ -105,6 +178,14 @@ def main():
     if args.program == "stock" and paths != ["cpu"]:
         ap.error("stock GridPACK has only the cpu path")
     out_root = "%s/out/%s-r%d" % (MATRIX, args.program, ranks)
+    template = open(args.template).read() if args.template else None
+    done = set()
+    if args.resume and os.path.exists(MATRIX + "/results.jsonl"):
+        with open(MATRIX + "/results.jsonl") as f:
+            for line in f:
+                r = json.loads(line)
+                if r["returncode"] == 0:
+                    done.add((r["program"], r["network"], r["path"], r["ranks"], r["repeat"]))
     for repeat in range(1, args.repeat + 1):
         for net in args.networks.split(","):
             for path in paths:
@@ -112,6 +193,12 @@ def main():
                 if PATHS[path] and args.start == "file":
                     name += "-filestart"   # kept apart from base-case-start runs
                 work = os.path.join(out_root, name if repeat == 1 else "%s-run%d" % (name, repeat))
+                key = (args.program, os.path.splitext(net)[0], path, ranks, repeat)
+                if key in done and not (args.keep and repeat == 1 and
+                                        not os.path.isdir(os.path.join(work, "flat.parquet"))):
+                    print("%s %s %s ranks %d run %d: already done" % (
+                        args.program, net, path, ranks, repeat), flush=True)
+                    continue
                 shutil.rmtree(work, ignore_errors=True)
                 os.makedirs(work)
                 shutil.copy(os.path.join(MATRIX, "networks", net), work)
@@ -126,22 +213,37 @@ def main():
                     block = ("    <GPUBatch>\n" + "".join("      %s\n" % g for g in gpu) +
                              "    </GPUBatch>\n")
                 with open(os.path.join(work, "input.xml"), "w") as f:
-                    f.write(TEMPLATE.format(
-                        gpu=block, raw=net, solver="klu", output_format="csv_flat", qlim="true",
-                        contingencies="    <FullBranchN1>true</FullBranchN1>\n"
-                                      "    <FullGeneratorN1>true</FullGeneratorN1>"))
+                    if template:
+                        f.write(from_template(template, path, net))
+                    else:
+                        f.write(TEMPLATE.format(
+                            gpu=block, raw=net, solver="klu", output_format="csv_flat",
+                            qlim="true",
+                            contingencies="    <FullBranchN1>true</FullBranchN1>\n"
+                                          "    <FullGeneratorN1>true</FullGeneratorN1>"))
                 quiet = wait_until_quiet()
                 start = time.monotonic()
-                run = subprocess.run(["mpiexec", "--bind-to", "none", "-n", str(ranks), cax,
-                                      "input.xml"], cwd=work, stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT, universal_newlines=True)
+                with MemoryWatch() as memory:
+                    run = subprocess.run(["mpiexec", "--bind-to", "none", "-n", str(ranks),
+                                          cax, "input.xml"], cwd=work, stdout=subprocess.PIPE,
+                                         stderr=subprocess.STDOUT, universal_newlines=True)
                 wall = time.monotonic() - start
                 with open(os.path.join(work, "log.txt"), "w") as f:
                     f.write(run.stdout)
                 os.remove(os.path.join(work, net))
-                if not (args.keep and repeat == 1):
-                    for f in os.listdir(work):
-                        if f.startswith("ca_results") and f.endswith(".csv"):
+                prefix = os.path.splitext(net)[0] if template else "ca_results"
+                tables = [f for f in os.listdir(work)
+                          if f.startswith(prefix + "_") and f.endswith(".csv")]
+                kept = args.keep and repeat == 1 and run.returncode == 0
+                if kept:
+                    # Keep a compact copy of the large table for compare_runs.py and
+                    # delete the text table, which can be over 100 GB
+                    import compare_runs
+                    compare_runs.parquet_copy(work)
+                    os.remove(compare_runs.output_file(work, "_flat.csv"))
+                else:
+                    for f in tables:
+                        if f.endswith("_flat.csv") or f.endswith("_delta.csv"):
                             os.remove(os.path.join(work, f))
                 record = {"program": args.program, "network": os.path.splitext(net)[0],
                           "path": path, "ranks": ranks, "repeat": repeat,
@@ -149,6 +251,9 @@ def main():
                           "start": (args.start if PATHS[path] else "file"),
                           "returncode": run.returncode, "wall_s": round(wall, 2),
                           "machine_busy": not quiet,
+                          "peak_memory_gb": round(memory.peak_total / 1e9, 2),
+                          "peak_program_memory_gb": round(memory.peak_anon / 1e9, 2),
+                          "template": args.template,
                           "steps": timers(run.stdout), "folder": work}
                 with open(MATRIX + "/results.jsonl", "a") as f:
                     f.write(json.dumps(record, sort_keys=True) + "\n")
