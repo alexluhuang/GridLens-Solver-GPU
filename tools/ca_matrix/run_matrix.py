@@ -47,7 +47,9 @@ PATHS = {"cpu": None, "alg2": "alg2", "cudss": "cudss"}
 STEPS = ["CA: Read Network", "CA: Base Case", "CA: Case List and Output Setup",
          "CA: Solve and Report Cases", "CA: Merge Output Files", "CA case: Apply Outage",
          "CA case: CPU Solve", "CA case: Inject GPU Result", "CA case: Check and Report",
-         "CA case: Write Table Rows", "CA case: Restore Network"]
+         "CA case: Write Table Rows", "CA case: Restore Network", "Total Application",
+         "CA: GPU Start-up", "GPU batch: prepare (export, classify, plan)",
+         "GPU batch: wait for GPU results", "GPU batch: wait for other ranks"]
 
 
 def from_template(template, path, net):

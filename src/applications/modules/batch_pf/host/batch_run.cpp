@@ -292,6 +292,10 @@ void BatchPath::run(const ProcessCase &process)
   Impl &d = *p_impl;
   gridpack::utility::CoarseTimer *timer = gridpack::utility::CoarseTimer::instance();
   const int t_run = timer->createCategory("GPU batch: run and report");
+  // Idle time inside the reporting loop: no packet to report and no GPU
+  // result yet, and the wait for the slowest rank at the end
+  const int t_idle = timer->createCategory("GPU batch: wait for GPU results");
+  const int t_last = timer->createCategory("GPU batch: wait for other ranks");
   timer->start(t_run);
   const int n = static_cast<int>(d.model.buses.size());
   const int nl = static_cast<int>(d.model.dc_lines.size());
@@ -586,15 +590,19 @@ void BatchPath::run(const ProcessCase &process)
                           !request_out && sends.empty();
     if (finished) break;
     if (!progress) {
+      timer->start(t_idle);
       if (server && !inflight.empty()) {
         poll(2);
       } else {
         std::this_thread::sleep_for(std::chrono::microseconds(200));
       }
+      timer->stop(t_idle);
     }
   }
   d.t_gpu_phase = now() - t1;
+  timer->start(t_last);
   d.world.barrier();
+  timer->stop(t_last);
   timer->stop(t_run);
 }
 

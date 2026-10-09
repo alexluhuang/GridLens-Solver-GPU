@@ -444,7 +444,12 @@ void gridpack::contingency_analysis::CADriver::execute(int argc, char** argv)
   // Optional GPU batch path (Contingency_analysis/GPUBatch). Settings are
   // read now, while the main input file is the open configuration; without
   // a GPUBatch block nothing below changes.
+  // Timed on its own: loading the plugin and starting the device happen
+  // before the first study stage.
+  const int t_gpu_start = timer->createCategory("CA: GPU Start-up");
+  timer->start(t_gpu_start);
   gridpack::batchpf::BatchPath gpuPath(config, world);
+  timer->stop(t_gpu_start);
 
   // Get size of group (communicator) that individual contingency calculations
   // will run on and create a task communicator. Each process is part of only
