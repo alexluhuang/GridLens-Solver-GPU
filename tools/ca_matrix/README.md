@@ -125,9 +125,12 @@ Run these from the top of the repository.
    retries, occupancy, busy share of the case loop), Alg 2 against cuDSS
    with the fill of the factors, case outcomes and Newton steps, agreement
    of the violation tables, and peak memory, with `summary.md` holding them
-   all as Markdown. It needs only the Python standard library. Networks not
-   in its list of public networks are called "private network" in every
-   output.
+   all as Markdown. It needs only the Python standard library. To split
+   the GPU paths' start-up and waiting into measured parts (`waits.csv`),
+   first run
+   `tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/timing_check.py"`.
+   Networks not in its list of public networks are called "private
+   network" in every output.
 
 7. **Free disk space** once step 4 is done (a 10,000-bus run writes about
    17 GB of tables):

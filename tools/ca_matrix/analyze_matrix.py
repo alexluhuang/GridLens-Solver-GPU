@@ -25,6 +25,8 @@ matrix/accuracy.csv if compare_runs.py has written it. Writes, to --out:
   iterations.csv    solver steps and case outcomes per path (16 ranks)
   violations.csv    agreement of the violation tables with optimized CPU
   memory.csv        peak memory of every run
+  waits.csv         GPU paths' start-up and waiting, from runs with the idle
+                    timers (--timing-check)
   backends.csv      Alg 2 against cuDSS, with the fill of the factors
   summary.md        the same, as Markdown tables
   fig_*.svg         figures
@@ -55,13 +57,22 @@ RANKS = [8, 16, 20]
 COLOR = {"stock": "#2a78d6", "cpu": "#eb6834", "alg2": "#1baf7a", "cudss": "#eda100"}
 SLOTS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 SURFACE, INK, INK2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
+IDLE = "#a3a19b"   # waiting is idle time, shown in a neutral grey
 
 # Pipeline parts of the step chart, in pipeline order. Case-loop parts are
-# per-rank averages; "waiting" is the rest of the loop; "start-up" is the
-# part of the wall time outside every timed phase (MPI and GPU start-up,
-# exit).
-PARTS = ["start-up and shutdown", "read, base case and case list", "apply and restore outage",
-         "solve", "write table rows", "other checks and reporting", "waiting", "merge files"]
+# per-rank averages. "launch and exit" is wall time outside GridPACK's
+# "Total Application" timer (starting the MPI processes, MPI set-up, exit).
+# "GPU start-up and preparation" is loading the plugin and starting the
+# device ("CA: GPU Start-up", or before that timer existed, the part of
+# "Total Application" outside every stage) plus "GPU batch: prepare".
+# "waiting" is case-loop time in no per-case step: on the GPU paths mostly
+# waiting for GPU results, on all paths the wait for the last rank.
+PARTS = ["launch and exit", "GPU start-up and preparation", "read, base case and case list",
+         "apply and restore outage", "solve", "write table rows", "other checks and reporting",
+         "waiting", "merge files"]
+LOOP_PARTS = PARTS[3:8]
+STAGES = ["CA: Read Network", "CA: Base Case", "CA: Case List and Output Setup",
+          "CA: Solve and Report Cases", "CA: Merge Output Files"]
 
 
 def path_of(r):
@@ -76,8 +87,26 @@ def step(r, name, kind):
     return r["steps"].get(name, {}).get(kind, 0.0)
 
 
+def log_timers(folder):
+    """Every GridPACK timer category of a run's log: {name: {avg, max}}."""
+    found = {}
+    try:
+        with open(os.path.join(folder, "log.txt"), errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return found
+    for m in re.finditer(r"Timing statistics for: (.*)\n\s+Average time:\s+([\d.]+)\n"
+                         r"\s+Maximum time:\s+([\d.]+)", text):
+        found[m.group(1).strip()] = {"avg": float(m.group(2)), "max": float(m.group(3))}
+    return found
+
+
 def parts_of(r):
     """Seconds of each pipeline part of one run (see PARTS)."""
+    t = r.get("log_timers") or {}
+
+    def tmax(name):
+        return t.get(name, {}).get("max", step(r, name, "max"))
     loop = step(r, "CA: Solve and Report Cases", "max")
     apply_ = step(r, "CA case: Apply Outage", "avg") + step(r, "CA case: Restore Network", "avg") \
         + step(r, "CA case: Inject GPU Result", "avg")
@@ -85,11 +114,23 @@ def parts_of(r):
     rows = step(r, "CA case: Write Table Rows", "avg")
     report = step(r, "CA case: Check and Report", "avg") - rows
     waiting = max(0.0, loop - apply_ - solve - rows - report)
-    setup = sum(step(r, n, "max") for n in ("CA: Read Network", "CA: Base Case",
-                                             "CA: Case List and Output Setup"))
+    setup = sum(step(r, n, "max") for n in STAGES[:3])
     merge = step(r, "CA: Merge Output Files", "max")
-    startup = max(0.0, r["wall_s"] - setup - loop - merge)
-    return dict(zip(PARTS, [startup, setup, apply_, solve, rows, report, waiting, merge]))
+    total = t.get("Total Application", {}).get("max")
+    prep = tmax("GPU batch: prepare (export, classify, plan)")
+    if "CA: GPU Start-up" in t:
+        gpu = tmax("CA: GPU Start-up") + prep
+    elif total is not None and r["path"] != "cpu":
+        # per-rank averages, since different stages peak on different ranks
+        tavg = t.get("Total Application", {}).get("avg", total)
+        gpu = max(0.0, tavg - sum(t.get(n, {}).get("avg", 0.0) for n in STAGES))
+    else:
+        gpu = 0.0
+    if total is not None:
+        launch = max(0.0, r["wall_s"] - total)
+    else:
+        launch = max(0.0, r["wall_s"] - setup - loop - merge - gpu)
+    return dict(zip(PARTS, [launch, gpu, setup, apply_, solve, rows, report, waiting, merge]))
 
 
 def median_parts(rs):
@@ -103,6 +144,7 @@ def load_runs(path):
         for line in f:
             r = json.loads(line)
             if r["returncode"] == 0:
+                r["log_timers"] = log_timers(local(r["folder"]))
                 runs[(r["network"], r["ranks"], path_of(r))].append(r)
     return runs
 
@@ -252,13 +294,16 @@ class Svg:
                  % (x1, y1, x2, y2, color, width))
 
     def bar(self, x, y, w, h, color, tip, round_end=None):
-        """A bar; round_end 'right' or 'top' rounds that end by 4 px."""
+        """A bar; round_end 'right', 'left' or 'top' rounds that end by 4 px."""
         if w <= 0 or h <= 0:
             return
         r = min(4.0, w / 2, h / 2) if round_end else 0
         if round_end == "right":
             d = ("M%.1f,%.1f h%.1f a%.1f,%.1f 0 0 1 %.1f,%.1f v%.1f a%.1f,%.1f 0 0 1 %.1f,%.1f "
                  "h%.1f z" % (x, y, w - r, r, r, r, r, h - 2 * r, r, r, -r, r, -(w - r)))
+        elif round_end == "left":
+            d = ("M%.1f,%.1f h%.1f a%.1f,%.1f 0 0 0 %.1f,%.1f v%.1f a%.1f,%.1f 0 0 0 %.1f,%.1f "
+                 "h%.1f z" % (x + w, y, -(w - r), r, r, -r, r, h - 2 * r, r, r, r, r, w - r))
         elif round_end == "top":
             d = ("M%.1f,%.1f v%.1f a%.1f,%.1f 0 0 1 %.1f,%.1f h%.1f a%.1f,%.1f 0 0 1 %.1f,%.1f "
                  "v%.1f z" % (x, y + h, -(h - r), r, r, r, -r, w - 2 * r, r, r, r, r, h - r))
@@ -320,9 +365,8 @@ def fig_speedup(networks, wall, path):
             x = x0 + j * 26
             s.bar(x, top_y + plot_h - h, 24, h, COLOR[p], "%s, %s: %.2fx" % (n, LABEL[p], v),
                   round_end="top")
-            if p != "cpu":
-                s.label(x + 12, top_y + plot_h - h - 4, "%.1f" % v, size=10, anchor="middle",
-                        color=INK2)
+            s.label(x + 12, top_y + plot_h - h - 4, "%.1f" % v, size=10, anchor="middle",
+                    color=INK2)
         s.label(x0 + 38, top_y + plot_h + 16, short(n), size=11, anchor="middle", color=INK2)
     s.label(left, top_y + plot_h + 50, "The darker rule marks 1x (as fast as stock).", size=11,
             color=INK2)
@@ -340,6 +384,13 @@ def short(n):
     return PUBLIC.get(n, "private network")
 
 
+def part_color(part):
+    if part == "waiting":
+        return IDLE
+    i = PARTS.index(part)
+    return SLOTS[i if i < PARTS.index("waiting") else i - 1]
+
+
 def fig_steps(networks, parts, path):
     """Horizontal 100% stacked bars at 16 ranks: share of wall per part."""
     rows = [(n, p) for n in networks for p in PATHS if (n, 16, p) in parts]
@@ -348,8 +399,8 @@ def fig_steps(networks, parts, path):
     left, bar_w, top_y = 230, 560, 84
     s = Svg(left + bar_w + 90, top_y + 30 * len(rows) + 16 * len(networks) + 30,
             "Where the time goes at 16 processes (share of wall time; seconds at right)")
-    s.legend(16, 46, [(p, SLOTS[i]) for i, p in enumerate(PARTS[:4])])
-    s.legend(16, 64, [(p, SLOTS[i + 4]) for i, p in enumerate(PARTS[4:])])
+    s.legend(16, 46, [(p, part_color(p)) for p in PARTS[:5]])
+    s.legend(16, 64, [(p, part_color(p)) for p in PARTS[5:]])
     y, last = top_y, None
     for n, p in rows:
         if n != last:
@@ -365,7 +416,7 @@ def fig_steps(networks, parts, path):
             w = bar_w * ps[k] / total if total else 0
             if w <= 0:
                 continue
-            color = SLOTS[PARTS.index(k)]
+            color = part_color(k)
             s.bar(x, y, max(0.0, w - 2), 18, color,
                   "%s, %s, %s: %.2f s (%.1f%%)" % (short(n), LABEL[p], k, ps[k], 100 * ps[k] / total),
                   round_end="right" if k == nonzero[-1] else None)
@@ -462,51 +513,54 @@ def fig_size(sizes, path):
 
 
 def fig_backend(rows, path):
-    """cuDSS time over Alg 2 time against fill, for factorization and solve."""
-    pts = [(r["fill (factor entries per Jacobian entry)"], r["cuDSS / Alg 2 factor"],
-            r["cuDSS / Alg 2 solve"], r["network"]) for r in rows
-           if r.get("cuDSS / Alg 2 factor") and r.get("cuDSS / Alg 2 solve")]
+    """Which method factorizes faster, network by network, sorted by fill.
+
+    One horizontal bar per network from a centre line: to the left when
+    cuDSS is faster, to the right when Alg 2 is faster, its length the
+    factor by which it is faster (logarithmic, so 2x left and 2x right are
+    the same length)."""
+    pts = sorted((r["fill (factor entries per Jacobian entry)"], r["cuDSS / Alg 2 factor"],
+                  r["network"]) for r in rows if r.get("cuDSS / Alg 2 factor"))
     if not pts:
         return
-    left, top_y, pw, ph = 70, 66, 520, 280
-    s = Svg(left + pw + 150, top_y + ph + 60,
-            "cuDSS time divided by Alg 2 time, against fill of the factors (16 processes)")
-    series = [("factorization", 1, "#2a78d6"), ("triangular solves", 2, "#eb6834")]
-    s.legend(left, 46, [(name, color) for name, _, color in series])
-    xlo = math.floor(2 * min(p[0] for p in pts) - 0.2) / 2
-    xhi = math.ceil(2 * max(p[0] for p in pts) + 0.2) / 2
-    ylo, yhi = 0.0, nice_max(max(max(p[1], p[2]) for p in pts))
-
-    def x_of(v):
-        return left + pw * (v - xlo) / (xhi - xlo)
-
-    def y_of(v):
-        return top_y + ph - ph * (v - ylo) / (yhi - ylo)
-    for k in range(6):
-        v = ylo + (yhi - ylo) * k / 5
-        s.line(left, y_of(v), left + pw, y_of(v))
-        s.label(left - 6, y_of(v) + 4, "%g" % v, size=10, anchor="end", color=INK2)
-    s.line(left, y_of(1), left + pw, y_of(1), color=INK2)
-    s.label(left + pw + 6, y_of(1) + 4, "equal time", size=10, color=INK2)
-    v = xlo
-    while v <= xhi + 1e-9:
-        s.label(x_of(v), top_y + ph + 16, "%.1f" % v, size=10, anchor="middle", color=INK2)
-        v += 0.5
-    s.label(left + pw / 2, top_y + ph + 36,
-            "factor entries per Jacobian entry (more fill to the right)", size=11,
-            anchor="middle", color=INK2)
-    for name, idx, color in series:
-        for p in pts:
-            s.add('<circle cx="%.1f" cy="%.1f" r="5" fill="%s" stroke="%s" stroke-width="2">'
-                  '<title>%s, %s: cuDSS/Alg 2 = %.2f at fill %.2f</title></circle>'
-                  % (x_of(p[0]), y_of(p[idx]), color, SURFACE, short(p[3]), name, p[idx], p[0]))
-    # labels alternate above and below the factorization points, left to
-    # right, so that neighbours do not collide
-    for i, p in enumerate(sorted(pts)):
-        dy = -10 if i % 2 == 0 else 18
-        s.label(x_of(p[0]), y_of(p[1]) + dy, short(p[3]), size=10, anchor="middle",
-                color=INK2)
-    s.label(left, top_y + ph + 54, "Below the rule cuDSS is faster; above it Alg 2 is faster.",
+    label_w, half, top_y, row_h = 230, 230, 92, 34
+    mid = label_w + half
+    s = Svg(label_w + 2 * half + 40, top_y + row_h * len(pts) + 70,
+            "Which method factorizes faster, by fill of the factors (16 processes)")
+    s.legend(16, 46, [("cuDSS faster", COLOR["cudss"]), ("Alg 2 faster", COLOR["alg2"])])
+    s.label(mid - 8, top_y - 10, "\u2190 cuDSS faster", size=11, anchor="end", color=INK2)
+    s.label(mid + 8, top_y - 10, "Alg 2 faster \u2192", size=11, color=INK2)
+    top = max(4.0, max(max(r, 1 / r) for _, r, _ in pts))
+    scale = half / math.log(top)
+    for t in (1.5, 2, 3, 4):
+        if t > top:
+            continue
+        for sign in (-1, 1):
+            x = mid + sign * scale * math.log(t)
+            s.line(x, top_y - 4, x, top_y + row_h * len(pts) - 6)
+            s.label(x, top_y + row_h * len(pts) + 10, "%gx" % t, size=10, anchor="middle",
+                    color=INK2)
+    s.line(mid, top_y - 4, mid, top_y + row_h * len(pts) - 6, color=INK2)
+    for i, (fill, r, net) in enumerate(pts):
+        y = top_y + i * row_h
+        s.label(label_w - 10, y + 15, "%s (fill %.2f)" % (short(net), fill), size=11,
+                anchor="end", color=INK2)
+        faster = 1 / r if r < 1 else r
+        w = scale * math.log(faster)
+        if r < 1:
+            s.bar(mid - w, y + 3, w, 18, COLOR["cudss"],
+                  "%s: cuDSS factorizes %.2f times as fast" % (short(net), faster),
+                  round_end="left")
+            s.label(mid - w - 6, y + 16, "%.2fx" % faster, size=10, anchor="end", color=INK2)
+        else:
+            s.bar(mid, y + 3, w, 18, COLOR["alg2"],
+                  "%s: Alg 2 factorizes %.2f times as fast" % (short(net), faster),
+                  round_end="right")
+            s.label(mid + w + 6, y + 16, "%.2fx" % faster, size=10, color=INK2)
+    s.label(16, top_y + row_h * len(pts) + 34,
+            "Fill = entries in the LU factors per entry of the Jacobian.", size=11, color=INK2)
+    s.label(16, top_y + row_h * len(pts) + 50,
+            "Sparser factors (top) favour Alg 2; denser factors (bottom) favour cuDSS.",
             size=11, color=INK2)
     s.save(path)
 
@@ -519,6 +573,8 @@ def main():
     ap.add_argument("--results", default=os.path.join(MATRIX, "results.jsonl"))
     ap.add_argument("--accuracy", default=os.path.join(MATRIX, "accuracy.csv"))
     ap.add_argument("--out", default=os.path.join(MATRIX, "analysis"))
+    ap.add_argument("--timing-check", default=os.path.join(MATRIX, "timing_check", "results.jsonl"),
+                    help="GPU-path runs made with the idle-time timers (waits.csv)")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     runs = load_runs(args.results)
@@ -601,8 +657,8 @@ def main():
                     row["%d ranks / 8 ranks" % r] = wall[(n, r, p)] / wall[(n, 8, p)]
             # parallel efficiency of the case loop from 8 to 16 ranks
             if (n, 16, p) in parts:
-                l8 = sum(parts[(n, 8, p)][x] for x in PARTS[2:7])
-                l16 = sum(parts[(n, 16, p)][x] for x in PARTS[2:7])
+                l8 = sum(parts[(n, 8, p)][x] for x in LOOP_PARTS)
+                l16 = sum(parts[(n, 16, p)][x] for x in LOOP_PARTS)
                 row["case loop 8->16 efficiency (%)"] = 100 * l8 / (2 * l16) if l16 else None
             scale_rows.append(row)
     write_csv(os.path.join(args.out, "scaling.csv"), scale_rows)
@@ -712,6 +768,15 @@ def main():
         for p in PATHS:
             if (n, 16, p) in wall and d.get("cases"):
                 row["ms_" + p] = 1000 * wall[(n, 16, p)] / d["cases"]
+        # the same split into time outside the case loop (start-up, reading,
+        # base case, merge: paid once per study) and the case loop per case
+        for p in PATHS:
+            k = (n, 16, p)
+            if k in runs and d.get("cases"):
+                loop = statistics.median(step(x, "CA: Solve and Report Cases", "max")
+                                         for x in runs[k])
+                row["fixed s_" + p] = wall[k] - loop
+                row["loop ms per case_" + p] = 1000 * loop / d["cases"]
         size_rows.append(row)
     write_csv(os.path.join(args.out, "size.csv"), size_rows)
 
@@ -734,6 +799,43 @@ def main():
         row["Alg 2 wall (s)"], row["cuDSS wall (s)"] = wall.get((n, 16, "alg2")), wall.get((n, 16, "cudss"))
         back_rows.append(row)
     write_csv(os.path.join(args.out, "backends.csv"), back_rows)
+
+    # waits.csv: what the GPU paths' start-up and waiting consist of, from
+    # runs made with the "CA: GPU Start-up" and "GPU batch: wait for ..."
+    # timers (one run per setting)
+    wait_rows = []
+    if os.path.exists(args.timing_check):
+        with open(args.timing_check) as f:
+            for line in f:
+                c = json.loads(line)
+                t = c["timers"]
+                if c["returncode"] != 0 or "GPU batch: wait for GPU results" not in t:
+                    continue
+
+                def avg(k):
+                    return t.get(k, {}).get("avg", 0.0)
+
+                def mx(k):
+                    return t.get(k, {}).get("max", 0.0)
+                loop = mx("CA: Solve and Report Cases")
+                work = sum(avg(k) for k in ("CA case: Apply Outage", "CA case: CPU Solve",
+                                            "CA case: Inject GPU Result",
+                                            "CA case: Check and Report",
+                                            "CA case: Restore Network"))
+                idle = avg("GPU batch: wait for GPU results")
+                last = avg("GPU batch: wait for other ranks")
+                wait_rows.append({
+                    "network": name(c["network"]), "ranks": c["ranks"], "path": LABEL[c["path"]],
+                    "wall (s)": c["wall_s"],
+                    "launch and exit (s)": c["wall_s"] - mx("Total Application"),
+                    "GPU start-up (s)": mx("CA: GPU Start-up"),
+                    "GPU preparation (s)": mx("GPU batch: prepare (export, classify, plan)"),
+                    "case loop (s)": loop, "per-case work (s)": work,
+                    "waiting for GPU results (s)": idle,
+                    "waiting for other ranks (s)": last,
+                    "other loop time (s)": loop - work - idle - last,
+                    "waiting for GPU results (% of loop)": 100 * idle / loop if loop else None})
+    write_csv(os.path.join(args.out, "waits.csv"), wait_rows)
 
     # figures
     fig_backend(back_rows, os.path.join(args.out, "fig_backends.svg"))
@@ -758,6 +860,9 @@ def main():
         f.write("## Outcomes and solver steps (16 ranks)\n\n" + md_table(it_rows) + "\n")
         f.write("## Violation agreement with optimized CPU (16 ranks)\n\n" + md_table(vio_rows) + "\n")
         f.write("## Peak memory\n\n" + md_table(mem_rows) + "\n")
+        if wait_rows:
+            f.write("## GPU paths: start-up and waiting, measured\n\n" + md_table(wait_rows)
+                    + "\n")
         if os.path.exists(args.accuracy):
             with open(args.accuracy) as a:
                 acc = [r for r in csv.DictReader(a)]
