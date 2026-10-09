@@ -93,7 +93,7 @@ Run these from the top of the repository.
    `--engine gpu` runs the comparison on the GPU; the default CPU engine
    was faster on the DGX Spark (9 s against 12 s for 150 million rows).
    The first comparison of a run converts its table to a compact copy
-   (`ca_results_flat.parquet/` in the run folder, about 20 s for 17 GB),
+   (`flat.parquet/` in the run folder, about 20 s for 17 GB),
    which later comparisons reuse.
 
 5. **Runtime against optimized CPU:**
@@ -112,15 +112,32 @@ Run these from the top of the repository.
    of the repeats; check that repeats agree, since a busy machine slows a
    run.
 
-6. **Free disk space** once step 4 is done (a 10,000-bus run writes about
+6. **Trends** across the whole matrix:
+
+   ```sh
+   python3 tools/ca_matrix/analyze_matrix.py
+   ```
+
+   Writes tables and figures to `matrix/analysis/`: speedups against stock
+   and optimized CPU, every pipeline part's seconds and share of wall time,
+   which parts account for each version's saving, scaling with ranks and
+   with network size, GPU engine figures from the logs (cases on the GPU,
+   retries, occupancy, busy share of the case loop), Alg 2 against cuDSS
+   with the fill of the factors, case outcomes and Newton steps, agreement
+   of the violation tables, and peak memory, with `summary.md` holding them
+   all as Markdown. It needs only the Python standard library. Networks not
+   in its list of public networks are called "private network" in every
+   output.
+
+7. **Free disk space** once step 4 is done (a 10,000-bus run writes about
    17 GB of tables):
 
    ```sh
-   find matrix/out -name 'ca_results_*.csv' -size +1M -delete
+   find matrix/out -name '*_flat.csv' -size +1M -delete
    rm -rf matrix/accuracy_rows
    ```
 
    `results.jsonl`, the run logs and the compact copies stay, so steps 4
-   and 5 still work.
+   to 6 still work.
 
 To start over, delete `matrix/out` and `matrix/results.jsonl`.
