@@ -9,6 +9,7 @@
 same network (inside the container, through run.sh).
 
   python3 /src/tools/ca_matrix/compare_runs.py [--engine gpu|cpu] [--rows] [--ranks 16]
+                                               [--networks NAME,...]
 
 Only runs at one rank count are compared (--ranks, default 16): a case's
 results do not depend on how many ranks share the cases, so testing
@@ -219,7 +220,11 @@ def main():
     ap.add_argument("--ranks", type=int, default=16,
                     help="rank count whose runs are compared (default 16); results do not "
                          "depend on the rank count, so one is enough")
+    ap.add_argument("--networks", help="comma-separated network names (file names without "
+                    "extension) to compare; rows of other networks already in accuracy.csv "
+                    "are kept")
     args = ap.parse_args()
+    only = set(args.networks.split(",")) if args.networks else None
     engine = gpu_engine(args.gpu_memory_gb) if args.engine == "gpu" else "streaming"
     out = os.path.join(MATRIX, "out")
     report = []
@@ -234,6 +239,8 @@ def main():
                 continue
             network, _, label = name.rpartition("_")
             if program == "ours" and label == "cpu":
+                continue
+            if only is not None and network not in only:
                 continue
             reference = os.path.join(out, "ours-r" + ranks, network + "_cpu")
             if not has_table(reference):
@@ -261,9 +268,19 @@ def main():
                 report.append(dict({"network": network, "program": program,
                                     "path": label}, **r))
     if report:
-        with open(os.path.join(MATRIX, "accuracy.csv"), "w", newline="") as f:
+        # Keep the rows of networks not compared now (their tables may have
+        # been deleted to save disk space), in front of the new rows
+        path = os.path.join(MATRIX, "accuracy.csv")
+        done = {r["network"] for r in report}
+        kept = []
+        if os.path.exists(path):
+            with open(path, newline="") as f:
+                kept = [r for r in csv.DictReader(f) if r["network"] not in done]
+        with open(path, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(report[0]))
             w.writeheader()
+            for r in kept:
+                w.writerow(r)
             for r in report:
                 w.writerow({k: ("%.4f" % v if isinstance(v, float) else v) for k, v in r.items()})
         print("written to matrix/accuracy.csv (runs at %s ranks)" % ranks)

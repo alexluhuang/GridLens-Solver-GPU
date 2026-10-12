@@ -1,0 +1,284 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="834" height="708" viewBox="0 0 834 708" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="834" height="708" fill="#fcfcfb"/>
+<text x="16.0" y="26.0" font-size="15" text-anchor="start" fill="#0b0b0b" font-weight="600">Largest absolute difference from the optimized CPU path, 16 processes (column units)</text>
+<rect x="16.0" y="37.0" width="10" height="10" rx="2" fill="#cde2fb"/>
+<text x="30.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">at most 1 printed digit (0.0001)</text>
+<rect x="248.0" y="37.0" width="10" height="10" rx="2" fill="#86b6ef"/>
+<text x="262.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">up to 0.01</text>
+<rect x="337.0" y="37.0" width="10" height="10" rx="2" fill="#6da7ec"/>
+<text x="351.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">up to 1</text>
+<rect x="406.5" y="37.0" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="420.5" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">1 to 2</text>
+<rect x="469.5" y="37.0" width="10" height="10" rx="2" fill="#184f95"/>
+<text x="483.5" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">over 2</text>
+<text x="216.0" y="94.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="600">Loading (% pts)</text>
+<text x="308.0" y="94.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="600">S (MVA)</text>
+<text x="400.0" y="94.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="600">P (MW)</text>
+<text x="492.0" y="94.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="600">Q (MVAr)</text>
+<text x="584.0" y="94.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="600">V (pu)</text>
+<text x="676.0" y="94.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="600">Angle (deg)</text>
+<text x="768.0" y="94.0" font-size="11" text-anchor="middle" fill="#52514e" font-weight="600">Rows &gt; 1% off</text>
+<text x="16.0" y="133.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">Memphis</text>
+<text x="162.0" y="120.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="105.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Memphis, CPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="120.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="105.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Memphis, CPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="120.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="105.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Memphis, CPU, P (MW): largest 0.0000, mean 0.0000</title></rect>
+<text x="400.0" y="120.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="447.0" y="105.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Memphis, CPU, Q (MVAr): largest 0.0000, mean 0.0000</title></rect>
+<text x="492.0" y="120.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="539.0" y="105.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Memphis, CPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="120.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="105.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Memphis, CPU, Angle (deg): largest 0.0000, mean 0.0000</title></rect>
+<text x="676.0" y="120.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<text x="768.0" y="120.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="162.0" y="144.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="129.0" width="90" height="22" rx="3" fill="#184f95"><title>Memphis, GPU, Loading (% pts): largest 22.0600, mean 0.0003</title></rect>
+<text x="216.0" y="144.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">22.0600</text>
+<rect x="263.0" y="129.0" width="90" height="22" rx="3" fill="#184f95"><title>Memphis, GPU, S (MVA): largest 50.5881, mean 0.0003</title></rect>
+<text x="308.0" y="144.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">50.5881</text>
+<rect x="355.0" y="129.0" width="90" height="22" rx="3" fill="#184f95"><title>Memphis, GPU, P (MW): largest 13.3659, mean 0.0002</title></rect>
+<text x="400.0" y="144.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">13.3659</text>
+<rect x="447.0" y="129.0" width="90" height="22" rx="3" fill="#184f95"><title>Memphis, GPU, Q (MVAr): largest 68.3516, mean 0.0007</title></rect>
+<text x="492.0" y="144.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">68.3516</text>
+<rect x="539.0" y="129.0" width="90" height="22" rx="3" fill="#6da7ec"><title>Memphis, GPU, V (pu): largest 0.1440, mean 0.0000</title></rect>
+<text x="584.0" y="144.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.1440</text>
+<rect x="631.0" y="129.0" width="90" height="22" rx="3" fill="#184f95"><title>Memphis, GPU, Angle (deg): largest 3.8329, mean 0.0003</title></rect>
+<text x="676.0" y="144.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">3.8329</text>
+<text x="768.0" y="144.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0105%</text>
+<text x="16.0" y="193.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">Wisconsin</text>
+<text x="162.0" y="180.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="165.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, CPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="180.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="165.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, CPU, S (MVA): largest 0.0000, mean 0.0000</title></rect>
+<text x="308.0" y="180.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="355.0" y="165.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, CPU, P (MW): largest 0.0000, mean 0.0000</title></rect>
+<text x="400.0" y="180.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="447.0" y="165.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, CPU, Q (MVAr): largest 0.0000, mean 0.0000</title></rect>
+<text x="492.0" y="180.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="539.0" y="165.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, CPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="180.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="165.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, CPU, Angle (deg): largest 0.0000, mean 0.0000</title></rect>
+<text x="676.0" y="180.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<text x="768.0" y="180.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="162.0" y="204.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="189.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, GPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="204.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="189.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, GPU, S (MVA): largest 0.0000, mean 0.0000</title></rect>
+<text x="308.0" y="204.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="355.0" y="189.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, GPU, P (MW): largest 0.0000, mean 0.0000</title></rect>
+<text x="400.0" y="204.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="447.0" y="189.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, GPU, Q (MVAr): largest 0.0000, mean 0.0000</title></rect>
+<text x="492.0" y="204.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="539.0" y="189.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, GPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="204.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="189.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Wisconsin, GPU, Angle (deg): largest 0.0000, mean 0.0000</title></rect>
+<text x="676.0" y="204.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<text x="768.0" y="204.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="253.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">Florida</text>
+<text x="162.0" y="240.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="225.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, CPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="240.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="225.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, CPU, S (MVA): largest 0.0000, mean 0.0000</title></rect>
+<text x="308.0" y="240.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="355.0" y="225.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, CPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="240.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="225.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, CPU, Q (MVAr): largest 0.0000, mean 0.0000</title></rect>
+<text x="492.0" y="240.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="539.0" y="225.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, CPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="240.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="225.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, CPU, Angle (deg): largest 0.0000, mean 0.0000</title></rect>
+<text x="676.0" y="240.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<text x="768.0" y="240.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="162.0" y="264.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="249.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, GPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="264.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="249.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, GPU, S (MVA): largest 0.0000, mean 0.0000</title></rect>
+<text x="308.0" y="264.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="355.0" y="249.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, GPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="264.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="249.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, GPU, Q (MVAr): largest 0.0000, mean 0.0000</title></rect>
+<text x="492.0" y="264.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="539.0" y="249.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, GPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="264.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="249.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Florida, GPU, Angle (deg): largest 0.0000, mean 0.0000</title></rect>
+<text x="676.0" y="264.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<text x="768.0" y="264.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="313.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">Texas7k</text>
+<text x="162.0" y="300.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="285.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, CPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="300.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="285.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, CPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="300.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="285.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, CPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="300.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="285.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, CPU, Q (MVAr): largest 0.0000, mean 0.0000</title></rect>
+<text x="492.0" y="300.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="539.0" y="285.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, CPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="300.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="285.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, CPU, Angle (deg): largest 0.0000, mean 0.0000</title></rect>
+<text x="676.0" y="300.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<text x="768.0" y="300.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="162.0" y="324.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="309.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, GPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="324.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="309.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, GPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="324.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="309.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, GPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="324.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="309.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, GPU, Q (MVAr): largest 0.0001, mean 0.0000</title></rect>
+<text x="492.0" y="324.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="539.0" y="309.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, GPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="324.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="309.0" width="90" height="22" rx="3" fill="#cde2fb"><title>Texas7k, GPU, Angle (deg): largest 0.0001, mean 0.0000</title></rect>
+<text x="676.0" y="324.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<text x="768.0" y="324.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="373.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">ACTIVSg10k</text>
+<text x="162.0" y="360.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="345.0" width="90" height="22" rx="3" fill="#2a78d6"><title>ACTIVSg10k, CPU, Loading (% pts): largest 1.3700, mean 0.0000</title></rect>
+<text x="216.0" y="360.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">1.3700</text>
+<rect x="263.0" y="345.0" width="90" height="22" rx="3" fill="#2a78d6"><title>ACTIVSg10k, CPU, S (MVA): largest 1.7759, mean 0.0000</title></rect>
+<text x="308.0" y="360.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">1.7759</text>
+<rect x="355.0" y="345.0" width="90" height="22" rx="3" fill="#6da7ec"><title>ACTIVSg10k, CPU, P (MW): largest 0.1988, mean 0.0000</title></rect>
+<text x="400.0" y="360.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.1988</text>
+<rect x="447.0" y="345.0" width="90" height="22" rx="3" fill="#184f95"><title>ACTIVSg10k, CPU, Q (MVAr): largest 4.7627, mean 0.0000</title></rect>
+<text x="492.0" y="360.0" font-size="10" text-anchor="middle" fill="#ffffff" font-weight="400">4.7627</text>
+<rect x="539.0" y="345.0" width="90" height="22" rx="3" fill="#6da7ec"><title>ACTIVSg10k, CPU, V (pu): largest 0.0222, mean 0.0000</title></rect>
+<text x="584.0" y="360.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0222</text>
+<rect x="631.0" y="345.0" width="90" height="22" rx="3" fill="#6da7ec"><title>ACTIVSg10k, CPU, Angle (deg): largest 0.1389, mean 0.0000</title></rect>
+<text x="676.0" y="360.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.1389</text>
+<text x="768.0" y="360.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0001%</text>
+<text x="162.0" y="384.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="369.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg10k, GPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="384.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="369.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg10k, GPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="384.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="369.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg10k, GPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="384.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="369.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg10k, GPU, Q (MVAr): largest 0.0001, mean 0.0000</title></rect>
+<text x="492.0" y="384.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="539.0" y="369.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg10k, GPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="384.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="369.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg10k, GPU, Angle (deg): largest 0.0001, mean 0.0000</title></rect>
+<text x="676.0" y="384.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<text x="768.0" y="384.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="433.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">MIOHIN</text>
+<text x="162.0" y="420.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="405.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, CPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="420.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="405.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, CPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="420.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="405.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, CPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="420.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="405.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, CPU, Q (MVAr): largest 0.0001, mean 0.0000</title></rect>
+<text x="492.0" y="420.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="539.0" y="405.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, CPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="420.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="405.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, CPU, Angle (deg): largest 0.0001, mean 0.0000</title></rect>
+<text x="676.0" y="420.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<text x="768.0" y="420.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="162.0" y="444.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="429.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, GPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="444.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="429.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, GPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="444.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="429.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, GPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="444.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="429.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, GPU, Q (MVAr): largest 0.0001, mean 0.0000</title></rect>
+<text x="492.0" y="444.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="539.0" y="429.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, GPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="444.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="429.0" width="90" height="22" rx="3" fill="#cde2fb"><title>MIOHIN, GPU, Angle (deg): largest 0.0001, mean 0.0000</title></rect>
+<text x="676.0" y="444.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<text x="768.0" y="444.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="493.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">ACTIVSg25k</text>
+<text x="162.0" y="480.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="465.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, CPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="480.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="465.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, CPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="480.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="465.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, CPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="480.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="465.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, CPU, Q (MVAr): largest 0.0001, mean 0.0000</title></rect>
+<text x="492.0" y="480.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="539.0" y="465.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, CPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="480.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="465.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, CPU, Angle (deg): largest 0.0001, mean 0.0000</title></rect>
+<text x="676.0" y="480.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<text x="768.0" y="480.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="162.0" y="504.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="489.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, GPU, Loading (% pts): largest 0.0000, mean 0.0000</title></rect>
+<text x="216.0" y="504.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="263.0" y="489.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, GPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="504.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="489.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, GPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="504.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="489.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, GPU, Q (MVAr): largest 0.0001, mean 0.0000</title></rect>
+<text x="492.0" y="504.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="539.0" y="489.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, GPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="504.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="489.0" width="90" height="22" rx="3" fill="#cde2fb"><title>ACTIVSg25k, GPU, Angle (deg): largest 0.0001, mean 0.0000</title></rect>
+<text x="676.0" y="504.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<text x="768.0" y="504.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="553.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">training</text>
+<text x="162.0" y="540.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="525.0" width="90" height="22" rx="3" fill="#86b6ef"><title>training, CPU, Loading (% pts): largest 0.0100, mean 0.0000</title></rect>
+<text x="216.0" y="540.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0100</text>
+<rect x="263.0" y="525.0" width="90" height="22" rx="3" fill="#cde2fb"><title>training, CPU, S (MVA): largest 0.0001, mean 0.0000</title></rect>
+<text x="308.0" y="540.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="355.0" y="525.0" width="90" height="22" rx="3" fill="#cde2fb"><title>training, CPU, P (MW): largest 0.0001, mean 0.0000</title></rect>
+<text x="400.0" y="540.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="447.0" y="525.0" width="90" height="22" rx="3" fill="#cde2fb"><title>training, CPU, Q (MVAr): largest 0.0001, mean 0.0000</title></rect>
+<text x="492.0" y="540.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="539.0" y="525.0" width="90" height="22" rx="3" fill="#cde2fb"><title>training, CPU, V (pu): largest 0.0000, mean 0.0000</title></rect>
+<text x="584.0" y="540.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0000</text>
+<rect x="631.0" y="525.0" width="90" height="22" rx="3" fill="#cde2fb"><title>training, CPU, Angle (deg): largest 0.0001, mean 0.0000</title></rect>
+<text x="676.0" y="540.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<text x="768.0" y="540.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="162.0" y="564.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="549.0" width="90" height="22" rx="3" fill="#6da7ec"><title>training, GPU, Loading (% pts): largest 0.0200, mean 0.0000</title></rect>
+<text x="216.0" y="564.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0200</text>
+<rect x="263.0" y="549.0" width="90" height="22" rx="3" fill="#6da7ec"><title>training, GPU, S (MVA): largest 0.0229, mean 0.0000</title></rect>
+<text x="308.0" y="564.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0229</text>
+<rect x="355.0" y="549.0" width="90" height="22" rx="3" fill="#86b6ef"><title>training, GPU, P (MW): largest 0.0047, mean 0.0000</title></rect>
+<text x="400.0" y="564.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0047</text>
+<rect x="447.0" y="549.0" width="90" height="22" rx="3" fill="#6da7ec"><title>training, GPU, Q (MVAr): largest 0.1005, mean 0.0000</title></rect>
+<text x="492.0" y="564.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.1005</text>
+<rect x="539.0" y="549.0" width="90" height="22" rx="3" fill="#cde2fb"><title>training, GPU, V (pu): largest 0.0001, mean 0.0000</title></rect>
+<text x="584.0" y="564.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0001</text>
+<rect x="631.0" y="549.0" width="90" height="22" rx="3" fill="#86b6ef"><title>training, GPU, Angle (deg): largest 0.0007, mean 0.0000</title></rect>
+<text x="676.0" y="564.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0007</text>
+<text x="768.0" y="564.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="613.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">private network</text>
+<text x="162.0" y="600.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">CPU</text>
+<rect x="171.0" y="585.0" width="90" height="22" rx="3" fill="none" stroke="#e4e3df"/>
+<text x="216.0" y="600.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">not run</text>
+<rect x="263.0" y="585.0" width="90" height="22" rx="3" fill="none" stroke="#e4e3df"/>
+<text x="308.0" y="600.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">not run</text>
+<rect x="355.0" y="585.0" width="90" height="22" rx="3" fill="none" stroke="#e4e3df"/>
+<text x="400.0" y="600.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">not run</text>
+<rect x="447.0" y="585.0" width="90" height="22" rx="3" fill="none" stroke="#e4e3df"/>
+<text x="492.0" y="600.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">not run</text>
+<rect x="539.0" y="585.0" width="90" height="22" rx="3" fill="none" stroke="#e4e3df"/>
+<text x="584.0" y="600.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">not run</text>
+<rect x="631.0" y="585.0" width="90" height="22" rx="3" fill="none" stroke="#e4e3df"/>
+<text x="676.0" y="600.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">not run</text>
+<text x="768.0" y="600.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">not run</text>
+<text x="162.0" y="624.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">GPU</text>
+<rect x="171.0" y="609.0" width="90" height="22" rx="3" fill="#6da7ec"><title>private network, GPU, Loading (% pts): largest 0.2200, mean 0.0000</title></rect>
+<text x="216.0" y="624.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.2200</text>
+<rect x="263.0" y="609.0" width="90" height="22" rx="3" fill="#6da7ec"><title>private network, GPU, S (MVA): largest 0.0646, mean 0.0000</title></rect>
+<text x="308.0" y="624.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0646</text>
+<rect x="355.0" y="609.0" width="90" height="22" rx="3" fill="#6da7ec"><title>private network, GPU, P (MW): largest 0.0118, mean 0.0000</title></rect>
+<text x="400.0" y="624.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0118</text>
+<rect x="447.0" y="609.0" width="90" height="22" rx="3" fill="#6da7ec"><title>private network, GPU, Q (MVAr): largest 0.1047, mean 0.0000</title></rect>
+<text x="492.0" y="624.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.1047</text>
+<rect x="539.0" y="609.0" width="90" height="22" rx="3" fill="#86b6ef"><title>private network, GPU, V (pu): largest 0.0005, mean 0.0000</title></rect>
+<text x="584.0" y="624.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.0005</text>
+<rect x="631.0" y="609.0" width="90" height="22" rx="3" fill="#6da7ec"><title>private network, GPU, Angle (deg): largest 0.4856, mean 0.0000</title></rect>
+<text x="676.0" y="624.0" font-size="10" text-anchor="middle" fill="#0b0b0b" font-weight="400">0.4856</text>
+<text x="768.0" y="624.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">0.0000%</text>
+<text x="16.0" y="658.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">CPU = stock GridPACK, GPU = the cuDSS path. Stock cannot run the private case. Mean differences are at most 0.0007.</text>
+<text x="16.0" y="674.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Memphis on GPU: one ill-conditioned case (1068); stock on ACTIVSg10k: voltage setting carried between cases.</text>
+</svg>

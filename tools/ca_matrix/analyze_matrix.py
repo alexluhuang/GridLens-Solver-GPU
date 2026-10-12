@@ -29,7 +29,8 @@ matrix/accuracy.csv if compare_runs.py has written it. Writes, to --out:
                     timers (--timing-check)
   backends.csv      Alg 2 against cuDSS, with the fill of the factors
   summary.md        the same, as Markdown tables
-  fig_*.svg         figures
+  fig_*.svg         figures; fig_wall_cpu_gpu and fig_accuracy compare
+                    stock ("CPU") with the cuDSS path ("GPU") at 16 ranks
 
 Uses only the Python standard library. Times are the middle value
 (median) over repeats, as in matrix_report.py.
@@ -335,41 +336,147 @@ def nice_max(v):
     return v
 
 
-def fig_speedup(networks, wall, path):
-    """Grouped columns: speedup over stock at 16 ranks, per network."""
-    series = ["cpu", "alg2", "cudss"]
-    vals = {(n, p): wall.get((n, 16, "stock"), 0) / wall[(n, 16, p)]
-            for n in networks for p in series if wall.get((n, 16, p)) and wall.get((n, 16, "stock"))}
-    if not vals:
+def fig_columns(networks, vals, series, labels, title, notes, path, unit="", extra=None,
+                group=130):
+    """Grouped columns, one group per network; vals[(network, path)].
+
+    series is [(path, legend label)]; labels names each network under its
+    group, one line per "\n". extra[(network, path)] is bold text after
+    that column's value, which then starts at the column's left edge.
+    """
+    extra = extra or {}
+    networks = [n for n in networks if any((n, p) in vals for p, _ in series)]
+    if not networks:
         return
-    networks = [n for n in networks if any((n, p) in vals for p in series)]
-    top = nice_max(max(vals.values()))
-    left, plot_w, plot_h, top_y = 60, 110 * len(networks), 260, 60
-    s = Svg(left + plot_w + 30, top_y + plot_h + 70,
-            "Speedup over stock GridPACK at 16 processes (times faster)")
-    s.legend(left, 46, [(LABEL[p], COLOR[p]) for p in series])
+    group = max(30 * len(series) + 40, group)
+    lines = max(len(labels.get(n, short(n)).split("\n")) for n in networks)
+    foot = 14 * (lines - 1)
+    left, plot_w, plot_h, top_y = 60, group * len(networks), 260, 60
+    s = Svg(max(left + plot_w + 50, 560), top_y + plot_h + 54 + foot + 16 * len(notes), title)
+    if len(series) > 1:   # one series needs no legend; the title names it
+        s.legend(left, 46, [(lab, COLOR[p]) for p, lab in series])
+    hi = nice_max(max(vals.values()))
+
+    def y_of(v):
+        return top_y + plot_h - plot_h * v / hi
     for k in range(6):
-        v = top * k / 5
-        y = top_y + plot_h - plot_h * v / top
-        s.line(left, y, left + plot_w, y)
-        s.label(left - 6, y + 4, ("%g" % v), size=11, anchor="end", color=INK2)
-    y1 = top_y + plot_h - plot_h / top
-    s.line(left, y1, left + plot_w, y1, color=INK2)
+        v = hi * k / 5
+        s.line(left, y_of(v), left + plot_w, y_of(v))
+        s.label(left - 6, y_of(v) + 4, "%g" % v, size=11, anchor="end", color=INK2)
     for i, n in enumerate(networks):
-        x0 = left + 110 * i + 15
-        for j, p in enumerate(series):
+        x0 = left + group * i + (group - 30 * len(series)) / 2
+        for j, (p, lab) in enumerate(series):
             v = vals.get((n, p))
             if v is None:
                 continue
-            h = plot_h * v / top
-            x = x0 + j * 26
-            s.bar(x, top_y + plot_h - h, 24, h, COLOR[p], "%s, %s: %.2fx" % (n, LABEL[p], v),
-                  round_end="top")
-            s.label(x + 12, top_y + plot_h - h - 4, "%.1f" % v, size=10, anchor="middle",
-                    color=INK2)
-        s.label(x0 + 38, top_y + plot_h + 16, short(n), size=11, anchor="middle", color=INK2)
-    s.label(left, top_y + plot_h + 50, "The darker rule marks 1x (as fast as stock).", size=11,
-            color=INK2)
+            x = x0 + j * 30
+            s.bar(x, y_of(v), 28, y_of(0) - y_of(v), COLOR[p],
+                  "%s, %s: %.2f%s" % (short(n), lab, v, unit), round_end="top")
+            value = ("%.0f" if v >= 100 else "%.1f") % v
+            if (n, p) in extra:
+                s.add('<text x="%.1f" y="%.1f" font-size="10" fill="%s">%s <tspan fill="%s" '
+                      'font-weight="600">%s</tspan></text>'
+                      % (x + 2, y_of(v) - 4, INK2, value, INK, Svg.esc(extra[(n, p)])))
+            else:
+                s.label(x + 14, y_of(v) - 4, value, size=10, anchor="middle", color=INK2)
+        for k, line in enumerate(labels.get(n, short(n)).split("\n")):
+            s.label(x0 + 15 * len(series) - 1, top_y + plot_h + 16 + 14 * k, line, size=11,
+                    anchor="middle", color=INK2)
+    for k, note in enumerate(notes):
+        s.label(left, top_y + plot_h + 50 + foot + 16 * k, note, size=11, color=INK2)
+    s.save(path)
+
+
+def fig_cpu_gpu(networks, wall, buses, out):
+    """Stock GridPACK ("CPU") against the cuDSS path ("GPU") at 16 ranks:
+    wall seconds, with the GPU's speedup. Stock cannot solve the private
+    case's base case, so there the optimized CPU path is the CPU run; the
+    report's caption says so, the figure does not."""
+    has = [n for n in networks if (n, 16, "cudss") in wall
+           and ((n, 16, "stock") in wall or (n, 16, "cpu") in wall)]
+    base = {n: "stock" if (n, 16, "stock") in wall else "cpu" for n in has}
+    speed = {(n, "cudss"): wall[(n, 16, base[n])] / wall[(n, 16, "cudss")] for n in has}
+    # the bus count goes on a second line, to keep the groups narrow
+    names = {n: short(n) + ("\n(%s)" % format(buses[n], ",") if buses.get(n) else "")
+             for n in has}
+    secs = {(n, "stock"): wall[(n, 16, base[n])] for n in has}
+    secs.update({(n, "cudss"): wall[(n, 16, "cudss")] for n in has})
+    fig_columns(has, secs, [("stock", "CPU"), ("cudss", "GPU")],
+                names, "Wall time at 16 processes (seconds)",
+                ["CPU = stock GridPACK, GPU = the cuDSS path, with how many times faster it is. "
+                 "Buses in parentheses. Lower is faster."],
+                os.path.join(out, "fig_wall_cpu_gpu.svg"), unit=" s",
+                extra={(n, "cudss"): "(%.1f\u00d7)" % speed[(n, "cudss")] for n in has}, group=100)
+
+
+ACC_VARS = [("utilization (%)", "Loading (% pts)"), ("complex power (MVA)", "S (MVA)"),
+            ("real power (MW)", "P (MW)"), ("reactive power (MVAr)", "Q (MVAr)"),
+            ("bus voltage (pu)", "V (pu)"), ("bus angle (deg)", "Angle (deg)")]
+# Bins of the largest difference. csv_flat prints four decimals, so 0.0001
+# is one printed digit. Steps 100/250/300/450/600 of the dataviz blue ramp.
+ACC_BINS = [(0.0001, "#cde2fb", INK, "at most 1 printed digit (0.0001)"),
+            (0.01, "#86b6ef", INK, "up to 0.01"),
+            (1.0, "#6da7ec", INK, "up to 1"),
+            (2.0, "#2a78d6", "#ffffff", "1 to 2"),
+            (math.inf, "#184f95", "#ffffff", "over 2")]
+
+
+def fig_accuracy(networks, acc_path, path):
+    """Heat table: largest difference from the optimized CPU path at 16
+    ranks, per network, variable and version (stock = CPU, cuDSS = GPU)."""
+    if not os.path.exists(acc_path):
+        return
+    acc = {}
+    with open(acc_path) as f:
+        for r in csv.DictReader(f):
+            p = "stock" if r["program"] == "stock" else r["path"]
+            acc[(r["network"], p, r["variable"])] = r
+    series = [("stock", "CPU"), ("cudss", "GPU")]
+    nets = [n for n in networks if any((n, p, ACC_VARS[0][0]) in acc for p, _ in series)]
+    if not nets:
+        return
+    left, cw, rh, top_y = 170, 92, 24, 104
+    width = left + cw * (len(ACC_VARS) + 1) + 20
+    s = Svg(width, top_y + (2 * rh + 12) * len(nets) + 64,
+            "Largest absolute difference from the optimized CPU path, 16 processes (column units)")
+    s.legend(16, 46, [(lab, c) for _, c, _, lab in ACC_BINS])
+    for j, (_, head) in enumerate(ACC_VARS + [(None, "Rows > 1% off")]):
+        s.label(left + cw * j + cw / 2, top_y - 10, head, size=11, anchor="middle", color=INK2,
+                weight=600)
+    y = top_y
+    for n in nets:
+        s.label(16, y + rh + 5, short(n), size=12, weight=600)
+        for p, lab in series:
+            s.label(left - 8, y + 16, lab, size=11, anchor="end", color=INK2)
+            for j, (var, head) in enumerate(ACC_VARS):
+                x = left + cw * j
+                r = acc.get((n, p, var))
+                if r is None:
+                    s.add('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="3" fill="none" '
+                          'stroke="%s"/>' % (x + 1, y + 1, cw - 2, rh - 2, GRID))
+                    s.label(x + cw / 2, y + 16, "not run", size=10, anchor="middle", color=INK2)
+                    continue
+                v = float(r["max abs diff"])
+                _, fill, ink, _ = next(b for b in ACC_BINS if v <= b[0])
+                s.add('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="3" fill="%s">'
+                      '<title>%s, %s, %s: largest %.4f, mean %.4f</title></rect>'
+                      % (x + 1, y + 1, cw - 2, rh - 2, fill, short(n), lab, head, v,
+                         float(r["mean abs diff"])))
+                s.label(x + cw / 2, y + 16, "%.4f" % v, size=10, anchor="middle", color=ink)
+            # share of rows more than 1% apart: the largest over the variables
+            shares = [float(acc[(n, p, v)]["% rows over 1%"]) for v, _ in ACC_VARS
+                      if (n, p, v) in acc]
+            x = left + cw * len(ACC_VARS)
+            s.label(x + cw / 2, y + 16, "%.4f%%" % max(shares) if shares else "not run",
+                    size=10, anchor="middle", color=INK2)
+            y += rh
+        y += 12
+    mean = max(float(acc[(n, p, v)]["mean abs diff"]) for n in nets for p, _ in series
+               for v, _ in ACC_VARS if (n, p, v) in acc)
+    s.label(16, y + 14, "CPU = stock GridPACK, GPU = the cuDSS path. Stock cannot run the "
+            "private case. Mean differences are at most %.4f." % mean, size=11, color=INK2)
+    s.label(16, y + 30, "Memphis on GPU: one ill-conditioned case (1068); stock on ACTIVSg10k: "
+            "voltage setting carried between cases.", size=11, color=INK2)
     s.save(path)
 
 
@@ -377,7 +484,9 @@ def fig_speedup(networks, wall, path):
 # a CEII planning case) is reported only as "private network".
 PUBLIC = {"MemphisCase2026_Mar7": "Memphis", "Wisconsin_1664": "Wisconsin",
           "Base_Florida_42GW": "Florida", "Texas7k_20210804": "Texas7k",
-          "ACTIVSg10k": "ACTIVSg10k", "Base_MIOHIN_76GW": "MIOHIN"}
+          "ACTIVSg10k": "ACTIVSg10k", "Base_MIOHIN_76GW": "MIOHIN",
+          "ACTIVSg25k": "ACTIVSg25k", "training": "training",
+          "Midwest24k_20220923": "Midwest24k"}
 
 
 def short(n):
@@ -581,7 +690,12 @@ def main():
     order = {}
     for (n, r, p), rs in runs.items():
         order.setdefault(n, len(order))
-    networks = sorted(order, key=order.get)   # the campaign runs smallest first
+    # smallest network file first, as the campaign runs them
+    def file_size(n):
+        for f in glob.glob(os.path.join(MATRIX, "networks", n + ".*")):
+            return os.path.getsize(f)
+        return order[n]
+    networks = sorted(order, key=lambda n: (file_size(n), order[n]))
 
     def name(n):
         return n if n in PUBLIC else "private network"
@@ -839,7 +953,9 @@ def main():
 
     # figures
     fig_backend(back_rows, os.path.join(args.out, "fig_backends.svg"))
-    fig_speedup(networks, wall, os.path.join(args.out, "fig_speedup.svg"))
+    fig_cpu_gpu(networks, wall, {n: info.get(n, {}).get("buses") for n in networks},
+                args.out)
+    fig_accuracy(networks, args.accuracy, os.path.join(args.out, "fig_accuracy.svg"))
     fig_steps(networks, parts, os.path.join(args.out, "fig_steps.svg"))
     fig_scaling(networks, wall, os.path.join(args.out, "fig_scaling.svg"))
     fig_size([r for r in size_rows if r.get("buses")], os.path.join(args.out, "fig_size.svg"))

@@ -41,9 +41,10 @@ tool limitations and exceptions awaiting maintainer review.
 The repeated single-Spark timings and kernel-counter limits are documented
 in [performance.md](performance.md).
 
-The [methodology report](report/01-methodology.md) explains every change
+The [report](report/00-introduction.md) states the problem, questions and
+contributions, reviews the published work it builds on
+([report/01-literature.md](report/01-literature.md)), explains every change
 from stock GridPACK to the optimized CPU path and to the Alg 2 and cuDSS
-paths, how this work differs from the published work it builds on
-([report/02-literature.md](report/02-literature.md)), and the full test
-matrix of seven networks, three process counts and four versions
+paths ([report/02-methodology.md](report/02-methodology.md)), and reports the
+full test matrix of seven networks, three process counts and four versions
 ([report/03-results.md](report/03-results.md)).

@@ -11,7 +11,7 @@ idle-time timers. Results go to matrix/timing_check/results.jsonl only, so
 the matrix's results.jsonl is not touched (delete the old file before a new
 check); analyze_matrix.py turns them into waits.csv.
 
-  tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/timing_check.py"
+  tools/ca_matrix/run.sh "python3 /src/tools/ca_matrix/timing_check.py [NET.RAW,...]"
 """
 
 import json
@@ -27,8 +27,9 @@ import run_matrix as rm  # noqa: E402
 OUT = "/src/matrix/timing_check"
 os.makedirs(OUT, exist_ok=True)
 CAX = rm.PROGRAMS["ours"]
-NETS = ["MemphisCase2026_Mar7.RAW", "Wisconsin_1664.RAW", "Base_Florida_42GW.RAW",
-        "Texas7k_20210804.RAW", "ACTIVSg10k.RAW", "Base_MIOHIN_76GW.RAW"]
+NETS = (sys.argv[1].split(",") if len(sys.argv) > 1 else
+        ["MemphisCase2026_Mar7.RAW", "Wisconsin_1664.RAW", "Base_Florida_42GW.RAW",
+         "Texas7k_20210804.RAW", "ACTIVSg10k.RAW", "Base_MIOHIN_76GW.RAW"])
 
 
 def all_timers(log):

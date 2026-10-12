@@ -41,7 +41,9 @@ from run_ca_test import TEMPLATE, default_ranks  # noqa: E402
 
 PROGRAMS = {
     "stock": MATRIX + "/builds/stock/applications/contingency_analysis/ca.x",
-    "ours": MATRIX + "/builds/optimized/applications/contingency_analysis/ca.x",
+    # CA_MATRIX_OURS_BUILD selects another build directory of this tree
+    "ours": MATRIX + "/builds/" + os.environ.get("CA_MATRIX_OURS_BUILD", "optimized")
+    + "/applications/contingency_analysis/ca.x",
 }
 PATHS = {"cpu": None, "alg2": "alg2", "cudss": "cudss"}
 STEPS = ["CA: Read Network", "CA: Base Case", "CA: Case List and Output Setup",

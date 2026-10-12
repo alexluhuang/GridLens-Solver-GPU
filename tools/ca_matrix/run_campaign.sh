@@ -15,6 +15,8 @@
 #
 #   tools/ca_matrix/run_campaign.sh [template, as seen in the container]
 #
+# CA_MATRIX_OURS_BUILD (optional) names another build directory under
+# matrix/builds for the optimized program.
 # REPEATS (default 2) runs each study that many times; networks over
 # LARGE_MB megabytes (default 10) run LARGE_REPEATS times (default 1).
 
@@ -26,7 +28,12 @@ LARGE_REPEATS=${LARGE_REPEATS:-1}
 LARGE_MB=${LARGE_MB:-10}
 TOOL=/src/tools/ca_matrix/run_matrix.py
 
+# NETWORKS (optional, comma-separated file names) limits the campaign to
+# those networks, still smallest file first.
 for net in $(ls -Sr "$REPO/matrix/networks"); do
+  if [ -n "${NETWORKS:-}" ]; then
+    case ",$NETWORKS," in *",$net,"*) ;; *) continue ;; esac
+  fi
   size_mb=$(( $(stat -c %s "$REPO/matrix/networks/$net") / 1000000 ))
   n=$REPEATS
   [ "$size_mb" -gt "$LARGE_MB" ] && n=$LARGE_REPEATS
@@ -37,7 +44,8 @@ for net in $(ls -Sr "$REPO/matrix/networks"); do
     "$RUN" "python3 $TOOL --program stock --template $TEMPLATE --networks $net \
             --ranks $ranks --repeat $n $keep --resume" \
       || echo "stock runs of $net at $ranks ranks did not finish"
-    "$RUN" "python3 $TOOL --program ours --template $TEMPLATE --networks $net \
+    "$RUN" "CA_MATRIX_OURS_BUILD=${CA_MATRIX_OURS_BUILD:-optimized} \
+            python3 $TOOL --program ours --template $TEMPLATE --networks $net \
             --paths cpu,alg2,cudss --ranks $ranks --repeat $n $keep --resume" \
       || echo "optimized runs of $net at $ranks ranks did not finish"
   done
