@@ -1,28 +1,7 @@
 # Methodology: from stock GridPACK to GPU batch contingency analysis
 
-This part describes every change made to GridPACK's contingency analysis
-program (`ca.x`) on this branch: how each version of the program works, what
-changed between versions, why, which alternatives were rejected, and which
-published work each change draws on. The aim is that a software engineer can
-rebuild the system from these pages without reading the code. File names,
-functions and commits are given only as pointers.
 
-How to read it:
 
-- Section 1 names the four programs and the design rules; Section 2 states
-  the power-flow problem exactly as GridPACK solves it, since every later
-  section depends on those definitions.
-- Section 3 describes stock GridPACK, the baseline. Section 4 the changes
-  that make the optimized CPU path. Sections 5–7 the GPU paths.
-- Each design subsection gives *what* it does, *how* (exact enough to
-  reimplement), *why* this choice, and, where one was considered, *why not*
-  the alternative. Section 8 collects the decisions in one table.
-- Section 9 is the order in which the design was reached, Section 10 how the
-  implementation was verified, Section 11 how to reproduce it.
-
-Terms are defined in 00-introduction §4. Measured results are in
-[03-results.md](03-results.md); the published work is reviewed in
-[01-literature.md](01-literature.md).
 
 ## 1. The four programs and the design rules
 
@@ -77,9 +56,6 @@ Four rules shaped the design. They were written into the design guide
 
 ## 2. The problem as GridPACK solves it
 
-This section states the equations, rules and outputs exactly, because the
-GPU paths must reproduce them. It follows GridPACK's power-flow components
-and contingency driver; the physics follows Kundur and Malik (sec. 6.4).
 
 ### 2.1 Network model
 
@@ -1348,7 +1324,7 @@ expose pivots for uniform batches, and was reported defective above about
 algorithm gave a cross-check for every cuDSS result, a pivot check, and a
 kernel that could be changed when measurements showed where its time went
 (the wide levels above came from such a measurement). 03-results §3.7 shows
-it was also the faster factorization on four of nine networks.
+it was also the faster factorization on four of seven networks.
 
 ## 7. cuDSS: the library factorization
 
