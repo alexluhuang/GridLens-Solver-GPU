@@ -33,15 +33,16 @@ either a custom batched LU (Algorithm 2 of Zhou et al.) or NVIDIA's cuDSS
 library. GridPACK's own CPU path also had to change: once the solve moved to
 the GPU, building and writing the result tables set the runtime.
 
-On one NVIDIA DGX Spark, across seven networks of 993 to 29,637 buses at 8,
+On one NVIDIA DGX Spark, across nine networks of 993 to 29,637 buses at 8,
 16 and 20 processes, the GPU paths ran whole studies 6.4–9.1 times faster
-than stock GridPACK at 16 processes on the four public networks above 5,000
-buses (8.9–10.2 times at 8 processes). On a 29,637-bus planning case that
+than stock GridPACK at 16 processes on the six public networks above 5,000
+buses (8.3–10.2 times at 8 processes). On a 29,637-bus planning case that
 stock GridPACK cannot solve, they ran 7.2–9.0 times faster than the
 optimized CPU path. Every case received the same outcome on every version
 except one ill-conditioned case, and flows and voltages agreed with the
 optimized CPU path to the last printed digit (0.0001) on the public networks
-above 1,000 buses.
+above 1,000 buses, apart from one case that only just met the solver
+tolerance on the CPU paths.
 
 ## 1. The problem
 
@@ -128,7 +129,7 @@ combination, not each part.
    run which case before, and network models (distributed generation,
    line-commutated dc lines, parser fixes) for a large PSS/E v34 planning
    case.
-6. **A whole-study evaluation** of four versions on seven networks at three
+6. **A whole-study evaluation** of four versions on nine networks at three
    process counts, with every pipeline stage timed and every result row
    compared.
 

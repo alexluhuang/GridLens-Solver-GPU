@@ -1348,7 +1348,7 @@ expose pivots for uniform batches, and was reported defective above about
 algorithm gave a cross-check for every cuDSS result, a pivot check, and a
 kernel that could be changed when measurements showed where its time went
 (the wide levels above came from such a measurement). 03-results §3.7 shows
-it was also the faster factorization on four of seven networks.
+it was also the faster factorization on four of nine networks.
 
 ## 7. cuDSS: the library factorization
 

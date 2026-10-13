@@ -46,5 +46,5 @@ contributions, reviews the published work it builds on
 ([report/01-literature.md](report/01-literature.md)), explains every change
 from stock GridPACK to the optimized CPU path and to the Alg 2 and cuDSS
 paths ([report/02-methodology.md](report/02-methodology.md)), and reports the
-full test matrix of seven networks, three process counts and four versions
+full test matrix of nine networks, three process counts and four versions
 ([report/03-results.md](report/03-results.md)).
