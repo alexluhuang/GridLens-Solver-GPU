@@ -687,6 +687,10 @@ def main():
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     runs = load_runs(args.results)
+    # every comparison is against the optimized CPU path, so a network
+    # without one (an interrupted campaign) is left out
+    reference = {n for (n, r, p) in runs if p == "cpu" and runs[(n, r, p)][0]["program"] == "ours"}
+    runs = defaultdict(list, {k: v for k, v in runs.items() if k[0] in reference})
     order = {}
     for (n, r, p), rs in runs.items():
         order.setdefault(n, len(order))

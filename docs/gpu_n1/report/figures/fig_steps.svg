@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="1036" viewBox="0 0 880 1036" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
-<rect width="880" height="1036" fill="#fcfcfb"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="1308" viewBox="0 0 880 1308" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="880" height="1308" fill="#fcfcfb"/>
 <text x="16.0" y="26.0" font-size="15" text-anchor="start" fill="#0b0b0b" font-weight="600">Where the time goes at 16 processes (share of wall time; seconds at right)</text>
 <rect x="16.0" y="37.0" width="10" height="10" rx="2" fill="#2a78d6"/>
 <text x="30.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">launch and exit</text>
@@ -270,33 +270,110 @@
 <path d="M634.0,854.0 h67.0 v18.0 h-67.0 z" fill="#a3a19b"><title>MIOHIN, cuDSS, waiting: 6.83 s (12.3%)</title></path>
 <path d="M703.0,854.0 h81.0 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-81.0 z" fill="#e34948"><title>MIOHIN, cuDSS, merge files: 8.61 s (15.5%)</title></path>
 <text x="798.0" y="867.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">55.4 s</text>
-<text x="16.0" y="912.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">private network</text>
-<text x="222.0" y="913.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Optimized CPU</text>
-<path d="M231.4,900.0 h28.2 v18.0 h-28.2 z" fill="#eda100"><title>private network, Optimized CPU, apply and restore outage: 168.22 s (5.4%)</title></path>
-<path d="M261.7,900.0 h473.9 v18.0 h-473.9 z" fill="#e87ba4"><title>private network, Optimized CPU, solve: 2647.10 s (85.0%)</title></path>
-<path d="M737.6,900.0 h15.4 v18.0 h-15.4 z" fill="#008300"><title>private network, Optimized CPU, write table rows: 96.78 s (3.1%)</title></path>
-<path d="M755.0,900.0 h11.2 v18.0 h-11.2 z" fill="#4a3aa7"><title>private network, Optimized CPU, other checks and reporting: 73.36 s (2.4%)</title></path>
-<path d="M768.2,900.0 h4.6 v18.0 h-4.6 z" fill="#a3a19b"><title>private network, Optimized CPU, waiting: 36.54 s (1.2%)</title></path>
-<path d="M774.7,900.0 h9.3 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-9.3 z" fill="#e34948"><title>private network, Optimized CPU, merge files: 84.95 s (2.7%)</title></path>
-<text x="798.0" y="913.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">3114.9 s</text>
-<text x="222.0" y="943.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Alg 2</text>
-<path d="M230.0,930.0 h0.2 v18.0 h-0.2 z" fill="#2a78d6"><title>private network, Alg 2, launch and exit: 1.46 s (0.4%)</title></path>
-<path d="M233.8,930.0 h7.4 v18.0 h-7.4 z" fill="#1baf7a"><title>private network, Alg 2, read, base case and case list: 6.38 s (1.7%)</title></path>
-<path d="M243.2,930.0 h134.0 v18.0 h-134.0 z" fill="#eda100"><title>private network, Alg 2, apply and restore outage: 91.98 s (24.3%)</title></path>
-<path d="M379.2,930.0 h13.0 v18.0 h-13.0 z" fill="#e87ba4"><title>private network, Alg 2, solve: 10.17 s (2.7%)</title></path>
-<path d="M394.3,930.0 h141.4 v18.0 h-141.4 z" fill="#008300"><title>private network, Alg 2, write table rows: 96.97 s (25.6%)</title></path>
-<path d="M537.7,930.0 h46.6 v18.0 h-46.6 z" fill="#4a3aa7"><title>private network, Alg 2, other checks and reporting: 32.89 s (8.7%)</title></path>
-<path d="M586.3,930.0 h48.9 v18.0 h-48.9 z" fill="#a3a19b"><title>private network, Alg 2, waiting: 34.43 s (9.1%)</title></path>
-<path d="M637.2,930.0 h146.8 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-146.8 z" fill="#e34948"><title>private network, Alg 2, merge files: 103.31 s (27.3%)</title></path>
-<text x="798.0" y="943.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">378.7 s</text>
-<text x="222.0" y="973.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">cuDSS</text>
-<path d="M230.0,960.0 h0.2 v18.0 h-0.2 z" fill="#2a78d6"><title>private network, cuDSS, launch and exit: 1.52 s (0.4%)</title></path>
-<path d="M234.2,960.0 h7.2 v18.0 h-7.2 z" fill="#1baf7a"><title>private network, cuDSS, read, base case and case list: 6.40 s (1.6%)</title></path>
-<path d="M243.4,960.0 h107.0 v18.0 h-107.0 z" fill="#eda100"><title>private network, cuDSS, apply and restore outage: 75.64 s (19.5%)</title></path>
-<path d="M352.4,960.0 h15.5 v18.0 h-15.5 z" fill="#e87ba4"><title>private network, cuDSS, solve: 12.14 s (3.1%)</title></path>
-<path d="M369.9,960.0 h160.2 v18.0 h-160.2 z" fill="#008300"><title>private network, cuDSS, write table rows: 112.55 s (29.0%)</title></path>
-<path d="M532.1,960.0 h55.2 v18.0 h-55.2 z" fill="#4a3aa7"><title>private network, cuDSS, other checks and reporting: 39.66 s (10.2%)</title></path>
-<path d="M589.3,960.0 h44.4 v18.0 h-44.4 z" fill="#a3a19b"><title>private network, cuDSS, waiting: 32.17 s (8.3%)</title></path>
-<path d="M635.7,960.0 h148.3 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-148.3 z" fill="#e34948"><title>private network, cuDSS, merge files: 107.08 s (27.6%)</title></path>
-<text x="798.0" y="973.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">388.5 s</text>
+<text x="16.0" y="912.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">ACTIVSg25k</text>
+<text x="222.0" y="913.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Stock GridPACK</text>
+<path d="M231.2,900.0 h29.5 v18.0 h-29.5 z" fill="#eda100"><title>ACTIVSg25k, Stock GridPACK, apply and restore outage: 126.09 s (5.6%)</title></path>
+<path d="M262.7,900.0 h286.2 v18.0 h-286.2 z" fill="#e87ba4"><title>ACTIVSg25k, Stock GridPACK, solve: 1154.41 s (51.5%)</title></path>
+<path d="M550.8,900.0 h166.6 v18.0 h-166.6 z" fill="#008300"><title>ACTIVSg25k, Stock GridPACK, write table rows: 675.51 s (30.1%)</title></path>
+<path d="M719.5,900.0 h14.2 v18.0 h-14.2 z" fill="#4a3aa7"><title>ACTIVSg25k, Stock GridPACK, other checks and reporting: 64.96 s (2.9%)</title></path>
+<path d="M735.7,900.0 h8.6 v18.0 h-8.6 z" fill="#a3a19b"><title>ACTIVSg25k, Stock GridPACK, waiting: 42.62 s (1.9%)</title></path>
+<path d="M746.3,900.0 h37.7 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-37.7 z" fill="#e34948"><title>ACTIVSg25k, Stock GridPACK, merge files: 174.96 s (7.8%)</title></path>
+<text x="798.0" y="913.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">2243.3 s</text>
+<text x="222.0" y="943.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Optimized CPU</text>
+<path d="M231.7,930.0 h45.6 v18.0 h-45.6 z" fill="#eda100"><title>ACTIVSg25k, Optimized CPU, apply and restore outage: 134.80 s (8.5%)</title></path>
+<path d="M279.4,930.0 h419.9 v18.0 h-419.9 z" fill="#e87ba4"><title>ACTIVSg25k, Optimized CPU, solve: 1194.06 s (75.3%)</title></path>
+<path d="M701.3,930.0 h26.9 v18.0 h-26.9 z" fill="#008300"><title>ACTIVSg25k, Optimized CPU, write table rows: 81.83 s (5.2%)</title></path>
+<path d="M730.2,930.0 h18.5 v18.0 h-18.5 z" fill="#4a3aa7"><title>ACTIVSg25k, Optimized CPU, other checks and reporting: 58.12 s (3.7%)</title></path>
+<path d="M750.7,930.0 h9.1 v18.0 h-9.1 z" fill="#a3a19b"><title>ACTIVSg25k, Optimized CPU, waiting: 31.46 s (2.0%)</title></path>
+<path d="M761.8,930.0 h22.2 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-22.2 z" fill="#e34948"><title>ACTIVSg25k, Optimized CPU, merge files: 79.69 s (5.0%)</title></path>
+<text x="798.0" y="943.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">1584.9 s</text>
+<text x="222.0" y="973.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Alg 2</text>
+<path d="M230.0,960.0 h0.7 v18.0 h-0.7 z" fill="#2a78d6"><title>ACTIVSg25k, Alg 2, launch and exit: 1.49 s (0.5%)</title></path>
+<path d="M232.7,960.0 h0.1 v18.0 h-0.1 z" fill="#eb6834"><title>ACTIVSg25k, Alg 2, GPU start-up and preparation: 1.16 s (0.4%)</title></path>
+<path d="M234.8,960.0 h2.9 v18.0 h-2.9 z" fill="#1baf7a"><title>ACTIVSg25k, Alg 2, read, base case and case list: 2.68 s (0.9%)</title></path>
+<path d="M239.7,960.0 h85.8 v18.0 h-85.8 z" fill="#eda100"><title>ACTIVSg25k, Alg 2, apply and restore outage: 48.14 s (15.7%)</title></path>
+<path d="M327.6,960.0 h10.7 v18.0 h-10.7 z" fill="#e87ba4"><title>ACTIVSg25k, Alg 2, solve: 6.98 s (2.3%)</title></path>
+<path d="M340.3,960.0 h182.7 v18.0 h-182.7 z" fill="#008300"><title>ACTIVSg25k, Alg 2, write table rows: 101.27 s (33.0%)</title></path>
+<path d="M525.0,960.0 h58.0 v18.0 h-58.0 z" fill="#4a3aa7"><title>ACTIVSg25k, Alg 2, other checks and reporting: 32.91 s (10.7%)</title></path>
+<path d="M585.1,960.0 h38.9 v18.0 h-38.9 z" fill="#a3a19b"><title>ACTIVSg25k, Alg 2, waiting: 22.41 s (7.3%)</title></path>
+<path d="M625.9,960.0 h158.1 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-158.1 z" fill="#e34948"><title>ACTIVSg25k, Alg 2, merge files: 89.93 s (29.3%)</title></path>
+<text x="798.0" y="973.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">307.0 s</text>
+<text x="222.0" y="1003.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">cuDSS</text>
+<path d="M230.0,990.0 h1.1 v18.0 h-1.1 z" fill="#2a78d6"><title>ACTIVSg25k, cuDSS, launch and exit: 1.64 s (0.6%)</title></path>
+<path d="M233.1,990.0 h1.3 v18.0 h-1.3 z" fill="#eb6834"><title>ACTIVSg25k, cuDSS, GPU start-up and preparation: 1.75 s (0.6%)</title></path>
+<path d="M236.4,990.0 h3.1 v18.0 h-3.1 z" fill="#1baf7a"><title>ACTIVSg25k, cuDSS, read, base case and case list: 2.70 s (0.9%)</title></path>
+<path d="M241.5,990.0 h79.9 v18.0 h-79.9 z" fill="#eda100"><title>ACTIVSg25k, cuDSS, apply and restore outage: 43.54 s (14.6%)</title></path>
+<path d="M323.4,990.0 h9.7 v18.0 h-9.7 z" fill="#e87ba4"><title>ACTIVSg25k, cuDSS, solve: 6.20 s (2.1%)</title></path>
+<path d="M335.0,990.0 h177.2 v18.0 h-177.2 z" fill="#008300"><title>ACTIVSg25k, cuDSS, write table rows: 95.24 s (32.0%)</title></path>
+<path d="M514.2,990.0 h55.6 v18.0 h-55.6 z" fill="#4a3aa7"><title>ACTIVSg25k, cuDSS, other checks and reporting: 30.60 s (10.3%)</title></path>
+<path d="M571.8,990.0 h42.6 v18.0 h-42.6 z" fill="#a3a19b"><title>ACTIVSg25k, cuDSS, waiting: 23.70 s (8.0%)</title></path>
+<path d="M616.4,990.0 h167.6 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-167.6 z" fill="#e34948"><title>ACTIVSg25k, cuDSS, merge files: 92.29 s (31.0%)</title></path>
+<text x="798.0" y="1003.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">297.7 s</text>
+<text x="16.0" y="1048.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">training</text>
+<text x="222.0" y="1049.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Stock GridPACK</text>
+<path d="M231.2,1036.0 h28.6 v18.0 h-28.6 z" fill="#eda100"><title>training, Stock GridPACK, apply and restore outage: 123.24 s (5.5%)</title></path>
+<path d="M261.8,1036.0 h292.2 v18.0 h-292.2 z" fill="#e87ba4"><title>training, Stock GridPACK, solve: 1185.49 s (52.5%)</title></path>
+<path d="M556.0,1036.0 h167.1 v18.0 h-167.1 z" fill="#008300"><title>training, Stock GridPACK, write table rows: 681.24 s (30.2%)</title></path>
+<path d="M725.0,1036.0 h14.6 v18.0 h-14.6 z" fill="#4a3aa7"><title>training, Stock GridPACK, other checks and reporting: 66.84 s (3.0%)</title></path>
+<path d="M741.6,1036.0 h8.0 v18.0 h-8.0 z" fill="#a3a19b"><title>training, Stock GridPACK, waiting: 40.33 s (1.8%)</title></path>
+<path d="M751.6,1036.0 h32.4 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-32.4 z" fill="#e34948"><title>training, Stock GridPACK, merge files: 154.62 s (6.9%)</title></path>
+<text x="798.0" y="1049.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">2256.6 s</text>
+<text x="222.0" y="1079.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Optimized CPU</text>
+<path d="M231.4,1066.0 h43.9 v18.0 h-43.9 z" fill="#eda100"><title>training, Optimized CPU, apply and restore outage: 130.21 s (8.2%)</title></path>
+<path d="M277.4,1066.0 h427.3 v18.0 h-427.3 z" fill="#e87ba4"><title>training, Optimized CPU, solve: 1217.53 s (76.7%)</title></path>
+<path d="M706.7,1066.0 h27.2 v18.0 h-27.2 z" fill="#008300"><title>training, Optimized CPU, write table rows: 82.88 s (5.2%)</title></path>
+<path d="M735.9,1066.0 h19.1 v18.0 h-19.1 z" fill="#4a3aa7"><title>training, Optimized CPU, other checks and reporting: 59.74 s (3.8%)</title></path>
+<path d="M757.0,1066.0 h7.1 v18.0 h-7.1 z" fill="#a3a19b"><title>training, Optimized CPU, waiting: 25.75 s (1.6%)</title></path>
+<path d="M766.1,1066.0 h17.9 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-17.9 z" fill="#e34948"><title>training, Optimized CPU, merge files: 67.90 s (4.3%)</title></path>
+<text x="798.0" y="1079.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">1588.1 s</text>
+<text x="222.0" y="1109.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Alg 2</text>
+<path d="M230.0,1096.0 h0.4 v18.0 h-0.4 z" fill="#2a78d6"><title>training, Alg 2, launch and exit: 1.36 s (0.4%)</title></path>
+<path d="M234.3,1096.0 h2.9 v18.0 h-2.9 z" fill="#1baf7a"><title>training, Alg 2, read, base case and case list: 2.74 s (0.9%)</title></path>
+<path d="M239.3,1096.0 h79.8 v18.0 h-79.8 z" fill="#eda100"><title>training, Alg 2, apply and restore outage: 45.54 s (14.6%)</title></path>
+<path d="M321.0,1096.0 h13.9 v18.0 h-13.9 z" fill="#e87ba4"><title>training, Alg 2, solve: 8.86 s (2.8%)</title></path>
+<path d="M336.9,1096.0 h188.2 v18.0 h-188.2 z" fill="#008300"><title>training, Alg 2, write table rows: 105.97 s (34.0%)</title></path>
+<path d="M527.1,1096.0 h66.9 v18.0 h-66.9 z" fill="#4a3aa7"><title>training, Alg 2, other checks and reporting: 38.37 s (12.3%)</title></path>
+<path d="M596.0,1096.0 h50.3 v18.0 h-50.3 z" fill="#a3a19b"><title>training, Alg 2, waiting: 29.11 s (9.3%)</title></path>
+<path d="M648.3,1096.0 h135.7 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-135.7 z" fill="#e34948"><title>training, Alg 2, merge files: 78.95 s (25.3%)</title></path>
+<text x="798.0" y="1109.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">312.0 s</text>
+<text x="222.0" y="1139.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">cuDSS</text>
+<path d="M230.0,1126.0 h0.6 v18.0 h-0.6 z" fill="#2a78d6"><title>training, cuDSS, launch and exit: 1.37 s (0.5%)</title></path>
+<path d="M232.6,1126.0 h0.6 v18.0 h-0.6 z" fill="#eb6834"><title>training, cuDSS, GPU start-up and preparation: 1.37 s (0.5%)</title></path>
+<path d="M235.1,1126.0 h3.1 v18.0 h-3.1 z" fill="#1baf7a"><title>training, cuDSS, read, base case and case list: 2.73 s (0.9%)</title></path>
+<path d="M240.2,1126.0 h72.8 v18.0 h-72.8 z" fill="#eda100"><title>training, cuDSS, apply and restore outage: 40.06 s (13.4%)</title></path>
+<path d="M315.0,1126.0 h12.0 v18.0 h-12.0 z" fill="#e87ba4"><title>training, cuDSS, solve: 7.48 s (2.5%)</title></path>
+<path d="M329.0,1126.0 h180.6 v18.0 h-180.6 z" fill="#008300"><title>training, cuDSS, write table rows: 97.77 s (32.6%)</title></path>
+<path d="M511.5,1126.0 h62.5 v18.0 h-62.5 z" fill="#4a3aa7"><title>training, cuDSS, other checks and reporting: 34.54 s (11.5%)</title></path>
+<path d="M576.0,1126.0 h63.2 v18.0 h-63.2 z" fill="#a3a19b"><title>training, cuDSS, waiting: 34.94 s (11.6%)</title></path>
+<path d="M641.2,1126.0 h142.8 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-142.8 z" fill="#e34948"><title>training, cuDSS, merge files: 79.67 s (26.6%)</title></path>
+<text x="798.0" y="1139.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">299.9 s</text>
+<text x="16.0" y="1184.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">private network</text>
+<text x="222.0" y="1185.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Optimized CPU</text>
+<path d="M231.4,1172.0 h28.2 v18.0 h-28.2 z" fill="#eda100"><title>private network, Optimized CPU, apply and restore outage: 168.22 s (5.4%)</title></path>
+<path d="M261.7,1172.0 h473.9 v18.0 h-473.9 z" fill="#e87ba4"><title>private network, Optimized CPU, solve: 2647.10 s (85.0%)</title></path>
+<path d="M737.6,1172.0 h15.4 v18.0 h-15.4 z" fill="#008300"><title>private network, Optimized CPU, write table rows: 96.78 s (3.1%)</title></path>
+<path d="M755.0,1172.0 h11.2 v18.0 h-11.2 z" fill="#4a3aa7"><title>private network, Optimized CPU, other checks and reporting: 73.36 s (2.4%)</title></path>
+<path d="M768.2,1172.0 h4.6 v18.0 h-4.6 z" fill="#a3a19b"><title>private network, Optimized CPU, waiting: 36.54 s (1.2%)</title></path>
+<path d="M774.7,1172.0 h9.3 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-9.3 z" fill="#e34948"><title>private network, Optimized CPU, merge files: 84.95 s (2.7%)</title></path>
+<text x="798.0" y="1185.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">3114.9 s</text>
+<text x="222.0" y="1215.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Alg 2</text>
+<path d="M230.0,1202.0 h0.2 v18.0 h-0.2 z" fill="#2a78d6"><title>private network, Alg 2, launch and exit: 1.46 s (0.4%)</title></path>
+<path d="M233.8,1202.0 h7.4 v18.0 h-7.4 z" fill="#1baf7a"><title>private network, Alg 2, read, base case and case list: 6.38 s (1.7%)</title></path>
+<path d="M243.2,1202.0 h134.0 v18.0 h-134.0 z" fill="#eda100"><title>private network, Alg 2, apply and restore outage: 91.98 s (24.3%)</title></path>
+<path d="M379.2,1202.0 h13.0 v18.0 h-13.0 z" fill="#e87ba4"><title>private network, Alg 2, solve: 10.17 s (2.7%)</title></path>
+<path d="M394.3,1202.0 h141.4 v18.0 h-141.4 z" fill="#008300"><title>private network, Alg 2, write table rows: 96.97 s (25.6%)</title></path>
+<path d="M537.7,1202.0 h46.6 v18.0 h-46.6 z" fill="#4a3aa7"><title>private network, Alg 2, other checks and reporting: 32.89 s (8.7%)</title></path>
+<path d="M586.3,1202.0 h48.9 v18.0 h-48.9 z" fill="#a3a19b"><title>private network, Alg 2, waiting: 34.43 s (9.1%)</title></path>
+<path d="M637.2,1202.0 h146.8 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-146.8 z" fill="#e34948"><title>private network, Alg 2, merge files: 103.31 s (27.3%)</title></path>
+<text x="798.0" y="1215.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">378.7 s</text>
+<text x="222.0" y="1245.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">cuDSS</text>
+<path d="M230.0,1232.0 h0.2 v18.0 h-0.2 z" fill="#2a78d6"><title>private network, cuDSS, launch and exit: 1.52 s (0.4%)</title></path>
+<path d="M234.2,1232.0 h7.2 v18.0 h-7.2 z" fill="#1baf7a"><title>private network, cuDSS, read, base case and case list: 6.40 s (1.6%)</title></path>
+<path d="M243.4,1232.0 h107.0 v18.0 h-107.0 z" fill="#eda100"><title>private network, cuDSS, apply and restore outage: 75.64 s (19.5%)</title></path>
+<path d="M352.4,1232.0 h15.5 v18.0 h-15.5 z" fill="#e87ba4"><title>private network, cuDSS, solve: 12.14 s (3.1%)</title></path>
+<path d="M369.9,1232.0 h160.2 v18.0 h-160.2 z" fill="#008300"><title>private network, cuDSS, write table rows: 112.55 s (29.0%)</title></path>
+<path d="M532.1,1232.0 h55.2 v18.0 h-55.2 z" fill="#4a3aa7"><title>private network, cuDSS, other checks and reporting: 39.66 s (10.2%)</title></path>
+<path d="M589.3,1232.0 h44.4 v18.0 h-44.4 z" fill="#a3a19b"><title>private network, cuDSS, waiting: 32.17 s (8.3%)</title></path>
+<path d="M635.7,1232.0 h148.3 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-148.3 z" fill="#e34948"><title>private network, cuDSS, merge files: 107.08 s (27.6%)</title></path>
+<text x="798.0" y="1245.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">388.5 s</text>
 </svg>

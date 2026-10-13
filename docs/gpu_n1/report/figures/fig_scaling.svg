@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="830" height="410" viewBox="0 0 830 410" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
-<rect width="830" height="410" fill="#fcfcfb"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="830" height="580" viewBox="0 0 830 580" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="830" height="580" fill="#fcfcfb"/>
 <text x="16.0" y="26.0" font-size="15" text-anchor="start" fill="#0b0b0b" font-weight="600">Wall time relative to 8 processes (lower is faster)</text>
 <rect x="16.0" y="37.0" width="10" height="10" rx="2" fill="#2a78d6"/>
 <text x="30.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Stock GridPACK</text>
@@ -189,7 +189,7 @@
 <circle cx="250.0" cy="287.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>MIOHIN, cuDSS, 8 ranks: 72.4 s (1.00 of 8 ranks)</title></circle>
 <circle cx="343.3" cy="320.3" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>MIOHIN, cuDSS, 16 ranks: 55.1 s (0.76 of 8 ranks)</title></circle>
 <circle cx="390.0" cy="321.6" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>MIOHIN, cuDSS, 20 ranks: 54.4 s (0.75 of 8 ranks)</title></circle>
-<text x="450.0" y="252.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">private network</text>
+<text x="450.0" y="252.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">ACTIVSg25k</text>
 <line x1="450.0" y1="370.0" x2="590.0" y2="370.0" stroke="#e4e3df" stroke-width="1"/>
 <text x="446.0" y="374.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">0.4</text>
 <line x1="450.0" y1="342.5" x2="590.0" y2="342.5" stroke="#e4e3df" stroke-width="1"/>
@@ -203,17 +203,77 @@
 <text x="450.0" y="384.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">8</text>
 <text x="543.3" y="384.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">16</text>
 <text x="590.0" y="384.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">20</text>
-<polyline points="450.0,287.5 543.3,340.6 590.0,351.5" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="450.0" cy="287.5" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>private network, Optimized CPU, 8 ranks: 5072.0 s (1.00 of 8 ranks)</title></circle>
-<circle cx="543.3" cy="340.6" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>private network, Optimized CPU, 16 ranks: 3113.6 s (0.61 of 8 ranks)</title></circle>
-<circle cx="590.0" cy="351.5" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>private network, Optimized CPU, 20 ranks: 2711.8 s (0.53 of 8 ranks)</title></circle>
-<polyline points="450.0,287.5 543.3,332.4 590.0,340.9" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="450.0" cy="287.5" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>private network, Alg 2, 8 ranks: 560.6 s (1.00 of 8 ranks)</title></circle>
-<circle cx="543.3" cy="332.4" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>private network, Alg 2, 16 ranks: 377.4 s (0.67 of 8 ranks)</title></circle>
-<circle cx="590.0" cy="340.9" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>private network, Alg 2, 20 ranks: 342.8 s (0.61 of 8 ranks)</title></circle>
-<polyline points="450.0,287.5 543.3,332.3 590.0,335.3" fill="none" stroke="#eda100" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="450.0" cy="287.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>private network, cuDSS, 8 ranks: 574.5 s (1.00 of 8 ranks)</title></circle>
-<circle cx="543.3" cy="332.3" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>private network, cuDSS, 16 ranks: 387.2 s (0.67 of 8 ranks)</title></circle>
-<circle cx="590.0" cy="335.3" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>private network, cuDSS, 20 ranks: 374.9 s (0.65 of 8 ranks)</title></circle>
-<text x="16.0" y="402.0" font-size="10" text-anchor="start" fill="#52514e" font-weight="400">x axis: processes (MPI ranks)</text>
+<polyline points="450.0,287.5 543.3,337.4 590.0,348.9" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="450.0" cy="287.5" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Stock GridPACK, 8 ranks: 3519.9 s (1.00 of 8 ranks)</title></circle>
+<circle cx="543.3" cy="337.4" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Stock GridPACK, 16 ranks: 2242.4 s (0.64 of 8 ranks)</title></circle>
+<circle cx="590.0" cy="348.9" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Stock GridPACK, 20 ranks: 1947.1 s (0.55 of 8 ranks)</title></circle>
+<polyline points="450.0,287.5 543.3,337.7 590.0,351.5" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="450.0" cy="287.5" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Optimized CPU, 8 ranks: 2496.3 s (1.00 of 8 ranks)</title></circle>
+<circle cx="543.3" cy="337.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Optimized CPU, 16 ranks: 1584.2 s (0.63 of 8 ranks)</title></circle>
+<circle cx="590.0" cy="351.5" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Optimized CPU, 20 ranks: 1333.9 s (0.53 of 8 ranks)</title></circle>
+<polyline points="450.0,287.5 543.3,326.2 590.0,339.4" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="450.0" cy="287.5" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Alg 2, 8 ranks: 426.1 s (1.00 of 8 ranks)</title></circle>
+<circle cx="543.3" cy="326.2" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Alg 2, 16 ranks: 306.3 s (0.72 of 8 ranks)</title></circle>
+<circle cx="590.0" cy="339.4" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, Alg 2, 20 ranks: 265.4 s (0.62 of 8 ranks)</title></circle>
+<polyline points="450.0,287.5 543.3,325.3 590.0,334.7" fill="none" stroke="#eda100" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="450.0" cy="287.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, cuDSS, 8 ranks: 409.5 s (1.00 of 8 ranks)</title></circle>
+<circle cx="543.3" cy="325.3" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, cuDSS, 16 ranks: 297.0 s (0.73 of 8 ranks)</title></circle>
+<circle cx="590.0" cy="334.7" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>ACTIVSg25k, cuDSS, 20 ranks: 269.0 s (0.66 of 8 ranks)</title></circle>
+<text x="650.0" y="252.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">training</text>
+<line x1="650.0" y1="370.0" x2="790.0" y2="370.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="646.0" y="374.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">0.4</text>
+<line x1="650.0" y1="342.5" x2="790.0" y2="342.5" stroke="#e4e3df" stroke-width="1"/>
+<text x="646.0" y="346.5" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">0.6</text>
+<line x1="650.0" y1="315.0" x2="790.0" y2="315.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="646.0" y="319.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">0.8</text>
+<line x1="650.0" y1="287.5" x2="790.0" y2="287.5" stroke="#52514e" stroke-width="1"/>
+<text x="646.0" y="291.5" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.0</text>
+<line x1="650.0" y1="260.0" x2="790.0" y2="260.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="646.0" y="264.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.2</text>
+<text x="650.0" y="384.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">8</text>
+<text x="743.3" y="384.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">16</text>
+<text x="790.0" y="384.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">20</text>
+<polyline points="650.0,287.5 743.3,339.6 790.0,350.6" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="650.0" cy="287.5" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>training, Stock GridPACK, 8 ranks: 3631.0 s (1.00 of 8 ranks)</title></circle>
+<circle cx="743.3" cy="339.6" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>training, Stock GridPACK, 16 ranks: 2255.7 s (0.62 of 8 ranks)</title></circle>
+<circle cx="790.0" cy="350.6" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>training, Stock GridPACK, 20 ranks: 1964.6 s (0.54 of 8 ranks)</title></circle>
+<polyline points="650.0,287.5 743.3,338.9 790.0,351.3" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="650.0" cy="287.5" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>training, Optimized CPU, 8 ranks: 2536.0 s (1.00 of 8 ranks)</title></circle>
+<circle cx="743.3" cy="338.9" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>training, Optimized CPU, 16 ranks: 1587.5 s (0.63 of 8 ranks)</title></circle>
+<circle cx="790.0" cy="351.3" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>training, Optimized CPU, 20 ranks: 1359.7 s (0.54 of 8 ranks)</title></circle>
+<polyline points="650.0,287.5 743.3,327.5 790.0,334.4" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="650.0" cy="287.5" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>training, Alg 2, 8 ranks: 438.8 s (1.00 of 8 ranks)</title></circle>
+<circle cx="743.3" cy="327.5" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>training, Alg 2, 16 ranks: 311.3 s (0.71 of 8 ranks)</title></circle>
+<circle cx="790.0" cy="334.4" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>training, Alg 2, 20 ranks: 289.1 s (0.66 of 8 ranks)</title></circle>
+<polyline points="650.0,287.5 743.3,328.4 790.0,333.3" fill="none" stroke="#eda100" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="650.0" cy="287.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>training, cuDSS, 8 ranks: 426.0 s (1.00 of 8 ranks)</title></circle>
+<circle cx="743.3" cy="328.4" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>training, cuDSS, 16 ranks: 299.2 s (0.70 of 8 ranks)</title></circle>
+<circle cx="790.0" cy="333.3" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>training, cuDSS, 20 ranks: 284.1 s (0.67 of 8 ranks)</title></circle>
+<text x="50.0" y="422.0" font-size="12" text-anchor="start" fill="#0b0b0b" font-weight="600">private network</text>
+<line x1="50.0" y1="540.0" x2="190.0" y2="540.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="46.0" y="544.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">0.4</text>
+<line x1="50.0" y1="512.5" x2="190.0" y2="512.5" stroke="#e4e3df" stroke-width="1"/>
+<text x="46.0" y="516.5" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">0.6</text>
+<line x1="50.0" y1="485.0" x2="190.0" y2="485.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="46.0" y="489.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">0.8</text>
+<line x1="50.0" y1="457.5" x2="190.0" y2="457.5" stroke="#52514e" stroke-width="1"/>
+<text x="46.0" y="461.5" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.0</text>
+<line x1="50.0" y1="430.0" x2="190.0" y2="430.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="46.0" y="434.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.2</text>
+<text x="50.0" y="554.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">8</text>
+<text x="143.3" y="554.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">16</text>
+<text x="190.0" y="554.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">20</text>
+<polyline points="50.0,457.5 143.3,510.6 190.0,521.5" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="50.0" cy="457.5" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>private network, Optimized CPU, 8 ranks: 5072.0 s (1.00 of 8 ranks)</title></circle>
+<circle cx="143.3" cy="510.6" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>private network, Optimized CPU, 16 ranks: 3113.6 s (0.61 of 8 ranks)</title></circle>
+<circle cx="190.0" cy="521.5" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>private network, Optimized CPU, 20 ranks: 2711.8 s (0.53 of 8 ranks)</title></circle>
+<polyline points="50.0,457.5 143.3,502.4 190.0,510.9" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="50.0" cy="457.5" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>private network, Alg 2, 8 ranks: 560.6 s (1.00 of 8 ranks)</title></circle>
+<circle cx="143.3" cy="502.4" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>private network, Alg 2, 16 ranks: 377.4 s (0.67 of 8 ranks)</title></circle>
+<circle cx="190.0" cy="510.9" r="4" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>private network, Alg 2, 20 ranks: 342.8 s (0.61 of 8 ranks)</title></circle>
+<polyline points="50.0,457.5 143.3,502.3 190.0,505.3" fill="none" stroke="#eda100" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="50.0" cy="457.5" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>private network, cuDSS, 8 ranks: 574.5 s (1.00 of 8 ranks)</title></circle>
+<circle cx="143.3" cy="502.3" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>private network, cuDSS, 16 ranks: 387.2 s (0.67 of 8 ranks)</title></circle>
+<circle cx="190.0" cy="505.3" r="4" fill="#eda100" stroke="#fcfcfb" stroke-width="2"><title>private network, cuDSS, 20 ranks: 374.9 s (0.65 of 8 ranks)</title></circle>
+<text x="16.0" y="572.0" font-size="10" text-anchor="start" fill="#52514e" font-weight="400">x axis: processes (MPI ranks)</text>
 </svg>

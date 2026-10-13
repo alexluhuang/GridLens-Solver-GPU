@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="730" height="400" viewBox="0 0 730 400" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
-<rect width="730" height="400" fill="#fcfcfb"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="730" height="468" viewBox="0 0 730 468" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="730" height="468" fill="#fcfcfb"/>
 <text x="16.0" y="26.0" font-size="15" text-anchor="start" fill="#0b0b0b" font-weight="600">Which method factorizes faster, by fill of the factors (16 processes)</text>
 <rect x="16.0" y="37.0" width="10" height="10" rx="2" fill="#eda100"/>
 <text x="30.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">cuDSS faster</text>
@@ -7,23 +7,23 @@
 <text x="132.0" y="46.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Alg 2 faster</text>
 <text x="452.0" y="82.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">← cuDSS faster</text>
 <text x="468.0" y="82.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Alg 2 faster →</text>
-<line x1="392.7" y1="88.0" x2="392.7" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="392.7" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">1.5x</text>
-<line x1="527.3" y1="88.0" x2="527.3" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="527.3" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">1.5x</text>
-<line x1="345.0" y1="88.0" x2="345.0" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="345.0" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">2x</text>
-<line x1="575.0" y1="88.0" x2="575.0" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="575.0" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">2x</text>
-<line x1="277.7" y1="88.0" x2="277.7" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="277.7" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">3x</text>
-<line x1="642.3" y1="88.0" x2="642.3" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="642.3" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">3x</text>
-<line x1="230.0" y1="88.0" x2="230.0" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="230.0" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">4x</text>
-<line x1="690.0" y1="88.0" x2="690.0" y2="324.0" stroke="#e4e3df" stroke-width="1"/>
-<text x="690.0" y="340.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">4x</text>
-<line x1="460.0" y1="88.0" x2="460.0" y2="324.0" stroke="#52514e" stroke-width="1"/>
+<line x1="392.7" y1="88.0" x2="392.7" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="392.7" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">1.5x</text>
+<line x1="527.3" y1="88.0" x2="527.3" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="527.3" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">1.5x</text>
+<line x1="345.0" y1="88.0" x2="345.0" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="345.0" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">2x</text>
+<line x1="575.0" y1="88.0" x2="575.0" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="575.0" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">2x</text>
+<line x1="277.7" y1="88.0" x2="277.7" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="277.7" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">3x</text>
+<line x1="642.3" y1="88.0" x2="642.3" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="642.3" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">3x</text>
+<line x1="230.0" y1="88.0" x2="230.0" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="230.0" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">4x</text>
+<line x1="690.0" y1="88.0" x2="690.0" y2="392.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="690.0" y="408.0" font-size="10" text-anchor="middle" fill="#52514e" font-weight="400">4x</text>
+<line x1="460.0" y1="88.0" x2="460.0" y2="392.0" stroke="#52514e" stroke-width="1"/>
 <text x="220.0" y="107.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">private network (fill 1.34)</text>
 <path d="M460.0,95.0 h188.7 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-188.7 z" fill="#1baf7a"><title>private network: Alg 2 factorizes 3.20 times as fast</title></path>
 <text x="658.7" y="108.0" font-size="10" text-anchor="start" fill="#52514e" font-weight="400">3.20x</text>
@@ -36,15 +36,21 @@
 <text x="220.0" y="209.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Wisconsin (fill 2.18)</text>
 <path d="M460.0,197.0 h38.6 a4.0,4.0 0 0 1 4.0,4.0 v10.0 a4.0,4.0 0 0 1 -4.0,4.0 h-38.6 z" fill="#1baf7a"><title>Wisconsin: Alg 2 factorizes 1.29 times as fast</title></path>
 <text x="508.6" y="210.0" font-size="10" text-anchor="start" fill="#52514e" font-weight="400">1.29x</text>
-<text x="220.0" y="243.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Florida (fill 2.53)</text>
-<path d="M460.0,231.0 h-8.7 a4.0,4.0 0 0 0 -4.0,4.0 v10.0 a4.0,4.0 0 0 0 4.0,4.0 h8.7 z" fill="#eda100"><title>Florida: cuDSS factorizes 1.08 times as fast</title></path>
-<text x="441.3" y="244.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.08x</text>
-<text x="220.0" y="277.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Texas7k (fill 2.68)</text>
-<path d="M460.0,265.0 h-47.2 a4.0,4.0 0 0 0 -4.0,4.0 v10.0 a4.0,4.0 0 0 0 4.0,4.0 h47.2 z" fill="#eda100"><title>Texas7k: cuDSS factorizes 1.36 times as fast</title></path>
-<text x="402.8" y="278.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.36x</text>
-<text x="220.0" y="311.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">MIOHIN (fill 3.30)</text>
-<path d="M460.0,299.0 h-68.3 a4.0,4.0 0 0 0 -4.0,4.0 v10.0 a4.0,4.0 0 0 0 4.0,4.0 h68.3 z" fill="#eda100"><title>MIOHIN: cuDSS factorizes 1.55 times as fast</title></path>
-<text x="381.7" y="312.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.55x</text>
-<text x="16.0" y="364.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Fill = entries in the LU factors per entry of the Jacobian.</text>
-<text x="16.0" y="380.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Sparser factors (top) favour Alg 2; denser factors (bottom) favour cuDSS.</text>
+<text x="220.0" y="243.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">ACTIVSg25k (fill 2.20)</text>
+<path d="M460.0,231.0 h-2.8 a2.8,2.8 0 0 0 -2.8,2.8 v12.3 a2.8,2.8 0 0 0 2.8,2.8 h2.8 z" fill="#eda100"><title>ACTIVSg25k: cuDSS factorizes 1.03 times as fast</title></path>
+<text x="448.3" y="244.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.03x</text>
+<text x="220.0" y="277.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">training (fill 2.20)</text>
+<path d="M460.0,265.0 h-3.1 a3.1,3.1 0 0 0 -3.1,3.1 v11.7 a3.1,3.1 0 0 0 3.1,3.1 h3.1 z" fill="#eda100"><title>training: cuDSS factorizes 1.04 times as fast</title></path>
+<text x="447.7" y="278.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.04x</text>
+<text x="220.0" y="311.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Florida (fill 2.53)</text>
+<path d="M460.0,299.0 h-8.7 a4.0,4.0 0 0 0 -4.0,4.0 v10.0 a4.0,4.0 0 0 0 4.0,4.0 h8.7 z" fill="#eda100"><title>Florida: cuDSS factorizes 1.08 times as fast</title></path>
+<text x="441.3" y="312.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.08x</text>
+<text x="220.0" y="345.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">Texas7k (fill 2.68)</text>
+<path d="M460.0,333.0 h-47.2 a4.0,4.0 0 0 0 -4.0,4.0 v10.0 a4.0,4.0 0 0 0 4.0,4.0 h47.2 z" fill="#eda100"><title>Texas7k: cuDSS factorizes 1.36 times as fast</title></path>
+<text x="402.8" y="346.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.36x</text>
+<text x="220.0" y="379.0" font-size="11" text-anchor="end" fill="#52514e" font-weight="400">MIOHIN (fill 3.30)</text>
+<path d="M460.0,367.0 h-68.3 a4.0,4.0 0 0 0 -4.0,4.0 v10.0 a4.0,4.0 0 0 0 4.0,4.0 h68.3 z" fill="#eda100"><title>MIOHIN: cuDSS factorizes 1.55 times as fast</title></path>
+<text x="381.7" y="380.0" font-size="10" text-anchor="end" fill="#52514e" font-weight="400">1.55x</text>
+<text x="16.0" y="432.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Fill = entries in the LU factors per entry of the Jacobian.</text>
+<text x="16.0" y="448.0" font-size="11" text-anchor="start" fill="#52514e" font-weight="400">Sparser factors (top) favour Alg 2; denser factors (bottom) favour cuDSS.</text>
 </svg>

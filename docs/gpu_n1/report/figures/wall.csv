@@ -95,7 +95,6 @@ training,20,Stock GridPACK,1,0,1964.5800,,1.0000,0.6921
 training,20,Optimized CPU,1,0,1359.6500,,1.4449,1.0000
 training,20,Alg 2,1,0,289.0500,,6.7967,4.7039
 training,20,cuDSS,1,0,284.1400,,6.9141,4.7851
-Midwest24k_20220923,8,Stock GridPACK,1,0,3961.8200,,1.0000,
 private network,8,Optimized CPU,1,0,5071.9800,,,1.0000
 private network,8,Alg 2,1,0,560.6100,,,9.0473
 private network,8,cuDSS,1,0,574.5200,,,8.8282
