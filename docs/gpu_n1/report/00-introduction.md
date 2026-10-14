@@ -185,7 +185,8 @@ Evaluation:
 ## 5. Background
 
 This section introduces the concepts the rest of the report uses.
-02-methodology §2 gives the exact rules the system implements.
+02-methodology §2.2 and §3.3 give the exact equations and control rules the
+system implements.
 
 ### 5.1 The network and the power-flow problem
 
@@ -531,7 +532,7 @@ $\theta_{km}$. $Q_2$ appears in $H_{22}$ as the value computed from the
 current voltages, although bus 2 has no $Q$ equation.
 
 The GPU paths of this work arrange the same equations so that the sparsity
-pattern does not change when bus types do; 02-methodology §3.2 shows this
+pattern does not change when bus types do; 02-methodology §2.2 shows this
 example in that layout.
 
 *Convergence.* The iteration **converges** when the largest absolute
@@ -763,7 +764,7 @@ in the rows not yet used as pivots, and $\tau$, with $0 < \tau \le 1$, is
 the pivot tolerance. A small $\tau$ keeps the sparsity-preserving order
 wherever it is numerically safe and changes $\Pi_r$ only where the test
 fails. The column order is thus chosen for sparsity and the row order
-adjusted for stability; 01-literature §2.2 and 02-methodology §3.3 give the
+adjusted for stability; 01-literature §2.2 and 02-methodology §2.3 give the
 settings used in practice and here.
 
 *The order can be computed once.* Choosing $\Pi_c$ and finding where the
@@ -908,7 +909,7 @@ diverge.
 
 These three properties are the basis of batched sparse factorization;
 01-literature §2.1 reviews the published methods, and 02-methodology
-§3.4–3.5 and §3.8 describe how this work applies them.
+§2.4–2.5 and §2.8 describe how this work applies them.
 
 ## 6. Conventions
 
@@ -921,9 +922,9 @@ These three properties are the basis of batched sparse factorization;
 - **Batch terms.** The GPU engine has $B$ **slots** ($B$ is the batch size,
   512 in the tests), each holding one case; an **engine step** advances every
   active case by one Newton step; a **chunk** is a group of cases submitted
-  together, four batches' worth (02-methodology §3.4).
+  together, four batches' worth (02-methodology §2.4).
 - **Citations** follow MLA 9: author and page or section in the text, full
-  entries at the end of each part. "02-methodology §3.4" points to another
+  entries at the end of each part. "02-methodology §2.4" points to another
   part of this report.
 - **File names and settings** are pointers for readers who want to check the
   code; the text does not depend on them. Appendix A of 02-methodology maps

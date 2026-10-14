@@ -113,7 +113,7 @@ factorizations share one plan. The sources differ in what varies across the
 batch: load scenarios (Wang et al., ExaPF.jl, Y. Zhou et al.) or outages that
 change only admittances (Zhou et al. 2017, Meng and Yun). This work adopts
 Algorithm 2 as one of its two factorization methods and NVIDIA's cuDSS
-uniform batch as the other (02-methodology §3.5).
+uniform batch as the other (02-methodology §2.5).
 
 ### 2.2 One-Time Ordering and Analysis
 
@@ -142,7 +142,7 @@ fill-reducing order survives wherever it is numerically safe
 (00-introduction §5.3).
 
 This work applies D'Orto's analysis step once per study, on a pattern every
-case shares (02-methodology §3.3), so that its cost is spread over thousands
+case shares (02-methodology §2.3), so that its cost is spread over thousands
 of power flows instead of one.
 
 ### 2.3 Triangular Solve
@@ -153,7 +153,7 @@ GLU on the GPU. Their reason is empirical. Zhou et al. (2017) state that
 batching applies to substitution directly (4976), and Wang et al. batch it on
 the GPU (8). With many cases per launch the balance reverses: moving the
 solve to the host made a whole Polish study 2.2 times slower in this work
-(02-methodology §3.5).
+(02-methodology §2.5).
 
 ### 2.4 Uneven Convergence Rate and Maximizing GPU Uptime
 
@@ -189,7 +189,7 @@ dividing GPU memory by the memory one power flow needs, counted from the host
 program's variables (3).
 
 This work refills a slot as soon as its case finishes, from the next
-submission if needed (02-methodology §3.6). The layout is by slot, not by
+submission if needed (02-methodology §2.6). The layout is by slot, not by
 case number, so a new case in an old slot keeps the coalesced access Huang
 and Dinavahi expected to lose. On ACTIVSg10k refilling and light steps raised
 slot occupancy from 40% to 72% and shortened the study by 11%, below the 40%
@@ -237,14 +237,14 @@ Zhou et al. (2017), Wang et al. and Y. Zhou et al. use double precision; Wang
 et al. explain that refactorization has a "high numerical stability
 requirement" (8). Zhou et al. (2016) and Sai Nandini P et al. use single
 precision (36; 9). Both GPU paths here are double precision throughout,
-without fast-math compiler options (02-methodology §3.5).
+without fast-math compiler options (02-methodology §2.5).
 
 Refactorization reuses one pivot order. Wang et al. note that it works by
 "presuming the numerical stability of the permutation matrix" (6), and KLU's
 documentation recommends checking the result (sec. 5.11). Wang et al.
 retry a member whose refactorization fails (§2.4). This work checks every
 member's pivots and residual after each step and retries failures on the
-CPU (02-methodology §4.4).
+CPU (02-methodology §3.4).
 
 ### 3.3 Reactive Limits and Other Controls
 
@@ -276,7 +276,7 @@ results cannot be compared case by case with a production tool's. GridPACK
 applies Kundur's rule between Newton solves, with a deadband and a pass
 limit, and its contingency driver adds a second solve when a bus switched.
 This work runs that sequence per case inside the GPU batch (02-methodology
-§4.3). Controls that GridPACK applies with network-wide logic (switched
+§3.3). Controls that GridPACK applies with network-wide logic (switched
 shunts, tap changers, area interchange) stay on the CPU.
 
 ### 3.4 Reporting Accuracy
@@ -331,9 +331,9 @@ optional large-matrix layout, in its source code rather than in Palmer et
 al.'s paper, gives PV buses a fixed-voltage row and the slack an identity
 block. This work combines that layout with Zhou's kept entries into a
 superset pattern in which all of these changes are changes of values
-(02-methodology §3.2). Cases the pattern cannot represent go to the CPU
+(02-methodology §2.2). Cases the pattern cannot represent go to the CPU
 path, which solves them or, for outages that split the grid, reports them as
-islanded (02-methodology §5.3).
+islanded (02-methodology §4.3).
 
 ### 4.2 Network Models
 
@@ -346,7 +346,7 @@ and the sequential method, which solves them separately and couples them "by
 injecting an equivalent amount of real and reactive power at the terminal AC
 buses", being "easier to implement" with a smaller Jacobian (sec.
 1.7.1–1.7.2, 25). The sequential method keeps the Jacobian's pattern
-unchanged, which is why it suits a batch (02-methodology §5.2). Distributed
+unchanged, which is why it suits a batch (02-methodology §4.2). Distributed
 generation on load records is modelled here as constant-power injection, the
 model reviewed by Meena et al. for inverter-based sources.
 
@@ -424,7 +424,7 @@ The bridge pre-pass and the reserved positions therefore have close
 concurrent counterparts, so a priority claim can cover only the combination
 above. The same months brought three reports of defects in
 cuDSS 0.8.0's uniform batch on power-flow Jacobians, which NVIDIA
-acknowledged (02-methodology §4.4).
+acknowledged (02-methodology §3.4).
 
 ### 5.3 Open questions this work addresses
 
@@ -465,7 +465,7 @@ state into a network copy for reporting, and (b) changes to the CPU path:
 rows built from numbers, a multi-rank file writer, two corrections of
 order-dependent results, and distributed generation and dc line models. In
 stock GridPACK, results depended on which process had run which case before
-(02-methodology §4.7); here every case is an independent outage study.
+(02-methodology §3.7); here every case is an independent outage study.
 
 ### Zhou et al. 2017, "GPU-Based Batch LU-Factorization Solver"
 
@@ -481,7 +481,7 @@ not describe the ordering, pivoting, the Newton loop or a full study.
 
 *Difference.* Alg 2 is this algorithm, adopted faithfully. Around it this
 work adds: the ordering and fixed pivots from one KLU plan (02-methodology
-§3.3), the full Newton loop with GridPACK's control sequence per case, a
+§2.3), the full Newton loop with GridPACK's control sequence per case, a
 pattern that also absorbs bus-type changes, slack moves and isolated buses
 (not just removed branches), several warps per long column with
 bitwise-identical factors, slot refilling, and the triangular solves on the
@@ -695,7 +695,7 @@ speed targets and does not mention contingency analysis.
 *Difference.* Not a solver. A tool for such a platform needs a command-line
 interface and machine-readable outputs. This work keeps the existing
 command line and input file and writes one outcome row per case
-(02-methodology §5.4).
+(02-methodology §4.4).
 
 ## References
 
