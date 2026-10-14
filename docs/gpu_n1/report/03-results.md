@@ -1,31 +1,25 @@
-# Evaluation: runtime and accuracy of the four versions
-
-This part reports the measurements behind the design of
-[02-methodology.md](02-methodology.md): every network, at three process
-counts, on the four programs. Section 2 gives the setup in enough detail to
-repeat it. Sections 3 and 4 state the findings, one per subsection, with the
-data that supports each. Section 5 interprets them, Section 6 lists the
-take-home trends, Section 7 the limits, and Section 8 the commands that
-reproduce every number.
+# Evaluation
 
 All numbers come from `matrix/results.jsonl` and the run folders through
 `tools/ca_matrix/analyze_matrix.py` and `compare_runs.py`; the tables they
-write are in `figures/` next to this file. Each table and figure in the text
-names the file it comes from.
+write are in `figures/` next to this file. Each table and figure names the
+file it comes from.
 
 ## 1. Questions
 
-1. How much faster is each version than stock GridPACK, and than the
-   optimized CPU path, on networks of 1,000 to 30,000 buses? (§3.1)
-2. Which stage of the pipeline sets the runtime of each version, and which
-   stage accounts for each version's speedup? (§3.2, §3.3)
-3. How do the versions scale with the number of processes and with network
-   size? (§3.4, §3.5)
-4. Do the faster versions give the same answers? (§4)
+The evaluation answers the three questions of 00-introduction §2:
 
-Sections 3.6–3.8 report the GPU engine's own figures, the choice between the
-two factorization methods, and memory, which the methodology's design
-choices depend on.
+1. **Speed.** How much faster is each version than stock GridPACK, and than
+   the optimized CPU path, on networks of 1,000 to 30,000 buses (§3.1)?
+   Which stage sets each version's runtime and accounts for its speedup
+   (§3.2, §3.3)? How do the versions scale with the number of processes and
+   with network size (§3.4, §3.5)? §3.6 and §3.7 report the choice between
+   the two factorization methods and memory.
+2. **Accuracy.** Do the faster versions give the same outcomes, flows,
+   voltages and violation lists (§4)?
+3. **Compatibility.** What share of each study ran on the GPU, what happened
+   to the rest, and which inputs and platforms does the program support
+   (§5)?
 
 ## 2. Experimental setup
 
@@ -43,11 +37,12 @@ kernel 7.0.0-1019-nvidia, NVIDIA driver 580.178.04.
 0.8.0, Open MPI 4.1.6, PETSc 3.24.2 with SuiteSparse (KLU 2.3.6), Global
 Arrays 5.9.1 and Boost 1.81, built as GridPACK's Dockerfile builds them.
 
-**Programs.** The four programs of 02-methodology §1. Stock GridPACK is
+**Programs.** The four versions of 02-methodology §1.2. Stock GridPACK is
 commit `b32969b0` with a patch that adds timer calls and nothing else
 (`docs/gpu_n1/reproductions/stock-timer-only.patch`); its wall time is
-within 1.5% of untouched stock (02-methodology §4.3). The other three are
-one build of this branch. Both programs are release builds
+within 1.5% of untouched stock (334.1 against 330.9 s on ACTIVSg10k, 150.8
+against 149.1 s on Texas7k). The other three are one build of the modified
+program. Both programs are release builds
 (`CMAKE_BUILD_TYPE=Release`, `-O3 -DNDEBUG`, shared libraries, tests off)
 made by `tools/ca_matrix/build.sh` in the same container. The GPU code was
 compiled for the GB10 only (`CMAKE_CUDA_ARCHITECTURES=native`, sm_121),
@@ -86,8 +81,8 @@ star bus per three-winding transformer (the private case's file has about
 
 The GPU paths' cost depends less on the bus count than on the structure of
 the Jacobian and its factors, which the planner reports before the first
-case is solved (02-methodology §5.4). Table 2 gives those numbers; §3.5 and
-§3.7 use them.
+case is solved (02-methodology §3.3). Table 2 gives those numbers; §3.5 and
+§3.6 use them.
 
 **Table 2.** Structure of each network's superset Jacobian and its factors
 (`figures/size.csv`, `figures/backends.csv`).
@@ -105,7 +100,7 @@ case is solved (02-methodology §5.4). Table 2 gives those numbers; §3.5 and
 | Private case | 59,274 | 379,884 | 5.8% | 509,936 | 1.34 | 202 | 1.57 million |
 
 "Superset overhead" is the share of extra Jacobian entries over GridPACK's
-standard layout of the base case (02-methodology §5.3). "Levels" is the
+standard layout of the base case (02-methodology §3.2). "Levels" is the
 number of dependency levels of the factorization; the forward and backward
 solves had the same number on every network.
 
@@ -123,12 +118,12 @@ ignores the block), `outputFile` (the network name) and
 |---|---|---|
 | Outages | `FullBranchN1` and `FullGeneratorN1` | A full N-1 study, the use case. dc pole outages (`FullHVDCN1`) were off, so the private case's list is branches and generators only. |
 | Newton tolerance, step limit | 1e-4 per unit (0.01 MW at 100 MVA), 50 steps | The private case's input used 1e-4; it is ten times tighter than GridPACK's own example inputs (1e-3). 50 is GridPACK's default. |
-| Reactive limits | `qlim` on in both blocks, deadband 0.1 MVAr, `maxQlimIterations` 3, `maxControllerIterations` 10 | Reactive-limit switching is what makes per-case control necessary (02-methodology §5.5); GridPACK's defaults otherwise. Set in both blocks because they are read separately: `Powerflow/qlim` turns on the controller loop, `Contingency_analysis/qlim` the driver's second solve. GridPACK raises the pass limit to at least 10, so up to 10 controller passes run (02-methodology §2.5). |
+| Reactive limits | `qlim` on in both blocks, deadband 0.1 MVAr, `maxQlimIterations` 3, `maxControllerIterations` 10 | Reactive-limit switching is what makes per-case control necessary (02-methodology §4.3); GridPACK's defaults otherwise. Set in both blocks because they are read separately: `Powerflow/qlim` turns on the controller loop, `Contingency_analysis/qlim` the driver's second solve. GridPACK raises the pass limit to at least 10, so up to 10 controller passes run (02-methodology §2.5). |
 | Ratings, voltage limits | rating C; 0.9 and 1.1 per unit | GridPACK's voltage defaults; rating C was the private case's input. |
 | Output | `csv_flat` (one row per branch per solved case), statistics off | The most compact full table GridPACK writes (half the bytes of `csv_delta`, `docs/gpu_n1/performance.md`). |
-| GPU | batch 512, start from the base case, no shadow re-solves, `onUnavailable = error` | Batch 512 was the smallest size within 5% of the best whole-study throughput in the batch sweep (02-methodology §5.6). `error` makes a run fail instead of silently falling back to the CPU. |
+| GPU | batch 512, start from the base case, no shadow re-solves, `onUnavailable = error` | Batch 512 was the smallest size within 5% of the best whole-study throughput in the batch sweep (02-methodology §3.6). `error` makes a run fail instead of silently falling back to the CPU. |
 | Linear solver (CPU) | PETSc with KLU (`-ksp_type preonly -pc_type lu -pc_factor_mat_solver_type klu`) | The same direct solver family as the GPU paths' planner. |
-| Other controls | switched shunts, tap changers and area interchange off | With any of them on, every case runs on the CPU path (02-methodology §5.2). |
+| Other controls | switched shunts, tap changers and area interchange off | With any of them on, every case runs on the CPU path (02-methodology §5.3). |
 
 ### 2.4 Matrix
 
@@ -159,9 +154,12 @@ container's cgroup counters: all memory including file cache
 ### 2.6 Timing
 
 Wall time is the whole `mpiexec` run, measured by the harness with a
-monotonic clock. Stage times come from GridPACK's own timer (02-methodology
-§4.3): the stages (read, base case, case list, case loop, merge) are the
-slowest process's time; the steps inside the case loop are the average per
+monotonic clock. Stage times come from GridPACK's coarse timer, to which the
+modified program adds one category per stage (read, base case, case list,
+case loop, merge) and per case-loop step (apply outage, CPU solve, load GPU
+result, check and report, write rows, restore); stock is timed with the same
+categories through the timer-only patch. The stages are the slowest
+process's time; the steps inside the case loop are the average per
 process of the time summed over that process's cases. Every part of the
 pipeline charts is measured, but two are differences of measurements:
 
@@ -192,12 +190,12 @@ unless the other value is also zero. The convergence and violation tables
 were compared case by case.
 
 **Why the optimized CPU path is the reference.** Stock GridPACK's results
-depend on which process ran which case before (02-methodology §4.4, item 1),
+depend on which process ran which case before (02-methodology §4.7, item 1),
 so two runs of stock on one network can differ. The optimized CPU path is
 stock's solver with that defect and one other corrected. Before the matrix,
 the GPU paths were checked against stock with exactly those two corrections
 applied as patches, and against a GridPACK re-solve of every GPU case in 70
-full studies (02-methodology §10). Stock is still compared with the
+full studies (02-methodology §4.8). Stock is still compared with the
 optimized CPU path below, so every difference between stock and the other
 versions is visible.
 
@@ -206,7 +204,7 @@ loading with two and voltages with six, so one printed digit is 0.0001 for a
 flow or angle and 0.01 for loading; the comparison cannot see differences
 below that.
 
-## 3. Runtime
+## 3. Speed
 
 ### 3.1 The GPU paths ran full studies 6.4–9.1 times faster than stock above 5,000 buses
 
@@ -255,23 +253,21 @@ two runs differed by a median of about 1% and at most 13% (stock Memphis at
 - **Small networks gained little.** Memphis was slower on the GPU paths than
   on the optimized CPU path: its whole study takes 4 s, GPU start-up adds
   about 0.6 s, and 174 of its 1,568 GPU cases (11%) diverged on the GPU and
-  were solved again on the CPU (§3.6).
-- **Stock could not run the private case.** Its base-case solve aborted
-  after 2 s, when a solver error message overflowed a 128-byte buffer
-  (02-methodology §4.4, item 3; the parser defects of §4.5 make that solve
-  fail in the first place). On the private case the GPU paths were 7.2–9.0
-  times faster than the optimized CPU path: at 8 processes 5,072 s (85
-  minutes) became 561 s on Alg 2, and at 16 processes 3,114 s became 377 s.
+  were solved again on the CPU (§5.1).
+- **Stock could not run the private case** (§5.2). On it the GPU paths were
+  7.2–9.0 times faster than the optimized CPU path: at 8 processes 5,072 s
+  (85 minutes) became 561 s on Alg 2, and at 16 processes 3,114 s became
+  377 s.
 
 The GPU paths therefore delivered most of their gain on networks above 5,000
 buses. The next question is which stages produced it.
 
 ### 3.2 After the solve moved to the GPU, reporting set every version's runtime
 
-To answer question 2, each study's wall time was split into the stages and
-per-case steps that GridPACK's timer records (§2.6). Figure 2 shows each
-part's share, Table 5 the seconds for four of the largest public networks, and
-Table 6 which parts account for each version's saving.
+To find which stage set each version's runtime, each study's wall time was
+split into the stages and per-case steps that the timer records (§2.6). Figure
+2 shows each part's share, Table 5 the seconds for four of the largest public
+networks, and Table 6 which parts account for each version's saving.
 
 ![Share of wall time per pipeline part at 16 processes](figures/fig_steps.svg)
 
@@ -325,7 +321,7 @@ runs alongside the reporting and shows up only as waiting (§3.3).
   solve proper was under 3% of wall time. On ACTIVSg25k with cuDSS the merge
   (92.3 s) took almost as long as writing the rows during the case loop
   (95.2 s per process): the final table is 0.93 billion rows, and the merge
-  is limited by the disk (02-methodology §4.2). Launch and exit
+  is limited by the disk (02-methodology §3.7). Launch and exit
   (about 1 s) and GPU start-up and preparation (0.5–0.9 s) are paid once per
   study: about 10% or less of the studies above 5,000 buses, but 37–40% of
   the 4-second Memphis and Wisconsin studies.
@@ -359,18 +355,19 @@ share of the whole saving, at 16 processes:
 |  | Private case | 2726.3 | −1% | 97% | 3% | −1% | 1% |
 
 - **Stock to optimized CPU:** building rows from numbers (02-methodology
-  §4.1) accounted for 90–98% of the saving, and the multi-process merge
-  (§4.2) for 3–5% up to 10,000 buses and 13–14% on the 25,000-bus networks,
-  where it cut the merge from 175.0 to 79.7 s (ACTIVSg25k). On ACTIVSg10k row writing fell from 91.1 to 12.5 s per
-  process, and the merge from 8.8 to 5.3 s. The solve itself was 1.2–3.4%
-  *slower* than stock's on every network (for example 181.6 against 185.9 s
-  on ACTIVSg10k, 1,154.4 against 1,194.1 s on ACTIVSg25k); §5.3 discusses
-  possible causes.
+  §3.7) accounted for 90–98% of the saving, and the multi-process merge (the
+  same section) for 3–5% up to 10,000 buses and 13–14% on the 25,000-bus
+  networks, where it cut the merge from 175.0 to 79.7 s (ACTIVSg25k). On
+  ACTIVSg10k row writing fell from 91.1 to 12.5 s per process, and the merge
+  from 8.8 to 5.3 s. The solve itself was 1.2–3.4% slower than stock's on
+  every network (for example 181.6 against 185.9 s on ACTIVSg10k, 1,154.4
+  against 1,194.1 s on ACTIVSg25k); §6.3 discusses possible causes.
 - **Optimized CPU to the GPU paths:** removing the solve accounted for
-  91–98% of the saving, and known-topology reporting (02-methodology §5.7)
+  91–98% of the saving, and known-topology reporting (02-methodology §3.7)
   cut applying and restoring outages from 19.4 to 5.0 s per process on
-  ACTIVSg10k, a further 7% (7% on the 25,000-bus networks too). Waiting for GPU results and slightly slower row
-  writing (the rows are written in smaller packets) took a few percent back.
+  ACTIVSg10k, a further 7% (also 7% on the 25,000-bus networks). Waiting for
+  GPU results and slightly slower row writing (the rows are written in
+  smaller packets) took a few percent back.
 
 On the GPU paths the largest remaining part was therefore CPU reporting, and
 the second largest was waiting. Because waiting is a derived part, it was
@@ -446,9 +443,10 @@ measures that dependence.
 
 ### 3.4 The GPU paths gained less from added processes than the CPU paths
 
-To answer the scaling half of question 3, the wall times at 8, 16 and 20
-processes were compared. Figure 3 shows all networks; Table 8 the two
-networks with the clearest contrast and the largest public network.
+To measure how each version scales with the number of processes, the wall
+times at 8, 16 and 20 processes were compared. Figure 3 shows all networks;
+Table 8 the two networks with the clearest contrast and the largest public
+network.
 
 ![Wall time relative to 8 processes](figures/fig_scaling.svg)
 
@@ -477,8 +475,8 @@ perfect scaling.
 - **The CPU paths** gained 1.5–1.6 times from 8 to 16 processes, not 2: the
   case loop's parallel efficiency was 75–82%. Processes 11 to 20 run on the
   efficiency cores and share memory bandwidth, so going from 16 to 20 cut
-  the time by only another 7–16%. Almost all of their time is the solve, which divides
-  among the processes.
+  the time by only another 7–16%. Almost all of their time is the solve,
+  which divides among the processes.
 - **The GPU paths divided only part of their work.** One GPU does all the
   solving, and its time hardly changed with the number of CPU processes (it
   grew 1–5% from 8 to 20, as the processes compete with it for the shared
@@ -488,9 +486,10 @@ perfect scaling.
   16 and 20 processes, while waiting for GPU results rose from 3.8 to 6.9 to
   7.3 s, so the case loop shrank only from 21.0 to 19.7 to 19.2 s. On the
   six public networks above 5,000 buses the GPU was busy 36–72% of the case
-  loop at 8 processes and 54–95% at 16 and 20 (§3.6). The fixed parts (launch and
-  exit, GPU start-up, merge) do not divide at all, and launch and exit grows
-  with every process added.
+  loop at 8 processes and 54–95% at 16 and 20 (`figures/gpu.csv`; Table 14
+  gives 16 processes). The fixed parts
+  (launch and exit, GPU start-up, merge) do not divide at all, and launch and
+  exit grows with every process added.
 - **Memphis and Wisconsin got slower with more processes.** Their case loop
   is mostly waiting for the GPU's first chunk, which holds all or most of
   their GPU cases (§3.3), and that wait is the same at any process count
@@ -517,10 +516,10 @@ perfect scaling.
 
 ### 3.5 GPU time per case followed factorization work and row count, not bus count
 
-To answer the size half of question 3, wall time was divided by the number
-of cases, and split into the part paid once per study (everything outside
-the case loop: start-up, reading, base case, merge) and the case loop per
-case. Figure 4 and Table 9 show the result at 16 processes.
+To measure how the cost grows with network size, wall time was divided by the
+number of cases, and split into the part paid once per study (everything
+outside the case loop: start-up, reading, base case, merge) and the case loop
+per case. Figure 4 and Table 9 show the result at 16 processes.
 
 ![Time per case against network size](figures/fig_size.svg)
 
@@ -573,75 +572,21 @@ against the number of buses, by version (`figures/size.csv`).
   it stayed at 5 times at 25,000 buses, where the merge takes a quarter to a
   third of a GPU-path study, and reached 8 times on the 29,637-bus private case.
 
-### 3.6 The GPU solved 81–99.9% of cases, and the cases it returned rarely converged on the CPU
-
-To check how much of each study the GPU engine actually carried, the engine
-summary that every GPU-path run writes to its log was collected
-(`figures/gpu.csv`). Table 10 shows it at 16 processes.
-
-**Table 10.** GPU engine figures at 16 processes.
-
-| Network | Cases on the GPU | Cases on the CPU (islanded) | GPU cases retried on the CPU | Slot occupancy | GPU busy, Alg 2 | GPU busy, cuDSS | Share of case loop the GPU is busy, Alg 2 / cuDSS |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Memphis | 1,568 | 2 | 174 | 32% | 0.7 s | 0.9 s | 30% / 36% |
-| Wisconsin | 2,462 | 79 | 23 | 25% | 1.1 s | 1.5 s | 57% / 64% |
-| Florida | 9,379 | 168 | 7 | 72% | 8.0 s | 8.9 s | 65% / 71% |
-| Texas7k | 8,807 | 84 | 3–4 | 55% | 14.8 s | 13.4 s | 82% / 81% |
-| ACTIVSg10k | 14,590 | 601 | 10 | 67% | 15.5 s | 24.3 s | 54% / 84% |
-| MIOHIN | 17,628 | 72 | 2 | 91% | 40.8 s | 32.7 s | 82% / 75% |
-| ACTIVSg25k | 35,313 | 1,750 | 44 | 59% | 148.6 s | 186.2 s | 70% / 93% |
-| training | 35,312 | 1,751 | 43 | 79% | 150.6 s | 187.0 s | 66% / 87% |
-| Private case | 31,920 | 7,708 | 52 / 49 | 79% | 77.5 s | 242.1 s | 29% / 89% |
-
-"Slot occupancy" is the share of slot-steps that held an active case over
-the engine's run (02-methodology §5.6). "GPU busy" is the engine's wall time
-from first submission to last result.
-
-- **Coverage.** 95–99.9% of cases ran on the GPU on the public networks and
-  81% on the private case. The rest were outages that split the grid into
-  islands, which GridPACK reports without solving, on every path alike, plus
-  a handful the classifier sends to the CPU for other reasons (one outage
-  per network on Texas7k and ACTIVSg10k that would trigger remote voltage
-  control, and one per network on Memphis, Texas7k, ACTIVSg10k, training and the
-  private case that cuts off the reference bus).
-- **Retries.** Cases that diverge or fail a numerical check on the GPU are
-  solved again by GridPACK from GridPACK's own start. Almost all diverged
-  there too: of the 307 such cases on Alg 2 over the eight public networks,
-  304 diverged again and three converged (one of them the Memphis case of
-  §4.4); cuDSS had 305 retries, of which 304 diverged again and one
-  (ACTIVSg10k) solved with an overloaded slack. On the 25,000-bus networks
-  every one of the 87 retries per method diverged again. One Texas7k case on Alg 2
-  was retried because it failed a numerical check, not because it diverged.
-  On the private case, 47 cases diverged on the GPU on both methods, and 5
-  (Alg 2) or 2 (cuDSS) failed a numerical check; after the retries the GPU
-  paths' outcomes matched the CPU path's case by case (§4.1). Retries cost
-  CPU time; they are how the GPU paths keep GridPACK's outcomes.
-- **Occupancy** was low on small networks because a whole study fits in a
-  few batches and the last batch empties as its slowest cases finish.
-- **Newton steps per case varied widely inside each batch.** On ACTIVSg10k,
-  1,214 GPU cases needed no step (the base-case solution already met the
-  tolerance), 10,732 needed two and 43 needed six to eight (Alg 2 histogram
-  in `figures/gpu.csv`). This spread is what slot refilling exploits
-  (02-methodology §5.6).
-
-### 3.7 The fill-in ratio separated which method factorized faster
+### 3.6 The fill-in ratio separated which method factorized faster
 
 The engine times each of its phases with GPU events; on every network the
 phases summed to within 0.4 s of the engine's total time. Factorization took
 52–83% of the GPU's time, the triangular solves 11–38%, and the mismatch and
 Jacobian 3–16% (`figures/gpu.csv`). The two factorization methods were
-therefore compared on the nine networks. Table 11 sorts the networks by
+therefore compared on the nine networks. Table 10 sorts the networks by
 fill-in ratio; Figure 5 shows which method was faster at each ratio.
 
-*Definitions.* Factorizing the Jacobian produces two triangular factors.
-Elimination creates new nonzero entries where the Jacobian had zeros; these
-are the **fill-in**. "Factor entries per Jacobian entry" is the number of
-stored entries in the factors divided by the number in the Jacobian; it is
-the same number often called the **fill-in ratio**. A ratio of 2.0 means the
-factors hold twice as many entries as the Jacobian, half of them fill-in.
-The planner knows it before the first case is solved (it is printed in every
-run's log). More fill means more arithmetic per factorization: MIOHIN (ratio
-3.30) needs 9.1 million multiply-adds, ACTIVSg10k (2.00) 2.2 million.
+The fill-in ratio (00-introduction §5.3) is the number of entries in the
+factors divided by the number in the Jacobian; at 2.0 the factors hold twice
+as many entries as the Jacobian, half of them fill. The planner knows it
+before the first case is solved and prints it in every run's log. More fill
+means more arithmetic per factorization: MIOHIN (ratio 3.30) needs 9.1
+million multiply-adds, ACTIVSg10k (2.00) 2.2 million.
 
 ![Which method factorizes faster, by fill](figures/fig_backends.svg)
 
@@ -650,7 +595,7 @@ each network at 16 processes, with the networks sorted by fill-in ratio
 (`figures/backends.csv`). Bars to the right favour Alg 2, bars to the left
 cuDSS.
 
-**Table 11.** Factorization and solve time by method, 16 processes.
+**Table 10.** Factorization and solve time by method, 16 processes.
 
 | Network | Fill-in ratio | Levels | Factorization, Alg 2 / cuDSS (s) | Faster factorization | Triangular solves, Alg 2 / cuDSS (s) | Wall, Alg 2 / cuDSS (s) |
 |---|---:|---:|---:|---|---:|---:|
@@ -671,48 +616,48 @@ cuDSS.
   times at 2.20 (the two 25,000-bus networks), 1.08 at 2.53, 1.55 at 3.30.
   Nine networks, two of them the same grid, show the pattern but do not
   prove a law; the crossover lies near 2.2, where the two methods are within
-  4%. §5.2 discusses why.
+  4%. §6.2 discusses why.
 - **Triangular solves** were faster on Alg 2 on every network (1.7–5.7
   times), whatever the fill.
 - **Whole studies.** The two were within 4% in wall time on Florida,
   Texas7k, ACTIVSg10k, the two 25,000-bus networks and the private case,
-  where reporting hides the difference (on the private case the GPU was busy 77 s of a 377 s study on
-  Alg 2 and 242 s of 387 s on cuDSS); Alg 2 was 9–19% faster on Memphis and
+  where reporting hides the difference (on the private case the GPU was
+  busy 77 s of a 377 s study on Alg 2 and 242 s of 387 s on cuDSS); Alg 2 was
+  9–19% faster on Memphis and
   Wisconsin, where cuDSS's longer set-up counts; and cuDSS was 17% faster on
   MIOHIN. Choosing Alg 2 below a fill-in ratio of 2.2 and cuDSS above it,
   from the planner's report before the first case is solved, would have
   picked the faster factorization on all nine networks; near 2.2 the choice
   changes the factorization time by under 4%.
 
-### 3.8 Peak memory stayed within the 64 GiB cap
+### 3.7 Peak memory stayed within the 64 GiB cap
 
-The processes' own memory (excluding the operating system's file cache)
-peaked at 8.5 GB on the networks up to 10,192 buses (ACTIVSg10k, 20
-processes, Alg 2), at 25.2 GB on the 25,000-bus networks (ACTIVSg25k, 8
-processes, Alg 2; cuDSS up to 20.5 GB, optimized CPU up to 11.9 GB) and
-at 40.0 GB on the private case (20 processes, Alg 2; cuDSS 22.1 GB,
-optimized CPU 13.8 GB; `figures/memory.csv`). The GPU paths need more
-because each of the 512 slots holds a copy of the Jacobian and its factors,
-and because finished GPU results wait in host memory until a process reports
-them (02-methodology §5.7). On the private case Alg 2 finishes its GPU work
-long before the reporting does (§3.6), so more finished results wait than on
-cuDSS. Including file cache, the containers reached 47.5 GB on ACTIVSg10k
-and the full 64 GiB cap on MIOHIN, the 25,000-bus networks and the private
-case, whose output tables
-are larger than the cap; the cache is released under pressure, and no run
-was stopped for memory.
+The processes' own memory (excluding the operating system's file cache) peaked
+at 8.5 GB on the networks up to 10,192 buses (ACTIVSg10k, 20 processes, Alg
+2), at 25.2 GB on the 25,000-bus networks (ACTIVSg25k, 8 processes, Alg 2;
+cuDSS up to 20.5 GB, optimized CPU up to 11.9 GB) and at 40.0 GB on the
+private case (20 processes, Alg 2; cuDSS 22.1 GB, optimized CPU 13.8 GB;
+`figures/memory.csv`). The GPU paths need more because each of the 512 slots
+holds a copy of the Jacobian and its factors, and because finished GPU results
+wait in host memory until a process reports them (02-methodology §5.5). On the
+private case Alg 2 finishes its GPU work long before the reporting does
+(§5.1), so more finished results wait than on cuDSS. Including file cache, the
+containers reached 47.5 GB on ACTIVSg10k and the full 64 GiB cap on MIOHIN,
+the 25,000-bus networks and the private case, whose output tables are larger
+than the cap; the cache is released under pressure, and no run was stopped for
+memory.
 
 ## 4. Accuracy
 
 ### 4.1 Every version gave every case the same outcome, except one Memphis case
 
-To answer question 4, each version's convergence table was compared with the
-optimized CPU path's, case by case. At 16 processes every version gave every
-case of Wisconsin, Florida, Texas7k, ACTIVSg10k, MIOHIN, ACTIVSg25k, training
-and the private case the same outcome (converged, diverged, islanded, slack
-overload):
+To answer the accuracy question, each version's convergence table was compared
+with the optimized CPU path's, case by case. At 16 processes every version
+gave every case of Wisconsin, Florida, Texas7k, ACTIVSg10k, MIOHIN,
+ACTIVSg25k, training and the private case the same outcome (converged,
+diverged, islanded, slack overload):
 
-**Table 12.** Case outcomes and Newton steps, 16 processes
+**Table 11.** Case outcomes and Newton steps, 16 processes
 (`figures/iterations.csv`).
 
 | Network | Converged | Slack overload | Islanded | Diverged | Mean Newton steps, CPU paths | Mean Newton steps, GPU paths |
@@ -742,13 +687,13 @@ on every path.
 
 ### 4.2 Flows and voltages agreed with the optimized CPU path to one printed digit
 
-The flow tables were then compared row by row (§2.7). Table 13 gives the
+The flow tables were then compared row by row (§2.7). Table 12 gives the
 largest absolute difference from the optimized CPU path over all matched
 rows at 16 processes (`figures/accuracy.csv` has the mean and percentage
 differences too). One printed digit is 0.0001 for flows and angles and 0.01
 for loading (§2.7).
 
-**Table 13.** Largest absolute difference from the optimized CPU path, 16
+**Table 12.** Largest absolute difference from the optimized CPU path, 16
 processes.
 
 | Network | Version | Rows compared | Loading (% points) | Complex power (MVA) | Real power (MW) | Reactive power (MVAr) | Voltage (pu) | Angle (degrees) | Largest share of rows more than 1% off |
@@ -784,11 +729,11 @@ processes.
   network and version.
 - **Alg 2 and cuDSS against optimized CPU, public networks.** On Wisconsin,
   Florida, Texas7k, ACTIVSg10k, MIOHIN and ACTIVSg25k the largest difference
-  in any flow, voltage or angle was one printed digit (0.0001). On Memphis, Alg 2
-  differed by at most 0.012 MVAr and 0.01 percentage points of loading,
+  in any flow, voltage or angle was one printed digit (0.0001). On Memphis,
+  Alg 2 differed by at most 0.012 MVAr and 0.01 percentage points of loading,
   within the 0.01 MW (1e-4 per unit) tolerance at which the solve stops,
-  because the GPU starts from the base case; cuDSS differed by much more,
-  all of it in one case (§4.4).
+  because the GPU starts from the base case; cuDSS differed by much more, all
+  of it in one case (§4.4).
 - **Training.** Of its 0.94 billion rows, the GPU paths differed beyond one
   printed digit only in one case, identically on both: the outage of branch
   30008–30007, on 185 branches, by up to 0.10 MVAr of reactive flow, 0.023
@@ -808,35 +753,38 @@ processes.
   line controller passes, and the GPU (starting from the base case) and the
   CPU (starting from the file) ended those passes at slightly different
   points within the tolerance, as the planning-case validation also found
-  for two dc outages (`WECC_COMPATIBILITY.md` §8.5). The 0.49° angle on
+  in two cases whose dc change tied `hvdcTolerance`
+  (`WECC_COMPATIBILITY.md` §8.5). The 0.49° angle on
   cuDSS is on a bus the outage disconnects: its voltage is zero on every
   path, so its angle is meaningless, and its flows agree exactly.
 - **Stock against optimized CPU.** Identical on Wisconsin, Florida, Texas7k,
-  MIOHIN, ACTIVSg25k and training, apart from one printed digit. On Memphis stock lacks the 1,338
-  rows of the case it reports diverged (§4.4). On ACTIVSg10k stock differed
-  by up to 0.022 per unit of voltage and 1.37 percentage points of loading,
-  in roughly 100 to 200 of its 149 million rows (0.0001%).
+  MIOHIN, ACTIVSg25k and training, apart from one printed digit. On Memphis
+  stock lacks the 1,338 rows of the case it reports diverged (§4.4). On
+  ACTIVSg10k stock differed by up to 0.022 per unit of voltage and 1.37
+  percentage points of loading, in roughly 100 to 200 of its 149 million rows
+  (0.0001%).
 
   *Why only stock, and why ACTIVSg10k.* Stock GridPACK carries a changed
   voltage setting from one case into the next case on the same process
-  (02-methodology §4.4, item 1). It matters only at a bus that has both a
+  (02-methodology §4.7, item 1). It matters only at a bus that has both a
   generator holding its own voltage and one holding it from a distance, and
   only for the cases a process solves *after* the outage of the local unit:
   that outage hands control to the distant unit, which changes the bus's
-  stored setting, and stock never puts it back. ACTIVSg10k has such a bus
-  (bus 74332, `docs/gpu_n1/restoration.md`): its setting moves from 1.029 to
-  1.000 per unit, and a later case on that process then starts from the
-  wrong setting, loses a PV bus and moves voltages by up to 0.022 per unit,
-  the size measured here. The three optimized versions restore the setting
-  after every case, so they agree with one another. Which later cases are
-  hit depends on which process happens to solve which case, so the effect
-  varies between runs: earlier stock runs on Texas7k showed three affected
-  late cases (`docs/gpu_n1/performance.md`), while in this run no Texas7k
-  flow moved by more than one printed digit; Florida, Wisconsin and MIOHIN
-  showed none, nor did the two 25,000-bus networks. Stock's convergence records also differed from the optimized
-  CPU path's in 482 ACTIVSg10k and 56 Texas7k cases, by final mismatches
-  within the tolerance: the same carry-over of state from one case to the
-  next, in nearly all cases too small to change any reported value.
+  stored setting, and stock never puts it back. ACTIVSg10k has such a bus (bus
+  74332, `docs/gpu_n1/restoration.md`): its setting moves from 1.029 to 1.000
+  per unit, and a later case on that process then starts from the wrong
+  setting, loses a PV bus and moves voltages by up to 0.022 per unit, the size
+  measured here. The three optimized versions restore the setting after every
+  case, so they agree with one another. Which later cases are hit depends on
+  which process happens to solve which case, so the effect varies between
+  runs: earlier stock runs on Texas7k showed three affected late cases
+  (`docs/gpu_n1/performance.md`), while in this run no Texas7k flow moved by
+  more than one printed digit; Florida, Wisconsin and MIOHIN showed none, nor
+  did the two 25,000-bus networks. Stock's convergence records also differed
+  from the optimized CPU path's in 482 ACTIVSg10k and 56 Texas7k cases, by
+  final mismatches within the tolerance: the same carry-over of state from one
+  case to the next, in nearly all cases too small to change any reported
+  value.
 - **Rows more than 1% off:** at most 0.0001% of rows everywhere except
   Memphis on cuDSS (0.01%, the one case). Rows whose CPU value is zero (for
   example the loading of branches without a rating C) have no percentage and
@@ -844,14 +792,15 @@ processes.
 
 ### 4.3 The violation tables were identical, entry for entry
 
-The violation tables list every overloaded branch and out-of-range voltage
-of every case, with its severity; they are what a planner acts on. They were
-identical, entry for entry and severity for severity, on all four versions
-for Wisconsin, Florida, Texas7k, ACTIVSg10k, MIOHIN, ACTIVSg25k and training
+The violation tables list every overloaded branch and out-of-range voltage of
+every case, with its severity; they are what a planner acts on. They were
+identical, entry for entry and severity for severity, on all four versions for
+Wisconsin, Florida, Texas7k, ACTIVSg10k, MIOHIN, ACTIVSg25k and training
 (5,950, 398, 17,647, 325, 136,734, 62,936 and 1,029,039 entries), and on the
-three optimized versions for the private case (4,618,282 entries; `figures/violations.csv`). On Memphis, Alg
-2 matched the optimized CPU path exactly; stock lacked 17 entries and cuDSS
-had 135 more, all from the one case of §4.4.
+three optimized versions for the private case (4,618,282 entries;
+`figures/violations.csv`). On Memphis, Alg 2 matched the optimized CPU path
+exactly; stock lacked 17 entries and cuDSS had 135 more, all from the one case
+of §4.4.
 
 ### 4.4 Memphis case 1068 has no clean solution at this tolerance
 
@@ -863,7 +812,7 @@ without settling (on stock it stayed between 1.0e-4 and 2.2e-3 from step 4
 to step 49). Whether and when a step lands below 1e-4 then depends on
 rounding:
 
-**Table 14.** Memphis case 1068 on the four versions.
+**Table 13.** Memphis case 1068 on the four versions.
 
 | Version | Outcome | Newton steps | Final mismatch (pu) |
 |---|---|---:|---:|
@@ -879,7 +828,7 @@ process (the contingency list
 `FullGeneratorN1` off) gave the same four outcomes, so it does not depend on
 the order of cases. The stock and optimized CPU traces agreed to seven
 digits for twelve steps and first differed in the seventh digit at step 13,
-a rounding-level difference; §5.3 discusses its likely source.
+a rounding-level difference; §6.3 discusses its likely source.
 
 **The region the outage leaves behind.** The outage of transformer 33–34
 leaves a region of about 150 buses (around buses 18, 33 and 837) joined to
@@ -894,21 +843,123 @@ at buses 18 and 535), with similar real power flows, and yet both states
 satisfy every bus's power balance to within the 1e-4 tolerance. cuDSS
 therefore reports voltages up to 0.144 per unit away from the optimized CPU
 path's, and 135 more violations (overvoltages in the region). None of these
-outcomes is more correct than the others; §5.6 explains the mechanism.
+outcomes is more correct than the others; §6.6 explains the mechanism.
 
-## 5. Discussion
+## 5. Compatibility
 
-This section interprets the findings of Sections 3 and 4. Statements here
+### 5.1 The GPU solved 81–99.9% of cases; the rest received the CPU path's result
+
+To measure how much of each study the GPU carried and what happened to the
+other cases, the engine summary that every GPU-path run writes to its log
+was collected (`figures/gpu.csv`). Table 14 shows it at 16 processes.
+
+**Table 14.** GPU engine figures at 16 processes.
+
+| Network | Cases on the GPU | Cases on the CPU (islanded) | GPU cases retried on the CPU | Slot occupancy | GPU busy, Alg 2 | GPU busy, cuDSS | Share of case loop the GPU is busy, Alg 2 / cuDSS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Memphis | 1,568 | 2 | 174 | 32% | 0.7 s | 0.9 s | 30% / 36% |
+| Wisconsin | 2,462 | 79 | 23 | 25% | 1.1 s | 1.5 s | 57% / 64% |
+| Florida | 9,379 | 168 | 7 | 72% | 8.0 s | 8.9 s | 65% / 71% |
+| Texas7k | 8,807 | 84 | 3–4 | 55% | 14.8 s | 13.4 s | 82% / 81% |
+| ACTIVSg10k | 14,590 | 601 | 10 | 67% | 15.5 s | 24.3 s | 54% / 84% |
+| MIOHIN | 17,628 | 72 | 2 | 91% | 40.8 s | 32.7 s | 82% / 75% |
+| ACTIVSg25k | 35,313 | 1,750 | 44 | 59% | 148.6 s | 186.2 s | 70% / 93% |
+| training | 35,312 | 1,751 | 43 | 79% | 150.6 s | 187.0 s | 66% / 87% |
+| Private case | 31,920 | 7,708 | 52 / 49 | 79% | 77.5 s | 242.1 s | 29% / 89% |
+
+"Slot occupancy" is the share of slot-steps that held an active case over
+the engine's run (02-methodology §3.6). "GPU busy" is the engine's wall time
+from first submission to last result.
+
+- **Coverage.** 95–99.9% of cases ran on the GPU on the public networks and
+  81% on the private case. The rest were outages that split the grid into
+  islands, which GridPACK reports without solving, on every path alike, plus
+  a handful the classifier sends to the CPU for other reasons (one outage
+  per network on Texas7k and ACTIVSg10k that would trigger remote voltage
+  control, and one per network on Memphis, Texas7k, ACTIVSg10k, training and
+  the private case that cuts off the reference bus).
+- **Retries.** Cases that diverge or fail a numerical check on the GPU are
+  solved again by GridPACK from GridPACK's own start. Almost all diverged
+  there too: of the 307 such cases on Alg 2 over the eight public networks,
+  304 diverged again and three converged (one of them the Memphis case of
+  §4.4); cuDSS had 305 retries, of which 304 diverged again and one
+  (ACTIVSg10k) solved with an overloaded slack. On the 25,000-bus networks
+  every one of the 87 retries per method diverged again. One Texas7k case on
+  Alg 2 was retried because it failed a numerical check, not because it
+  diverged.
+  On the private case, 47 cases diverged on the GPU on both methods, and 5
+  (Alg 2) or 2 (cuDSS) failed a numerical check; after the retries the GPU
+  paths' outcomes matched the CPU path's case by case (§4.1). Retries cost
+  CPU time and give these cases the CPU path's outcome.
+- **Occupancy** was low on small networks because a whole study fits in a
+  few batches and the last batch empties as its slowest cases finish.
+- **Newton steps per case varied widely inside each batch.** On ACTIVSg10k,
+  1,214 GPU cases needed no step (the base-case solution already met the
+  tolerance), 10,732 needed two and 43 needed six to eight (Alg 2 histogram
+  in `figures/gpu.csv`). This spread is what slot refilling exploits
+  (02-methodology §3.6).
+
+### 5.2 The modified program solved a planning case that stock GridPACK could not
+
+The private case is a PSS/E v34 interconnection planning model with six
+two-terminal dc lines (Table 1) and 11.4 GW of distributed generation on loads
+(02-methodology §5.2). Stock GridPACK's base-case solve aborted after 2 s,
+when a solver error message overflowed a 128-byte buffer (02-methodology
+§4.7). The solve failed in the first place because of the parser defects of
+02-methodology §5.2, which leave the first Newton step with a singular
+Jacobian. With the parser fixes, distributed generation and the dc line model,
+all three modified versions completed every study of the matrix on it: 39,628
+cases, of which 31,920 ran on the GPU and 7,708 on the CPU path (7,707 outages
+that split off radial parts of the grid and one that cuts off the reference
+bus). Their outcomes agreed case by case (§4.1), their 4,618,282-entry
+violation tables were identical (§4.3), and their flows differed in only three
+cases, by at most 0.065 MVA (§4.2). The matrix did not include dc pole
+outages. An earlier validation study of the private case did: 2,010 cases,
+including every pole outage and every outage within three buses of a
+converter. Every CPU re-solve of its 1,655 GPU cases agreed in status and
+PV/PQ sets, and the tables agreed with the CPU path within one printed digit
+except in two cases whose dc change tied `hvdcTolerance`
+(`WECC_COMPATIBILITY.md` §8.5).
+
+### 5.3 The same program ran the bundled networks and ran without a GPU
+
+Before the matrix, the program was run on all 31 RAW files bundled with
+GridPACK (PSS/E versions 23 to 36), a generated 240-bus network with three
+dc lines and distributed generation, Memphis, Texas7k and ACTIVSg10k, with
+full branch, generator and dc pole outage lists and a CPU re-solve of every
+GPU case. All 70 studies (35 networks, both GPU methods) passed every
+comparison (02-methodology §4.8). One file, IEEE145, needed reactive limits
+off, because with them its base case diverges on every version, stock
+included (`validation.md`).
+
+The same executable runs where no GPU is present. Its build without GPU
+support passed all 121 of GridPACK's tests at the time of the validation
+record, and `ca.x` has no CUDA or cuDSS dependency. Container images built
+from the branch fell back to the CPU loop when run without GPU access (GPU
+image) and without the GPU plugins (CPU image). The merged branch with GPU
+support passes 145 of GridPACK's 150 tests: four Parquet tests are skipped
+for want of the library, and one existing test fails in teardown when the
+container has GPU access, as it also does, by hanging, on the unmodified
+base; it passes without GPU access (`validation.md`).
+
+Three portability checks of the architecture guide
+(`docs/gpu_n1/architecture/`) remain open because the hardware was not
+available: a second Arm and NVIDIA system, a second
+operating-system release, and an x86-64 image. No discrete GPU was tested.
+
+## 6. Discussion
+
+This section interprets the findings of Sections 3 to 5. Statements here
 are explanations consistent with the measurements, not separate
 measurements, unless a number is given with its source.
 
-### 5.1 Why whole-study speedups are smaller than kernel speedups
+### 6.1 Why whole-study speedups are smaller than kernel speedups
 
 Zhou et al. report 0.33 ms per 9,241-bus linear system at batch 128 and 0.31
 ms from batch 512 on a K40 (4977); the letter does not say whether that time
 includes the triangular solves. On the GB10, one factorization and solve of
 512 ACTIVSg10k Jacobians (20,000 rows) took 110 ms in isolated timings,
-about 0.21 ms per case (02-methodology §7), so the batched linear algebra
+about 0.21 ms per case (02-methodology §3.5), so the batched linear algebra
 here is in the same efficiency class on newer hardware. Whole studies gained
 9 times over stock, not 100 times, because the solve was only part of a
 stock study.
@@ -921,44 +972,43 @@ ACTIVSg10k 318.2 / (318.2 − 181.6) = 2.33). The same bound for the optimized
 CPU path is 3.99–4.56. The GPU paths exceeded the optimized CPU bound (6.81
 times on ACTIVSg10k against 4.56) only because known-topology reporting also
 removed most of the apply and restore work. The reporting changes of
-02-methodology §4.1, §4.2 and §5.7 were therefore needed for the GPU to
-matter; without them the GPU could not have made a stock study more than
-about 2.3 times faster.
+02-methodology §3.7 were therefore required: without them the GPU could not
+have made a stock study more than about 2.3 times faster.
 
-### 5.2 Why fill decides between Alg 2 and cuDSS
+### 6.2 Why fill decides between Alg 2 and cuDSS
 
 Alg 2 performs every multiply-add of the factorization as a separate update
 by one thread per case, and runs one launch per dependency level
-(02-methodology §6), so its time should follow the amount of arithmetic.
+(02-methodology §3.5), so its time should follow the amount of arithmetic.
 Measured per multiply-add and per case, Alg 2's factorization took 0.21–0.40
 ns on the six public networks above 5,000 buses (`figures/gpu.csv`). cuDSS's
 documentation does not describe its kernels, but its gain on dense factors
 fits library kernels that work on dense blocks of the factors (supernodes),
 which only appear when fill is high, and its loss on sparse factors fits a
 fixed cost per step (including the two value transposes of 02-methodology
-§7) that is large next to a small factorization. The private case shows the
+§3.5) that is large next to a small factorization. The private case shows the
 second effect at its strongest: its factors are the sparsest (ratio 1.34),
 and cuDSS took 3.2 times as long to factorize and 5.7 times as long to
 solve. Testing this explanation would need cuDSS's internal timings, which
 the library does not expose.
 
-### 5.3 Why the optimized CPU path differs from stock by rounding and 1–3% in solve time
+### 6.3 Why the optimized CPU path differs from stock by rounding and 1–3% in solve time
 
 The optimized build's solve was 1.2–3.4% slower than stock's, and on Memphis
-case 1068 its Newton trace first differed from stock's in the seventh digit
-at step 13. Both are consistent with the changes this branch makes to
-GridPACK's per-bus routines: the run-time Jacobian-layout check that
-replaced a compile-time switch (02-methodology §4.3), and the distributed
-generation and dc converter terms now added into every bus's fixed demand
-(§4.5), which change the order of floating-point additions even when the
-added terms are zero. Neither cause was isolated.
+case 1068 its Newton trace first differed from stock's in the seventh digit at
+step 13. Both are consistent with the changes the modified program makes to
+GridPACK's per-bus routines: the run-time Jacobian-layout check that replaced
+a compile-time switch (02-methodology §2.3), and the distributed generation
+and dc converter terms now added into every bus's fixed demand (02-methodology
+§5.2), which change the order of floating-point additions even when the added
+terms are zero. Neither cause was isolated.
 
-### 5.4 What limits the GPU paths now
+### 6.4 What limits the GPU paths now
 
 At 16 processes the solve proper is under 3% of a GPU-path study, row
 writing is 30–44%, and on the 25,000-bus networks the merge is another
-25–31%. Further speed must therefore come from reporting and
-output. Three directions follow from the measurements, none tried here:
+25–31%. Further speed must therefore come from reporting and output. Three
+directions follow from the measurements, none tried here:
 
 - **A smaller first chunk.** A first chunk of one batch instead of four, or
   results handed over batch by batch, would remove most of the first cause
@@ -967,18 +1017,19 @@ output. Three directions follow from the measurements, none tried here:
   per row and would raise reporting's share further. A single ordered text
   table must be written twice, once as part files during the loop and once
   merged, which is why the merge grows to a quarter or more of a study at
-  25,000 buses; the Parquet output (02-methodology §4.3) avoids the text
+  25,000 buses; the Parquet output (02-methodology §5.4) avoids the text
   table altogether.
 - **Flows on the GPU.** Computing branch flows and violations on the GPU
-  would remove most of the reporting, but would give up the property that
-  GridPACK computes every reported value (02-methodology §5.7).
+  would remove most of the reporting, but every reported value would then
+  come from new code that must match the existing checks and writers
+  (02-methodology §4.5).
 
-### 5.5 Choosing settings
+### 6.5 Choosing settings
 
 - **Factorization method.** Choosing Alg 2 below a fill-in ratio of 2.2 and
   cuDSS above it would have picked the faster factorization on all nine
-  networks (§3.7); near 2.2 the two are within 4%. The present automatic choice times both methods at
-  start-up instead (02-methodology §5.6).
+  networks (§3.6); near 2.2 the two are within 4%. The present automatic
+  choice times both methods at start-up instead (02-methodology §3.6).
 - **Process count.** The GPU paths reached their best wall time at 16 to 20
   processes on networks above 5,000 buses and at 8 or 16 on the two small
   ones (§3.4); the default of 16 on 20 cores is close to best everywhere.
@@ -987,7 +1038,7 @@ output. Three directions follow from the measurements, none tried here:
   batch 2,048 had a faster engine (71.5 s against 92.5 s) but a slower study
   (146.2 s against 133.7 s) than at 512 (`docs/gpu_n1/validation.md`).
 
-### 5.6 Why a nearly singular case stalls
+### 6.6 Why a nearly singular case stalls
 
 A Newton step solves for the correction along every direction at once. In a
 direction where the power balance barely changes (in matrix terms, where the
@@ -996,48 +1047,61 @@ so the mismatch jumps around instead of shrinking. Memphis case 1068 is such
 a case: with no voltage control in the region the outage leaves behind and a
 surplus of reactive power from the lines' charging, the region's voltage
 level is only weakly fixed by the power balance (§4.4). That is the stalling
-seen in Table 14, and it is why the step at which the mismatch happens to
+seen in Table 13, and it is why the step at which the mismatch happens to
 dip below 1e-4, and therefore the reported state, depends on rounding. A
 case that needs 44–50 steps instead of two is close to having no
 well-defined solution, and a convergence check that looked at the trend of
 the mismatch, not only its last value, would flag it on every version.
 
-## 6. Summary of trends
+## 7. Summary of trends
 
-1. **Reporting was the hidden cost of stock GridPACK.** About a third of a
-   stock study is spent building and writing table rows; removing that is
-   all of the optimized CPU path's 1.3–1.6× speedup.
-2. **The GPU removes the solve, and reporting becomes the limit.** At 16
-   processes the solve proper is under 3% of a GPU-path study; row writing
-   is 30–44%, and at 25,000 buses the merge of the final table another
-   quarter to a third. Further speed must come from reporting and output, not from
-   the GPU.
-3. **The GPU paths' waiting is real idle time, not missing timers.**
-   Measured directly, it is processes with no GPU result to report: at the
-   start, until the first chunk of 2,048 cases is finished (all of the GPU
-   work on the two small networks), and wherever the GPU is slower than the
-   reporting (Texas7k, MIOHIN). Their start-up is MPI launch and exit (about
-   1 s, as on the CPU paths) plus 0.45 s of GPU start-up and 0.03–0.5 s of
-   preparation.
-4. **Speedup grows with network size and shrinks with process count.** Small
-   networks (under 2,000 buses) gain at most 3.7×; networks of 5,000–25,000
-   buses gain 6–10× over stock. More processes help stock more than the GPU
-   paths, because the GPU's work and the fixed start-up do not divide among
-   them; on the two small networks the GPU paths even slow down, because
-   launching more processes costs more than they save.
-5. **Alg 2 and cuDSS are close in practice; fill decides the winner.** Their
-   wall times are within 4% on six of the seven networks above 5,000 buses.
-   Alg 2 factorizes faster on all four networks whose fill-in ratio is 2.18
-   or less, cuDSS on all five with 2.20 or more.
-6. **Answers are the same.** Apart from one ill-conditioned Memphis case,
-   every version gives every case the same outcome and the same violation
-   table, and flows and voltages agree with the optimized CPU path to one
-   printed digit (0.0001) on the public networks above 1,000 buses except one
-   case on training, within the solver tolerance on Memphis (Alg 2) and on
-   that training case, and within 0.065 MVA and 0.0005 per unit on the 1.04
-   billion rows of the private case.
+Speed:
 
-## 7. Limits of these measurements
+1. **Reporting was a third of a stock study.** Building and writing table
+   rows took 29–33% of a stock study above 5,000 buses. Building rows from
+   numbers accounted for 90–98% of the optimized CPU path's saving (a 1.3–1.6×
+   speedup), and the parallel merge for most of the rest.
+2. **Once the solve moved to the GPU, reporting set the runtime.** At 16
+   processes the solve proper was under 3% of a GPU-path study; row writing
+   was 30–44%, and at 25,000 buses the merge of the final table another
+   quarter to a third. Further speed must come from reporting and output.
+3. **The GPU paths' waiting was measured idle time.** It is processes with
+   no GPU result to report: at the start, until the first chunk of 2,048
+   cases is finished (all of the GPU work on the two small networks), and
+   wherever the GPU is slower than the reporting (Texas7k, MIOHIN). Start-up
+   is MPI launch and exit (about 1 s, as on the CPU paths) plus 0.45 s of
+   GPU start-up and 0.03–0.5 s of preparation.
+4. **Speedup grew with network size and shrank with process count.** Small
+   networks (under 2,000 buses) gained at most 3.7× over stock (Wisconsin at 8
+   processes); networks of 5,000–25,000 buses gained 6–10×. More processes
+   helped stock more than the GPU paths, because the GPU's work and the fixed
+   start-up do not divide among them; on the two small networks the GPU paths
+   slowed down, because launching more processes cost more than it saved.
+5. **Alg 2 and cuDSS were within 4% in wall time on six of the seven networks
+   above 5,000 buses.** Alg 2 factorized faster on all four networks whose
+   fill-in ratio is 2.18 or less, cuDSS on all five with 2.20 or more.
+
+Accuracy:
+
+6. **The answers were the same.** Apart from one ill-conditioned Memphis
+   case, every version gave every case the same outcome and the same
+   violation table. Flows and voltages agreed with the optimized CPU path to
+   one printed digit (0.0001) on the public networks above 1,000 buses
+   except one training case, which the CPU paths stopped just inside the
+   tolerance; within the solver tolerance on Memphis with Alg 2 (at most
+   0.012 MVAr); and within 0.065 MVA and 0.0005 per unit on the 1.04 billion
+   rows of the private case.
+
+Compatibility:
+
+7. **Every case received an outcome.** 95–99.9% of the public networks'
+   cases and 81% of the private case's ran on the GPU; the rest were islanded
+   outages and a few cases the classifier sends to the CPU, which received
+   the CPU path's result. The same executable ran the 31 networks bundled
+   with GridPACK and ran without a GPU. It also solved a PSS/E v34 planning
+   case on which stock GridPACK aborted.
+
+## 8. Limits of these measurements
 
 - **One machine.** The GB10 shares memory between CPU and GPU; a discrete
   GPU would add transfer costs for every chunk's inputs and results, and a
@@ -1045,11 +1109,10 @@ the mismatch, not only its last value, would flag it on every version.
   (§3.4). The speedups are for the same machine, not for equal hardware
   cost.
 - **Few repeats.** Two runs per study, one for the three networks above 10
-  MB. Run-to-run
-  differences were about 1% (§3.1), small next to the effects reported; the
-  largest spread, 13%, was on a 5-second study.
+  MB. Run-to-run differences were about 1% (§3.1), small next to the effects
+  reported; the largest spread, 13%, was on a 5-second study.
 - **One input configuration.** Studies with switched shunts, tap changers or
-  area interchange run entirely on the CPU path (02-methodology §5.2) and
+  area interchange run entirely on the CPU path (02-methodology §5.3) and
   were not measured. dc pole outages were not in the list. The `csv_delta`
   output writes twice the bytes per row and would raise reporting's share
   further.
@@ -1057,20 +1120,20 @@ the mismatch, not only its last value, would flag it on every version.
   case and the CPU paths from the file; this changes step counts slightly
   (§4.1), as it would in use, and moves results by up to the tolerance on
   cases with several controller passes (§4.2).
-- **Nine networks.** The fill-in crossover of §3.7 rests on nine points, two
+- **Nine networks.** The fill-in crossover of §3.6 rests on nine points, two
   of them exports of the same grid. ACTIVSg70k was not run (§2.2), so the
   private case is the only network above 25,001 buses, and its results can
   be reported only in aggregate.
 - **cuDSS 0.8.0's uniform batch has acknowledged defects** that can return
   NaN for some members, depending on batch size and on unrelated device
-  memory (02-methodology §7). The design catches such members and solves
+  memory (02-methodology §4.4). The design catches such members and solves
   them on the CPU, and cuDSS flagged no more cases than Alg 2 here, but the
   cuDSS timings could change with a corrected release.
 - **The accuracy reference is the optimized CPU path,** not a second
   modelling package. A modelling error shared by GridPACK and the GPU
   engine, which reproduces GridPACK's equations, would not show here.
 
-## 8. Reproducing these numbers
+## 9. Reproducing these numbers
 
 ```sh
 tools/ca_matrix/build.sh                       # both programs, release builds
